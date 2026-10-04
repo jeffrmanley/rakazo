@@ -41,6 +41,27 @@ describe("loadEnv", () => {
     expect(env.wakeupDriver).toBe("memory");
   });
 
+  it("loads Microsoft Teams credentials with trim and empty-to-undefined", () => {
+    expect(loadEnv(base)).toMatchObject({
+      teamsAppId: undefined,
+      teamsAppPassword: undefined,
+      teamsAppTenantId: undefined,
+    });
+    expect(
+      loadEnv({
+        ...base,
+        TEAMS_APP_ID: " test-app-id ",
+        TEAMS_APP_PASSWORD: " test-app-password ",
+        TEAMS_APP_TENANT_ID: " test-tenant-id ",
+      }),
+    ).toMatchObject({
+      teamsAppId: "test-app-id",
+      teamsAppPassword: "test-app-password",
+      teamsAppTenantId: "test-tenant-id",
+    });
+    expect(loadEnv({ ...base, TEAMS_APP_TENANT_ID: "  " }).teamsAppTenantId).toBeUndefined();
+  });
+
   it("loads an optional integrations catalog mirror", () => {
     expect(loadEnv(base).integrationsCatalogUrl).toBeUndefined();
     expect(

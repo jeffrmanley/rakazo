@@ -12,6 +12,7 @@ import {
   canReactToThreadMessage,
   McpServerConfigInput,
   MessageBlock,
+  MessagingStatusSchema,
   ModelConnectInputSchema,
   ModelOAuthBeginSchema,
   normalizeCreateBotProfile,
@@ -494,5 +495,32 @@ describe("contracts", () => {
         data: rows.slice(0, 2_501),
       }).success,
     ).toBe(false);
+  });
+
+  it("carries the teams messaging provider through status and routine triggers", () => {
+    expect(
+      MessagingStatusSchema.parse({
+        enabled: true,
+        providers: ["slack", "teams"],
+        openSignup: false,
+        identities: [
+          {
+            id: "mi-1",
+            provider: "teams",
+            address: "29:test-user",
+            botId: "bot-1",
+            botName: "Chief",
+          },
+        ],
+      }),
+    ).toMatchObject({ providers: ["slack", "teams"], identities: [{ provider: "teams" }] });
+    expect(
+      CreateRoutineInput.parse({
+        botId: "bot-1",
+        name: "Triage Teams",
+        prompt: "Review the message event",
+        messageProvider: "teams",
+      }),
+    ).toMatchObject({ messageProvider: "teams" });
   });
 });

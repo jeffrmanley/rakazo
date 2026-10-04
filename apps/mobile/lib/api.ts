@@ -1015,6 +1015,7 @@ const MESSAGING_PROVIDER_LABELS: Record<string, string> = {
   whatsapp: "WhatsApp",
   telegram: "Telegram",
   lark: "Feishu",
+  teams: "Microsoft Teams",
 };
 
 export function messagingProviderLabel(provider: string, transport?: string): string {

@@ -37,6 +37,17 @@ describe("team chat startup helpers", () => {
     expect(prefersTeamChatSurface(message(), undefined)).toBe(false);
   });
 
+  it("keeps Teams direct messages off the Slack-bound team-chat bridge", () => {
+    // TeamChatBridge is keyed to the slack provider; Teams events carry no
+    // workspace id so they stay on the personal-line path.
+    expect(
+      prefersTeamChatSurface(
+        message({ provider: "teams", workspaceId: undefined, threadId: "teams:a:b" }),
+        "bot-1",
+      ),
+    ).toBe(false);
+  });
+
   it("settles buffered TeamChat inbound only after the bridge receives it", async () => {
     const pending = new PendingTeamChatInbound(2);
     const first = pending.enqueue(message({ handle: "Ev-1" }));

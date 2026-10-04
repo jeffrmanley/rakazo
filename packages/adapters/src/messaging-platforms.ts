@@ -1,8 +1,10 @@
 import { createSlackAdapter } from "@chat-adapter/slack";
+import { createTeamsAdapter } from "@chat-adapter/teams";
 import { createTelegramAdapter } from "@chat-adapter/telegram";
 import { createWhatsAppAdapter } from "@chat-adapter/whatsapp";
 import type { MessagingInboundMessage, MessagingOutboundStatus } from "@rakazo/adapter-kit";
-import type { Adapter } from "chat";
+import { getLogger } from "@rakazo/logging";
+import type { Adapter, WebhookOptions } from "chat";
 import { createLarkAdapter, Domain } from "chat-adapter-lark";
 import { createSendblueAdapter } from "chat-adapter-sendblue";
 import type { MessagingPlatform } from "./chat-sdk-surface.js";
@@ -30,6 +32,9 @@ export interface MessagingEnvironmentValues {
   larkVerificationToken?: string | undefined;
   larkEncryptKey?: string | undefined;
   larkDomain?: string | undefined;
+  teamsAppId?: string | undefined;
+  teamsAppPassword?: string | undefined;
+  teamsAppTenantId?: string | undefined;
 }
 
 export function messagingEnvFromProcess(
@@ -56,6 +61,9 @@ export function messagingEnvFromProcess(
     larkVerificationToken: clean(env.LARK_VERIFICATION_TOKEN),
     larkEncryptKey: clean(env.LARK_ENCRYPT_KEY),
     larkDomain: clean(env.LARK_DOMAIN),
+    teamsAppId: clean(env.TEAMS_APP_ID),
+    teamsAppPassword: clean(env.TEAMS_APP_PASSWORD),
+    teamsAppTenantId: clean(env.TEAMS_APP_TENANT_ID),
   };
 }
 
@@ -194,7 +202,146 @@ export function messagingPlatformsFromEnv(
     });
   }
 
+  // App ID, password, and tenant are all required: the Bot Framework token
+  // proves the request came from Bot Connector for this app but not which
+  // directory sent it, so the tenant is what pins the bot to one tenant.
+  // Channels and group chats stay off until team chat is per-provider
+  // (TeamChatBridge is keyed to slack), so they cannot half-work.
+  if (env.teamsAppId && env.teamsAppPassword && env.teamsAppTenantId) {
+    platforms.push({
+      provider: "teams",
+      capabilities: { direct: true, groups: false, typing: false },
+      adapter: createSingleTenantTeamsAdapter({
+        appId: env.teamsAppId,
+        appPassword: env.teamsAppPassword,
+        tenantId: env.teamsAppTenantId,
+      }),
+    });
+  }
+
   return platforms;
+}
+
+/** Runtime state of the pinned Teams SDK that inbound authentication depends on. */
+interface TeamsSdkAuthState {
+  app?: {
+    credentials?: { clientId?: string; tenantId?: string };
+    server?: { dangerouslyAllowUnauthenticatedRequests?: boolean };
+  };
+}
+
+/**
+ * Single-tenant Teams adapter. Credentials are passed explicitly so neither
+ * the adapter (TEAMS_*) nor the Teams SDK (CLIENT_ID / CLIENT_SECRET /
+ * TENANT_ID) rereads untrimmed or unrelated process.env values.
+ */
+function createSingleTenantTeamsAdapter(config: {
+  appId: string;
+  appPassword: string;
+  tenantId: string;
+}): Adapter {
+  const adapter = createTeamsAdapter({
+    appType: "SingleTenant",
+    appId: config.appId,
+    appPassword: config.appPassword,
+    appTenantId: config.tenantId,
+  });
+  // @microsoft/teams.apps skips Bot Framework JWT validation when
+  // DANGEROUSLY_ALLOW_UNAUTHENTICATED_REQUESTS is set, and the Chat SDK
+  // adapter cannot override that. Check what the SDK actually built and
+  // refuse to mount an unauthenticated webhook.
+  const sdk = (adapter as unknown as TeamsSdkAuthState).app;
+  if (sdk?.server?.dangerouslyAllowUnauthenticatedRequests !== false) {
+    throw new Error(
+      "Microsoft Teams messaging would accept unauthenticated webhooks; unset DANGEROUSLY_ALLOW_UNAUTHENTICATED_REQUESTS",
+    );
+  }
+  if (
+    !sameTeamsId(sdk.credentials?.clientId, config.appId) ||
+    !sameTeamsId(sdk.credentials?.tenantId, config.tenantId)
+  ) {
+    throw new Error("Microsoft Teams messaging did not resolve the configured app and tenant");
+  }
+  const handleWebhook = adapter.handleWebhook.bind(adapter);
+  Object.assign(adapter, {
+    // Runs before, never instead of, the SDK's JWT validation: a request is
+    // accepted only when it passes both.
+    handleWebhook: async (request: Request, options?: WebhookOptions) => {
+      const body = await request.text();
+      const rejection = teamsTenantRejection(
+        body,
+        request.headers.get("authorization"),
+        config.tenantId,
+      );
+      if (rejection) {
+        getLogger().warn("teams webhook rejected", {
+          "messaging.provider": "teams",
+          "messaging.reject_reason": rejection.reason,
+          ...(rejection.claimed
+            ? { "teams.claimed_tenant_suffix": rejection.claimed.slice(-4) }
+            : {}),
+        });
+        return new Response("Forbidden", { status: 403 });
+      }
+      return handleWebhook(
+        new Request(request.url, { method: request.method, headers: request.headers, body }),
+        options,
+      );
+    },
+  } satisfies Pick<Adapter, "handleWebhook">);
+  return adapter;
+}
+
+/**
+ * Why a Teams activity is outside the configured tenant, or null when it is
+ * inside. Teams stamps the tenant on conversation.tenantId and
+ * channelData.tenant.id; both must match when present and at least one must
+ * be. Entra-issued (agentic) tokens also carry a tid that must match — its
+ * signature is verified by the SDK right after this check.
+ */
+function teamsTenantRejection(
+  body: string,
+  authorization: string | null,
+  tenantId: string,
+): { reason: string; claimed?: string } | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return { reason: "invalid_body" };
+  }
+  const activity = asRecord(parsed);
+  if (!activity) return { reason: "invalid_body" };
+  const conversation = asRecord(activity.conversation) ?? {};
+  const tenant = asRecord(asRecord(activity.channelData)?.tenant) ?? {};
+  const claims = [stringField(conversation, "tenantId"), stringField(tenant, "id")];
+  if (!claims.some(Boolean)) return { reason: "missing_tenant" };
+  for (const claimed of claims) {
+    if (claimed && !sameTeamsId(claimed, tenantId)) return { reason: "tenant_mismatch", claimed };
+  }
+  const tokenTenant = unverifiedTokenTenant(authorization);
+  if (tokenTenant && !sameTeamsId(tokenTenant, tenantId)) {
+    return { reason: "token_tenant_mismatch", claimed: tokenTenant };
+  }
+  return null;
+}
+
+/** The bearer token's unverified tid claim, if any. */
+function unverifiedTokenTenant(authorization: string | null): string | undefined {
+  const token = authorization?.startsWith("Bearer ") ? authorization.slice(7) : authorization;
+  const payload = token?.split(".")[1];
+  if (!payload) return undefined;
+  try {
+    const claims = asRecord(JSON.parse(Buffer.from(payload, "base64url").toString("utf8")));
+    return claims ? stringField(claims, "tid") : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Entra GUID casing differs between configuration and Teams payloads. */
+function sameTeamsId(value: string | undefined, expected: string): boolean {
+  return value !== undefined && value.toLowerCase() === expected.toLowerCase();
 }
 
 /** Never live under the test runner; tests build surfaces explicitly. */

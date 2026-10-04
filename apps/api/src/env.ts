@@ -84,6 +84,9 @@ export interface AppEnv {
   larkVerificationToken: string | undefined;
   larkEncryptKey: string | undefined;
   larkDomain: string | undefined;
+  teamsAppId: string | undefined;
+  teamsAppPassword: string | undefined;
+  teamsAppTenantId: string | undefined;
   /** Unknown chat senders auto-provision their own accounts when true. */
   messagingOpenSignup: boolean;
   /** Bot that owns team/external chat rooms on the messaging surface. */
@@ -223,6 +226,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     larkVerificationToken: optional(source.LARK_VERIFICATION_TOKEN),
     larkEncryptKey: optional(source.LARK_ENCRYPT_KEY),
     larkDomain: optional(source.LARK_DOMAIN),
+    teamsAppId: optional(source.TEAMS_APP_ID),
+    teamsAppPassword: optional(source.TEAMS_APP_PASSWORD),
+    teamsAppTenantId: optional(source.TEAMS_APP_TENANT_ID),
     messagingOpenSignup: source.MESSAGING_OPEN_SIGNUP === "true",
     teamChatBotId: optional(source.TEAM_CHAT_BOT_ID) ?? optional(source.SLACK_RAKAZO_BOT_ID),
     teamChatJudgeProvider: optional(source.TEAM_CHAT_JUDGE_PROVIDER),

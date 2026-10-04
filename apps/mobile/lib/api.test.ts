@@ -19,6 +19,7 @@ import {
   MAX_MOBILE_AUTH_RESPONSE_BYTES,
   MAX_MOBILE_RPC_RESPONSE_BYTES,
   mergeMobileSnapshot,
+  messagingProviderLabel,
   mobileThreadRefreshResult,
   passwordResetCapabilities,
   prependMobileMessagePage,
@@ -3134,4 +3135,11 @@ it("localizes non-JSON successful account-security responses", async () => {
     vi.fn(async () => new Response("<html>Gateway error</html>")),
   );
   await expect(fetchAccountSecurity()).rejects.toThrow("Could not load sign-in options");
+});
+
+describe("messagingProviderLabel", () => {
+  it("names Microsoft Teams", () => {
+    expect(messagingProviderLabel("teams")).toBe("Microsoft Teams");
+    expect(messagingProviderLabel("lark")).toBe("Feishu");
+  });
 });

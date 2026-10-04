@@ -14,6 +14,7 @@
     "@asciidev/box-sdk": "0.0.34",
     "@chat-adapter/slack": "4.40.0",
     "@chat-adapter/state-memory": "4.40.0",
+    "@chat-adapter/teams": "4.40.0",
     "@chat-adapter/telegram": "4.40.0",
     "@chat-adapter/whatsapp": "4.40.0",
     "@composio/core": "0.18.1",

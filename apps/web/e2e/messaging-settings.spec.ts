@@ -21,7 +21,7 @@ test("Korean messaging settings show linked chat apps, channels, and connections
       body: JSON.stringify({
         json: {
           enabled: true,
-          providers: ["sendblue", "slack", "whatsapp", "telegram", "lark"],
+          providers: ["sendblue", "slack", "whatsapp", "telegram", "lark", "teams"],
           openSignup: false,
           identities: [
             {
@@ -93,7 +93,9 @@ test("Korean messaging settings show linked chat apps, channels, and connections
   await page.getByRole("button", { name: "메시징 설정 관리" }).click();
 
   await expect(page.getByTestId("messaging-settings")).toBeVisible();
-  await expect(page.getByText("iMessage · Slack · WhatsApp · Telegram · Feishu")).toBeVisible();
+  await expect(
+    page.getByText("iMessage · Slack · WhatsApp · Telegram · Feishu · Microsoft Teams"),
+  ).toBeVisible();
   await expect(page.getByText("iMessage · +15551230001")).toBeVisible();
   await expect(page.getByText("→ Chief")).toBeVisible();
   await expect(page.getByRole("button", { name: "연결 해제" })).toBeVisible();

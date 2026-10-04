@@ -27,7 +27,24 @@ const fullEnv: MessagingEnvironmentValues = {
   larkAppId: "cli-fake",
   larkAppSecret: "lark-secret",
   larkVerificationToken: "lark-verify",
+  teamsAppId: "00000000-0000-4000-8000-0000000000a1",
+  teamsAppPassword: "teams-app-password",
+  teamsAppTenantId: "00000000-0000-4000-8000-0000000000b2",
 };
+
+const teamsEnv: MessagingEnvironmentValues = {
+  teamsAppId: fullEnv.teamsAppId,
+  teamsAppPassword: fullEnv.teamsAppPassword,
+  teamsAppTenantId: fullEnv.teamsAppTenantId,
+};
+
+interface TeamsInternals {
+  config: { appType?: string; appId?: string; appTenantId?: string };
+  app: {
+    credentials?: { clientId: string; tenantId?: string };
+    server: { dangerouslyAllowUnauthenticatedRequests: boolean };
+  };
+}
 
 function providers(env: MessagingEnvironmentValues): string[] {
   return messagingPlatformsFromEnv(env).map((platform) => platform.provider);
@@ -36,7 +53,14 @@ function providers(env: MessagingEnvironmentValues): string[] {
 describe("messagingPlatformsFromEnv", () => {
   it("mounts nothing without credentials and everything with full credentials", () => {
     expect(providers({})).toEqual([]);
-    expect(providers(fullEnv)).toEqual(["sendblue", "slack", "whatsapp", "telegram", "lark"]);
+    expect(providers(fullEnv)).toEqual([
+      "sendblue",
+      "slack",
+      "whatsapp",
+      "telegram",
+      "lark",
+      "teams",
+    ]);
   });
 
   it("requires all four sendblue values", () => {
@@ -82,6 +106,88 @@ describe("messagingPlatformsFromEnv", () => {
         larkVerificationToken: "lark-verify",
       }),
     ).toEqual(["lark"]);
+    // App id, password, and tenant are all mount gates: without the tenant
+    // the bot could not be restricted to one directory.
+    for (const key of ["teamsAppId", "teamsAppPassword", "teamsAppTenantId"] as const) {
+      expect(providers({ ...fullEnv, [key]: undefined })).not.toContain("teams");
+      expect(providers({ ...teamsEnv, [key]: undefined })).toEqual([]);
+    }
+    expect(providers(teamsEnv)).toEqual(["teams"]);
+  });
+
+  it("builds Teams as a single-tenant bot from explicit credentials only", () => {
+    // The Teams SDK falls back to generic CLIENT_* / TENANT_ID env; explicit
+    // values must win so an unrelated variable cannot retarget the bot.
+    vi.stubEnv("CLIENT_ID", "unrelated-client");
+    vi.stubEnv("CLIENT_SECRET", "unrelated-secret");
+    vi.stubEnv("TENANT_ID", "unrelated-tenant");
+    vi.stubEnv("TEAMS_APP_TENANT_ID", "unrelated-teams-tenant");
+    try {
+      const teams = messagingPlatformsFromEnv(teamsEnv)[0]!;
+      const internals = teams.adapter as unknown as TeamsInternals;
+      expect(internals.config).toMatchObject({
+        appType: "SingleTenant",
+        appId: teamsEnv.teamsAppId,
+        appTenantId: teamsEnv.teamsAppTenantId,
+      });
+      expect(internals.app.credentials).toMatchObject({
+        clientId: teamsEnv.teamsAppId,
+        tenantId: teamsEnv.teamsAppTenantId,
+      });
+      expect(internals.app.server.dangerouslyAllowUnauthenticatedRequests).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it.each(["true", "1", "yes", "on"])(
+    "refuses to mount Teams when the SDK would skip JWT validation (%s)",
+    (value) => {
+      vi.stubEnv("DANGEROUSLY_ALLOW_UNAUTHENTICATED_REQUESTS", value);
+      try {
+        expect(() => messagingPlatformsFromEnv(teamsEnv)).toThrow(/unauthenticated/i);
+        // Other platforms are unaffected when Teams is not configured.
+        expect(
+          providers({ larkAppId: "a", larkAppSecret: "b", larkVerificationToken: "c" }),
+        ).toEqual(["lark"]);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    },
+  );
+
+  it("mounts Teams when the SDK unauthenticated switch is explicitly off", () => {
+    vi.stubEnv("DANGEROUSLY_ALLOW_UNAUTHENTICATED_REQUESTS", "false");
+    try {
+      expect(providers(teamsEnv)).toEqual(["teams"]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("maps TEAMS_* process env with trim and empty-to-undefined", () => {
+    expect(
+      messagingEnvFromProcess({
+        TEAMS_APP_ID: " app-id ",
+        TEAMS_APP_PASSWORD: " app-password ",
+        TEAMS_APP_TENANT_ID: " tenant-id ",
+      }),
+    ).toMatchObject({
+      teamsAppId: "app-id",
+      teamsAppPassword: "app-password",
+      teamsAppTenantId: "tenant-id",
+    });
+    expect(
+      messagingEnvFromProcess({
+        TEAMS_APP_ID: "  ",
+        TEAMS_APP_PASSWORD: "",
+        TEAMS_APP_TENANT_ID: " ",
+      }),
+    ).toMatchObject({
+      teamsAppId: undefined,
+      teamsAppPassword: undefined,
+      teamsAppTenantId: undefined,
+    });
   });
 
   it("forces Telegram into webhook mode so worker initialize cannot long-poll", () => {
@@ -166,6 +272,8 @@ describe("messagingPlatformsFromEnv", () => {
     expect(capabilities.whatsapp).toEqual({ direct: true, groups: false, typing: false });
     expect(capabilities.telegram).toEqual({ direct: true, groups: false, typing: false });
     expect(capabilities.lark).toEqual({ direct: true, groups: false, typing: false });
+    // Teams channels/group chats stay off until team chat is per-provider.
+    expect(capabilities.teams).toEqual({ direct: true, groups: false, typing: false });
   });
 });
 
