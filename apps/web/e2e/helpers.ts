@@ -50,6 +50,9 @@ export async function completeOnboarding(page: Page, testInfo?: TestInfo) {
   }
 }
 
+/** Product name the web build was made with (PUBLIC_BRAND_NAME), upstream's by default. */
+export const BRAND_NAME = process.env.PUBLIC_BRAND_NAME?.trim() || "Rakazo";
+
 export async function signup(
   page: Page,
   email: string,
@@ -58,7 +61,7 @@ export async function signup(
   testInfo?: TestInfo,
 ) {
   await page.goto("/sign-up");
-  await expect(page.getByRole("heading", { name: "Create your Rakazo" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: `Create your ${BRAND_NAME}` })).toBeVisible();
   if (testInfo) await captureScreenshot(page, testInfo, "01-sign-up");
   await page.getByPlaceholder("Your name").fill(name);
   await page.getByPlaceholder("Your email address").fill(email);

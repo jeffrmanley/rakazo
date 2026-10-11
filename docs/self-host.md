@@ -408,6 +408,19 @@ Teams reaches bots in 1:1 chats through the personal line (link codes, replies, 
 
 Leave `DANGEROUSLY_ALLOW_UNAUTHENTICATED_REQUESTS` unset. The Teams SDK reads that variable and would skip Bot Framework token validation, so Rakazo refuses to start Teams while it is set. Avoid `LOG_LEVEL=debug` in production: at that level the Teams SDK logs inbound activity bodies.
 
+## White-label branding
+
+A deployment can present itself under its own name. Everything defaults to the upstream product, so an unset configuration changes nothing.
+
+| Variable | Effect |
+| --- | --- |
+| `PUBLIC_BRAND_NAME` | Replaces every user-visible "Rakazo": the browser tab title, PWA manifest, sign-in, onboarding and settings screens, emails, and chat-app replies. |
+| `PUBLIC_BRAND_SHORT_NAME` | Manifest `short_name` (home-screen label). Defaults to the brand name. |
+| `PUBLIC_BRAND_TAGLINE` | Manifest description and the welcome screen line under the name. |
+| `PUBLIC_BRAND_ASSETS_DIR` | Directory of replacement `favicon.ico`, `favicon.png`, `favicon-16x16.png`, `favicon-32x32.png`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`. Files missing there keep the defaults. |
+
+The web app reads these at build time (`pnpm --filter @rakazo/web build`, or the dev server), the API at start (emails, messaging replies). Package names, environment variables, logs and internal identifiers keep their upstream names, and the code stays under `LICENSE` (Apache-2.0). A white-labelled build shows a "Built on Rakazo (Apache-2.0)" line with a link to the upstream repository at the bottom of **Settings → General**; `FORK_CHANGES.md` lists the files a fork changed, as Apache-2.0 section 4(b) asks. The web E2E suite checks that an upstream build is unchanged and that a build made with `PUBLIC_BRAND_NAME` set shows the upstream name nowhere but that credit (`apps/web/e2e/branding.spec.ts`): run `pnpm test:e2e -- --spec=e2e/branding.spec.ts` once as is and once with `PUBLIC_BRAND_NAME` exported. The Expo mobile app is not covered by these variables yet.
+
 ## Choosing a computer provider
 
 The Electron desktop app is a client of the same API. Docker and E2B still apply. On first launch, Electron asks the deployment owner whether bots should keep using Docker or run on this Mac as you. `SANDBOX_PROVIDER=desktop` is a separate, explicit provider that always runs commands on the service host.

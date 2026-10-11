@@ -924,8 +924,8 @@ msgid "Choose file"
 msgstr "Выбрать файл"
 
 #: src/pages/ModelSettingsOverlay.tsx
-msgid "Choose which connected model Rakazo uses."
-msgstr "Выберите, какую подключенную модель использует Rakazo."
+msgid "Choose which connected model {brandName} uses."
+msgstr "Выберите, какую подключенную модель использует {brandName}."
 
 #: src/pages/shell/dialogs.tsx
 msgid "Clear"
@@ -1759,8 +1759,8 @@ msgid "Create space"
 msgstr "Создайте пространство"
 
 #: src/pages/Auth.tsx
-msgid "Create your Rakazo"
-msgstr "Создайте свой Rakazo"
+msgid "Create your {brandName}"
+msgstr "Создайте свой {brandName}"
 
 #: src/components/AskCard.tsx
 msgid "Created"
@@ -3351,8 +3351,8 @@ msgid "Paste a replacement key"
 msgstr "Вставьте запасной ключ"
 
 #: src/pages/ModelSettingsOverlay.tsx
-msgid "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed."
-msgstr "Вставьте OpenAI-совместимый адрес со своего сервера. При необходимости Rakazo добавляет /v1."
+msgid "Paste the OpenAI-compatible address from your server. {brandName} adds /v1 if needed."
+msgstr "Вставьте OpenAI-совместимый адрес со своего сервера. При необходимости {brandName} добавляет /v1."
 
 #: src/pages/VoiceSettingsOverlay.tsx
 msgid "Paste your API key"
@@ -3746,8 +3746,8 @@ msgid "Retry screen"
 msgstr "Повторить загрузку экрана"
 
 #: src/pages/McpOAuthCallback.tsx
-msgid "Return to Rakazo"
-msgstr "Вернуться в Rakazo"
+msgid "Return to {brandName}"
+msgstr "Вернуться в {brandName}"
 
 #. placeholder {0}: doc.revision
 #: src/pages/KnowledgeSection.tsx
@@ -4105,8 +4105,8 @@ msgid "Sign in again"
 msgstr ""
 
 #: src/pages/Auth.tsx
-msgid "Sign in to Rakazo"
-msgstr "Войти в Rakazo"
+msgid "Sign in to {brandName}"
+msgstr "Войти в {brandName}"
 
 #: src/lib/user-error.ts
 msgid "Sign in to your existing account to link SSO"
@@ -4458,8 +4458,8 @@ msgid "This server is already connected. Disconnect it first to authorize again.
 msgstr "Этот сервер уже подключен. Сначала отключите его, чтобы авторизоваться снова."
 
 #: src/pages/ModelSettingsOverlay.tsx
-msgid "This subscription sign-in is not available in Rakazo yet. Use a deployment credential or choose another provider."
-msgstr "Вход по этой подписке пока недоступен в Rakazo. Используйте учетные данные развертывания или выберите другого поставщика."
+msgid "This subscription sign-in is not available in {brandName} yet. Use a deployment credential or choose another provider."
+msgstr "Вход по этой подписке пока недоступен в {brandName}. Используйте учетные данные развертывания или выберите другого поставщика."
 
 #: src/pages/Artifacts.tsx
 msgid "This week"

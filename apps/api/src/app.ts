@@ -399,6 +399,7 @@ export async function createApp(
     webOrigin: env.webOrigin,
     signupsEnabled: env.signupsEnabled,
     signupAllowlist: env.signupAllowlist,
+    brandName: env.brandName,
     email,
     onEmailError: (error) => getLogger().error("transactional email delivery failed", error),
     extraOrigins: MOBILE_AUTH_ORIGINS,
@@ -567,6 +568,7 @@ export async function createApp(
       teamChatJudgeModel: env.teamChatJudgeModel,
       deploymentModelConfigured: env.deploymentModelConfigured,
       deploymentModelHostCredentials: env.deploymentModelHostCredentials,
+      brandName: env.brandName,
       webOrigin: env.webOrigin,
       privacyPolicyUrl: env.privacyPolicyUrl,
       screenProxySecret: env.screenProxySecret,
@@ -698,6 +700,7 @@ export async function createApp(
         signupsEnabled: env.signupsEnabled,
         signupAllowlist: env.signupAllowlist,
       },
+      brandName: env.brandName,
       typing: (threadId) => {
         // Keep conversation addresses out of trace ids — those reach logs
         // and telemetry, a different trust boundary than the database.
@@ -841,6 +844,7 @@ export async function createApp(
           providerId,
           botId: env.teamChatBotId,
           judge,
+          brandName: env.brandName,
         });
         teamChatBridgeInstances.push(bridge);
         try {

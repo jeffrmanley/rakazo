@@ -48,8 +48,9 @@ export function listAvailablePiCatalog(
   authByModel: Readonly<
     Partial<Record<string, Partial<Record<string, ModelCredentialAuthKind | "disconnected">>>>
   > = {},
+  brandName?: string,
 ): PiCatalogEntry[] {
-  return listPiCatalog().filter((entry) =>
+  return listPiCatalog(brandName).filter((entry) =>
     catalogModelAvailableForAuth(
       entry.provider,
       entry.id,

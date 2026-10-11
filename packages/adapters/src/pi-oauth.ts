@@ -38,34 +38,37 @@ export const SUBSCRIPTION_SIGN_IN_PROVIDERS: Record<
     mode: ModelOAuthSignInMode;
     loginLabel: string;
     hint: string;
-    billing: string;
+    /** Billing copy for the catalog; takes the product name shown to users. */
+    billing: (brandName: string) => string;
   }
 > = {
   [CHATGPT_OAUTH_PROVIDER]: {
     mode: "device-code",
     loginLabel: "Sign in with ChatGPT Plus/Pro",
     hint: "ChatGPT Plus/Pro",
-    billing:
-      "Sign in with ChatGPT Plus or Pro. Uses your OpenAI subscription. Rakazo does not pay.",
+    billing: (brandName) =>
+      `Sign in with ChatGPT Plus or Pro. Uses your OpenAI subscription. ${brandName} does not pay.`,
   },
   [COPILOT_OAUTH_PROVIDER]: {
     mode: "device-code",
     loginLabel: "Sign in with GitHub Copilot",
     hint: "Copilot",
-    billing: "Sign in with GitHub Copilot. Uses your Copilot subscription. Rakazo does not pay.",
+    billing: (brandName) =>
+      `Sign in with GitHub Copilot. Uses your Copilot subscription. ${brandName} does not pay.`,
   },
   [XAI_OAUTH_PROVIDER]: {
     mode: "device-code",
     loginLabel: "Sign in with SuperGrok or X Premium",
     hint: "SuperGrok / key",
-    billing: "Sign in with SuperGrok or X Premium, or paste an xAI API key. Rakazo does not pay.",
+    billing: (brandName) =>
+      `Sign in with SuperGrok or X Premium, or paste an xAI API key. ${brandName} does not pay.`,
   },
   [ANTHROPIC_OAUTH_PROVIDER]: {
     mode: "auth-url",
     loginLabel: "Sign in with Claude Pro/Max",
     hint: "Claude Pro/Max / key",
     // Button + "Or paste an API key" already explain the choices; no extra paragraph.
-    billing: "",
+    billing: () => "",
   },
 };
 

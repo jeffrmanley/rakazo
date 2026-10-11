@@ -236,3 +236,16 @@ describe("catalogModelLabel", () => {
     expect(catalogModelLabel(id, name, providerModelIds)).toBe(expected);
   });
 });
+
+describe("white-label billing copy", () => {
+  it("names the configured product in every billing line and caches per brand", () => {
+    const branded = listPiCatalog("withJZ Crew");
+    expect(branded.length).toBe(listPiCatalog().length);
+    for (const entry of branded) expect(entry.billing).not.toContain("Rakazo");
+    expect(branded.some((entry) => entry.billing.includes("withJZ Crew does not pay"))).toBe(true);
+    expect(listPiCatalog("withJZ Crew")).toBe(branded);
+    expect(listPiCatalog().some((entry) => entry.billing.includes("Rakazo does not pay"))).toBe(
+      true,
+    );
+  });
+});

@@ -1497,3 +1497,25 @@ describe("teamChatSenderCanWakeMessageRoutines", () => {
     ).resolves.toBe(false);
   });
 });
+
+describe("createMessagingInboundHandler white-label copy", () => {
+  it("names the configured product in the group intro and invite", async () => {
+    const deps = createDeps();
+    deps.brandName = "withJZ Crew";
+    const handle = createMessagingInboundHandler(deps);
+    await handle(groupEvent);
+
+    const bodies = deps.outboundRows.map((row) => String(row.body));
+    expect(bodies.some((body) => body.includes("hosts withJZ Crew personal agents"))).toBe(true);
+    expect(bodies.some((body) => body.includes("linked to your withJZ Crew agent"))).toBe(true);
+    expect(bodies.join("\n")).not.toContain("Rakazo");
+  });
+
+  it("keeps upstream copy when no brand is configured", async () => {
+    const deps = createDeps();
+    const handle = createMessagingInboundHandler(deps);
+    await handle(groupEvent);
+    const bodies = deps.outboundRows.map((row) => String(row.body));
+    expect(bodies.some((body) => body.includes("hosts Rakazo personal agents"))).toBe(true);
+  });
+});

@@ -285,3 +285,11 @@ describe("OIDC environment", () => {
     ).toBe(true);
   });
 });
+
+describe("white-label branding", () => {
+  it("defaults the brand to upstream and trims a configured name", () => {
+    expect(loadEnv(base).brandName).toBe("Rakazo");
+    expect(loadEnv({ ...base, PUBLIC_BRAND_NAME: "  " }).brandName).toBe("Rakazo");
+    expect(loadEnv({ ...base, PUBLIC_BRAND_NAME: " withJZ Crew " }).brandName).toBe("withJZ Crew");
+  });
+});

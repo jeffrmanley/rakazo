@@ -7,6 +7,7 @@ import {
 import type { OidcConfig } from "@rakazo/auth";
 import {
   resolveAuthSecret,
+  resolveBrand,
   resolveEncryptionKey,
   resolveScreenProxySecret,
   resolveSupervisorToken,
@@ -89,6 +90,8 @@ export interface AppEnv {
   teamsAppTenantId: string | undefined;
   /** Unknown chat senders auto-provision their own accounts when true. */
   messagingOpenSignup: boolean;
+  /** Product name in emails and chat replies (PUBLIC_BRAND_NAME, upstream by default). */
+  brandName: string;
   /** Bot that owns team/external chat rooms on the messaging surface. */
   teamChatBotId: string | undefined;
   /** Optional model override for ambient engagement judging. */
@@ -230,6 +233,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     teamsAppPassword: optional(source.TEAMS_APP_PASSWORD),
     teamsAppTenantId: optional(source.TEAMS_APP_TENANT_ID),
     messagingOpenSignup: source.MESSAGING_OPEN_SIGNUP === "true",
+    brandName: resolveBrand(source).name,
     teamChatBotId: optional(source.TEAM_CHAT_BOT_ID) ?? optional(source.SLACK_RAKAZO_BOT_ID),
     teamChatJudgeProvider: optional(source.TEAM_CHAT_JUDGE_PROVIDER),
     teamChatJudgeModel: optional(source.TEAM_CHAT_JUDGE_MODEL),

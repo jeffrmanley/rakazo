@@ -591,6 +591,8 @@ export interface RouterDeps {
     defaultModel: string;
     deploymentModelConfigured?: boolean;
     deploymentModelHostCredentials?: boolean;
+    /** Product name in copy the API hands the client; upstream's unless white-labelled. */
+    brandName?: string;
     webOrigin: string;
     privacyPolicyUrl?: string;
     screenProxySecret: string;
@@ -1114,7 +1116,7 @@ export function createRouter(deps: RouterDeps) {
           deps.secrets,
           context.actor,
         );
-        const available = listAvailablePiCatalog(auth.byProvider, auth.byModel);
+        const available = listAvailablePiCatalog(auth.byProvider, auth.byModel, deps.env.brandName);
         const live = await codexLiveCatalogsForSpace(
           deps.prisma,
           deps.secrets,
@@ -1188,7 +1190,11 @@ export function createRouter(deps: RouterDeps) {
             deps.secrets,
             context.actor,
           );
-          const available = listAvailablePiCatalog(auth.byProvider, auth.byModel);
+          const available = listAvailablePiCatalog(
+            auth.byProvider,
+            auth.byModel,
+            deps.env.brandName,
+          );
           const live = await codexLiveCatalogsForSpace(
             deps.prisma,
             deps.secrets,

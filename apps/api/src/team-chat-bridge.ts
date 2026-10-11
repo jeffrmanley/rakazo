@@ -6,7 +6,7 @@ import type {
 } from "@rakazo/adapter-kit";
 import { runContinueJob } from "@rakazo/adapter-kit";
 import { AutomatedSenderPoliciesSchema, type MessageBlock } from "@rakazo/contracts";
-import { BOT_MESSAGE_MAX_HOPS } from "@rakazo/core";
+import { BOT_MESSAGE_MAX_HOPS, UPSTREAM_BRAND } from "@rakazo/core";
 import type { PrismaClient, ThreadEvents } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import type { TeamChatEngagementJudge } from "./team-chat-judge.js";
@@ -56,6 +56,8 @@ interface TeamChatBridgeDeps {
   judge?: TeamChatEngagementJudge;
   reconcileIntervalMs?: number;
   ambientDebounceMs?: number;
+  /** Product name in replies to the room; upstream's unless white-labelled. */
+  brandName?: string;
 }
 
 type TargetBot = {
@@ -136,6 +138,10 @@ export class TeamChatBridge {
   /** Provider used for ExternalConversation rows and wake clientNonce recovery. */
   get providerId(): string {
     return this.deps.providerId;
+  }
+
+  private get brandName(): string {
+    return this.deps.brandName ?? UPSTREAM_BRAND.name;
   }
 
   /** Mark a deferred row as having an in-process routine wake until clearRoutineWake. */
@@ -709,7 +715,7 @@ export class TeamChatBridge {
       const blocks = Array.isArray(response?.blocks) ? (response.blocks as MessageBlock[]) : [];
       const content =
         run.status === "failed"
-          ? `${target.name} could not complete the delegated request. Open Rakazo for details.`
+          ? `${target.name} could not complete the delegated request. Open ${this.brandName} for details.`
           : teamChatResponseText(blocks, target.name, true);
       if (content) {
         await this.deps.send({
@@ -1157,7 +1163,7 @@ export class TeamChatBridge {
     await this.sendOnce(message.id, {
       conversationId: message.externalConversation.conversationId,
       replyThreadId: message.replyThreadId,
-      content: `${this.target?.name ?? "The agent"} could not complete that request. Open Rakazo for details.`,
+      content: `${this.target?.name ?? "The agent"} could not complete that request. Open ${this.brandName} for details.`,
       idempotencyKey: `external-message:${message.id}:failure`,
     });
   }

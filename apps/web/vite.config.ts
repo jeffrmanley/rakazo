@@ -16,8 +16,10 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import type { PreviewServer, ViteDevServer } from "vite";
 import { defineConfig, loadEnv } from "vite";
+import { resolveBrand } from "../../packages/core/src/brand.ts";
 import { resolveScreenProxySecret } from "../../packages/core/src/secrets-guard.ts";
 import { createServiceLogger } from "../../packages/logging/src/env.ts";
+import { brandPlugin } from "./src/brand-plugin.js";
 import { collectNovncHtml, MAX_NOVNC_HTML_BYTES } from "./src/novnc-html.js";
 import {
   resolveNovncTarget,
@@ -399,6 +401,13 @@ Object.defineProperty(window, "localStorage", {
 
 export default defineConfig(({ mode }) => {
   const rootEnv = loadEnv(mode, path.resolve(import.meta.dirname, "../.."), "");
+  const brand = resolveBrand({
+    PUBLIC_BRAND_NAME: process.env.PUBLIC_BRAND_NAME ?? rootEnv.PUBLIC_BRAND_NAME,
+    PUBLIC_BRAND_SHORT_NAME: process.env.PUBLIC_BRAND_SHORT_NAME ?? rootEnv.PUBLIC_BRAND_SHORT_NAME,
+    PUBLIC_BRAND_TAGLINE: process.env.PUBLIC_BRAND_TAGLINE ?? rootEnv.PUBLIC_BRAND_TAGLINE,
+  });
+  const brandAssetsDir =
+    (process.env.PUBLIC_BRAND_ASSETS_DIR ?? rootEnv.PUBLIC_BRAND_ASSETS_DIR)?.trim() || undefined;
   const api = process.env.API_PROXY_TARGET ?? rootEnv.API_PROXY_TARGET ?? "http://127.0.0.1:3100";
   const previewHost = process.env.RAKAZO_HOST ?? rootEnv.RAKAZO_HOST ?? "localhost";
   const screenProxySecret = () =>
@@ -414,11 +423,14 @@ export default defineConfig(({ mode }) => {
     process.env.RAKAZO_DESKTOP_STACK_TOKEN ?? rootEnv.RAKAZO_DESKTOP_STACK_TOKEN ?? "";
   const imageTag = process.env.RAKAZO_IMAGE_TAG ?? rootEnv.RAKAZO_IMAGE_TAG ?? "edge";
   return {
+    // PUBLIC_BRAND_* reach the client bundle beside VITE_*; nothing else does.
+    envPrefix: ["VITE_", "PUBLIC_BRAND_"],
     plugins: [
       react(),
       babel({ plugins: ["@lingui/babel-plugin-lingui-macro"] }),
       lingui(),
       tailwindcss(),
+      brandPlugin(brand, brandAssetsDir),
       {
         name: "rakazo-desktop-stack-probe",
         configureServer: (server) => attachDesktopStackProbe(server, desktopStackToken, imageTag),
