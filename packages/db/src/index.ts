@@ -9,6 +9,7 @@ export * from "./computers.js";
 export * from "./credential-secrets.js";
 export * from "./events.js";
 export * from "./expire-stuck-run.js";
+export * from "./ext-audit.js";
 export * from "./external-conversations.js";
 export * from "./groups.js";
 export * from "./history-retrieval.js";
