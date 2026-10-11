@@ -5,7 +5,9 @@ import {
   secretStoreOptionsFromEnv,
 } from "@rakazo/adapters";
 import type { OidcConfig } from "@rakazo/auth";
+import type { ExtEnv } from "@rakazo/core";
 import {
+  loadExtEnv,
   resolveAuthSecret,
   resolveEncryptionKey,
   resolveScreenProxySecret,
@@ -109,6 +111,8 @@ export interface AppEnv {
   updaterToken: string | undefined;
   /** Current application image tag; used for compose manual-upgrade command selection. */
   imageTag: string | undefined;
+  /** Fork extensions (EXT_* variables); every module is off unless its flag is 1. */
+  ext: ExtEnv;
 }
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
@@ -247,6 +251,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     updaterUrl,
     updaterToken,
     imageTag: optional(source.RAKAZO_IMAGE_TAG),
+    ext: loadExtEnv(source),
   };
 }
 

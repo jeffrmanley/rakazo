@@ -285,3 +285,20 @@ describe("OIDC environment", () => {
     ).toBe(true);
   });
 });
+
+describe("loadEnv fork extensions", () => {
+  it("keeps every EXT_ module off by default", () => {
+    expect(loadEnv(base).ext).toMatchObject({
+      auditLog: false,
+      emergencyStop: false,
+      budgets: false,
+      auditExportDir: undefined,
+    });
+  });
+  it("turns the audit log on with EXT_AUDIT_LOG=1 and fails startup on unknown values", () => {
+    expect(loadEnv({ ...base, EXT_AUDIT_LOG: "1" }).ext.auditLog).toBe(true);
+    expect(() => loadEnv({ ...base, EXT_AUDIT_LOG: "true" })).toThrow(
+      "EXT_AUDIT_LOG must be 0 or 1",
+    );
+  });
+});
