@@ -115,6 +115,76 @@ test("Korean messaging settings show linked chat apps, channels, and connections
   await expect(page.getByTestId("messaging-settings")).toHaveCount(0);
 });
 
+test("linking shows the server's explanation and stays generic for other failures", async ({
+  page,
+}) => {
+  await page.route("**/rpc/messaging/status", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        json: { enabled: true, providers: ["slack"], openSignup: false, identities: [] },
+      }),
+    }),
+  );
+  for (const procedure of ["channels/list", "connections/list"]) {
+    await page.route(`**/rpc/messaging/${procedure}`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ json: [] }) }),
+    );
+  }
+  let linkAttempts = 0;
+  await page.route("**/rpc/messaging/link/start", (route) => {
+    linkAttempts += 1;
+    // First attempt: a BAD_REQUEST written for the user. Second: an opaque
+    // server failure whose text must never reach the screen.
+    return linkAttempts === 1
+      ? route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: JSON.stringify({
+            json: {
+              defined: false,
+              code: "BAD_REQUEST",
+              status: 400,
+              message: "That bot is already linked to a chat app; unlink it first.",
+            },
+          }),
+        })
+      : route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({
+            json: {
+              defined: false,
+              code: "INTERNAL_SERVER_ERROR",
+              status: 500,
+              message: "TypeError: cannot read properties of undefined",
+            },
+          }),
+        });
+  });
+
+  const stamp = Date.now();
+  const userName = `LinkError ${stamp}`;
+  await signup(page, `link-error-${stamp}@rakazo.test`, "password12", userName);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: new RegExp(userName) }).click();
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Manage messaging settings" }).click();
+  const settings = page.getByTestId("messaging-settings");
+  await expect(settings).toBeVisible();
+
+  await settings.getByLabel("Bot to link").selectOption({ index: 1 });
+  await settings.getByRole("button", { name: "Link a chat app" }).click();
+  await expect(
+    settings.getByText("That bot is already linked to a chat app; unlink it first."),
+  ).toBeVisible();
+
+  await settings.getByRole("button", { name: "Link a chat app" }).click();
+  await expect(settings.getByText("Couldn't update messaging settings")).toBeVisible();
+  await expect(settings.getByText("TypeError")).toHaveCount(0);
+});
+
 test("team conversation settings open from messaging overlay", async ({ page }, testInfo) => {
   await page.route("**/rpc/messaging/status", (route) =>
     route.fulfill({

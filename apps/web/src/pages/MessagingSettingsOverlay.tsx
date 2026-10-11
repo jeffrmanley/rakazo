@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 
 import { providerLabel } from "../lib/messaging";
 import { rpc } from "../lib/rpc";
+import { rpcErrorMessage } from "../lib/rpc-errors";
 import { ExternalConversationSettings } from "./ExternalConversationSettings";
 
 export function MessagingSettingsOverlay({ onClose }: { onClose: () => void }) {
@@ -62,8 +63,8 @@ export function MessagingSettingsOverlay({ onClose }: { onClose: () => void }) {
     try {
       await action();
       await refresh();
-    } catch {
-      setError(t`Couldn't update messaging settings`);
+    } catch (cause) {
+      setError(rpcErrorMessage(cause, t`Couldn't update messaging settings`));
     }
   }
 
