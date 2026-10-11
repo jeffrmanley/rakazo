@@ -184,6 +184,7 @@ import {
   findSpaceMemoryConfig,
   findTicket,
   formatMessagingLinkCode,
+  homeMessagingIdentity,
   InvalidSpaceNameError,
   IsolationError,
   issueMessagingLinkCode,
@@ -5401,6 +5402,8 @@ export function createRouter(deps: RouterDeps) {
       }),
       link: {
         start: authed.messaging.link.start.handler(async ({ context, input }) => {
+          // A bot may be linked from several chat apps; the code still binds
+          // the caller plus this one bot.
           const bot = await deps.prisma.bot.findFirst({
             where: {
               id: input.botId,
@@ -5411,17 +5414,6 @@ export function createRouter(deps: RouterDeps) {
             select: { id: true },
           });
           if (!bot) throw new ORPCError("NOT_FOUND");
-          // One chat identity per bot: delivery mirrors a bot's replies to
-          // exactly one conversation.
-          const linked = await deps.prisma.messagingIdentity.findUnique({
-            where: { botId: bot.id },
-            select: { id: true },
-          });
-          if (linked) {
-            throw new ORPCError("BAD_REQUEST", {
-              message: "That bot is already linked to a chat app; unlink it first.",
-            });
-          }
           const issued = await issueMessagingLinkCode(deps.prisma, {
             userId: context.actor.userId,
             spaceId: context.actor.spaceId,
@@ -5449,29 +5441,43 @@ export function createRouter(deps: RouterDeps) {
             select: { id: true },
           });
           if (!bot) throw new ORPCError("NOT_FOUND");
-          try {
-            const updated = await deps.prisma.messagingIdentity.update({
-              where: { id: identity.id },
-              // The identity must live in the bot's space: runs resolve
-              // credentials, memory, and approval rules from run.spaceId.
-              data: { botId: bot.id, spaceId: context.actor.spaceId },
+          const updated = await deps.prisma.messagingIdentity.update({
+            where: { id: identity.id },
+            // The identity must live in the bot's space: runs resolve
+            // credentials, memory, and approval rules from run.spaceId.
+            data: { botId: bot.id, spaceId: context.actor.spaceId },
+          });
+          if (identity.botId !== bot.id) {
+            // The previous bot falls back to its earliest remaining link.
+            await deps.prisma.bot.updateMany({
+              where: { id: identity.botId, homeMessagingIdentityId: identity.id },
+              data: { homeMessagingIdentityId: null },
             });
-            return messagingIdentityDto(deps.prisma, updated);
-          } catch (error) {
-            // botId is unique: the target bot is already linked elsewhere.
-            if (isUniqueViolation(error)) {
-              throw new ORPCError("BAD_REQUEST", {
-                message: "That bot is already linked to a chat app.",
-              });
-            }
-            throw error;
           }
+          return messagingIdentityDto(deps.prisma, updated);
+        }),
+        setHome: authed.messaging.identities.setHome.handler(async ({ context, input }) => {
+          const identity = await deps.prisma.messagingIdentity.findFirst({
+            where: { id: input.identityId, userId: context.actor.userId },
+          });
+          if (!identity) throw new ORPCError("NOT_FOUND");
+          const { count } = await deps.prisma.bot.updateMany({
+            where: { id: identity.botId, userId: context.actor.userId, archivedAt: null },
+            data: { homeMessagingIdentityId: identity.id },
+          });
+          if (count === 0) throw new ORPCError("NOT_FOUND");
+          return messagingIdentityDto(deps.prisma, identity);
         }),
         unlink: authed.messaging.identities.unlink.handler(async ({ context, input }) => {
           const { count } = await deps.prisma.messagingIdentity.deleteMany({
             where: { id: input.identityId, userId: context.actor.userId },
           });
           if (count === 0) throw new ORPCError("NOT_FOUND");
+          // A bot whose home was unlinked falls back to its earliest remaining link.
+          await deps.prisma.bot.updateMany({
+            where: { homeMessagingIdentityId: input.identityId },
+            data: { homeMessagingIdentityId: null },
+          });
           return { ok: true as const };
         }),
       },
@@ -5580,10 +5586,9 @@ export function createRouter(deps: RouterDeps) {
               where: { id: connection.id },
             });
             if (!input.accept) return { updated: row, notifyRequester: false };
-            // Parity with the text-command path: the requester hears about it.
-            const requesterIdentity = await tx.messagingIdentity.findUnique({
-              where: { botId: connection.requesterBotId },
-            });
+            // Parity with the text-command path: the requester hears about it
+            // on their bot's home chat app.
+            const requesterIdentity = await homeMessagingIdentity(tx, connection.requesterBotId);
             if (!requesterIdentity) return { updated: row, notifyRequester: false };
             const key = `command:connected:${connection.id}`;
             // A re-approved pair starts a fresh cycle; clear the stale row or
@@ -6951,12 +6956,14 @@ async function messagingIdentityDto(
     where: { id: identity.botId },
     select: { name: true },
   });
+  const home = await homeMessagingIdentity(prisma, identity.botId);
   return {
     id: identity.id,
     provider: identity.provider,
     address: identity.address,
     botId: identity.botId,
     botName: bot?.name ?? "Assistant",
+    isHome: home?.id === identity.id,
   };
 }
 
@@ -7014,10 +7021,7 @@ async function messagingConnectionDto(
     where: { id: peerBotId },
     select: { name: true },
   });
-  const peerIdentity = await prisma.messagingIdentity.findUnique({
-    where: { botId: peerBotId },
-    select: { userId: true },
-  });
+  const peerIdentity = await homeMessagingIdentity(prisma, peerBotId);
   const peerOwner = peerIdentity
     ? await prisma.user.findUnique({
         where: { id: peerIdentity.userId },

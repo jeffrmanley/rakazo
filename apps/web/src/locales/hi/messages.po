@@ -2396,6 +2396,10 @@ msgstr "उच्च"
 msgid "High"
 msgstr ""
 
+#: src/pages/MessagingSettingsOverlay.tsx
+msgid "Home"
+msgstr "मुख्य"
+
 #: src/pages/RoutineSchedule.tsx
 msgid "hour"
 msgstr "घंटा"
@@ -2664,6 +2668,10 @@ msgstr ""
 #: src/pages/shell/bot-credentials.tsx
 msgid "Lowercase letters, numbers, hyphens and underscores, starting with a letter."
 msgstr ""
+
+#: src/pages/MessagingSettingsOverlay.tsx
+msgid "Make home"
+msgstr "मुख्य बनाएँ"
 
 #: src/components/ComputerUpdateProgress.tsx
 msgid "Make sure nothing is still running on this computer."

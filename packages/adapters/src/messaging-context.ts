@@ -7,8 +7,6 @@ import type { PrismaClient } from "@rakazo/db";
 export function createMessagingContextLoader(prisma: PrismaClient) {
   return {
     hasIdentity: async (botId: string): Promise<boolean> =>
-      Boolean(
-        await prisma.messagingIdentity.findUnique({ where: { botId }, select: { id: true } }),
-      ),
+      Boolean(await prisma.messagingIdentity.findFirst({ where: { botId }, select: { id: true } })),
   };
 }

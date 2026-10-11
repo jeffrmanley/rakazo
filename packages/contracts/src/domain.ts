@@ -868,6 +868,8 @@ export const MessagingLinkedIdentitySchema = z.object({
   address: z.string(),
   botId: Id,
   botName: z.string(),
+  /** Receives the bot's proactive messages; replies follow the originating chat app. */
+  isHome: z.boolean(),
 });
 export type MessagingLinkedIdentity = z.infer<typeof MessagingLinkedIdentitySchema>;
 

@@ -426,6 +426,9 @@ model Bot {
   webhookSecretId   String?
   teamChatAmbientEnabled Boolean @default(false)
   teamChatRules          String  @default("")
+  /// Linked chat app that receives proactive messages (FK-free like the
+  /// identities themselves); unset or stale falls back to the first linked.
+  homeMessagingIdentityId String?
   routines          Routine[]
   scratchpadItems   ScratchpadItem[]
   taughtSkills      TaughtSkill[]
@@ -644,6 +647,8 @@ model Run {
   completedAt          DateTime?
   botOutcomeReturnedAt DateTime?
   messagingMirroredAt  DateTime?
+  /// Linked chat app the inbound message arrived through; replies go back there.
+  messagingIdentityId  String?
   teamChatMirroredAt   DateTime?
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
@@ -1219,7 +1224,9 @@ model MessagingIdentity {
   userId               String
   spaceId              String
   space                Space     @relation(fields: [spaceId], references: [id], onDelete: Cascade)
-  botId                String    @unique
+  /// One bot can be reached from several chat apps; replies follow the
+  /// identity a message came from and proactive sends use the bot's home.
+  botId                String
   verifiedAt           DateTime?
   lastInboundAt        DateTime?
   outboundSinceInbound Int       @default(0)
@@ -1228,6 +1235,7 @@ model MessagingIdentity {
 
   @@unique([provider, address])
   @@index([userId])
+  @@index([botId])
   @@map("messaging_identities")
 }
 

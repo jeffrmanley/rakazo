@@ -32,6 +32,7 @@ const messagingRun = {
   id: "run-1",
   botId: "bot-1",
   trigger: "messaging",
+  messagingIdentityId: "mi-1",
   sourceMessage: { blocks: [{ kind: "text", text: "hi" }] },
 };
 
@@ -89,12 +90,23 @@ function createDeps(overrides: {
     },
     messagingIdentity: {
       findUnique: vi.fn(async () => identityRow),
+      // Origin and home lookups both land here; the single identity is both.
+      findFirst: vi.fn(async ({ where }: { where: { id?: string; botId: string } }) =>
+        identityRow &&
+        identityRow.botId === where.botId &&
+        (!where.id || identityRow.id === where.id)
+          ? identityRow
+          : null,
+      ),
       update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
         if (identityRow && typeof data.dmThreadId === "string") {
           identityRow.dmThreadId = data.dmThreadId;
         }
         return identityRow;
       }),
+    },
+    bot: {
+      findUnique: vi.fn(async () => ({ homeMessagingIdentityId: null })),
     },
     agentConnection: {
       findUnique: vi.fn(async () =>
@@ -664,6 +676,11 @@ function createChannelDeps(
         if (where.botId === "bot-2" || where.id === "mi-2") return peerIdentity;
         return null;
       }),
+      findFirst: vi.fn(async ({ where }: { where: { botId?: string; id?: string } }) => {
+        if (where.botId === "bot-1" && (!where.id || where.id === "mi-1")) return posterIdentity;
+        if (where.botId === "bot-2" && (!where.id || where.id === "mi-2")) return peerIdentity;
+        return null;
+      }),
       update: vi.fn(async () => posterIdentity),
     },
     messagingChannel: {
@@ -953,5 +970,62 @@ describe("deliverMessagingOutbound retry enqueue failure", () => {
     expect(deps.rows).toEqual([
       expect.objectContaining({ kind: "dm", status: "sent", providerHandle: "handle-out-1" }),
     ]);
+  });
+});
+
+describe("deliverMessagingOutbound with several linked chat apps", () => {
+  const slack = { ...identity, id: "mi-slack", provider: "slack", dmThreadId: "slack:D1" };
+  const teams = { ...identity, id: "mi-teams", provider: "teams", dmThreadId: "teams:D2" };
+
+  function depsWith(run: Record<string, unknown>, home: string | null) {
+    const deps = createDeps({ run });
+    deps.prisma.messagingIdentity.findFirst = vi.fn(
+      async ({ where }: { where: { id?: string; botId: string } }) =>
+        [slack, teams].find(
+          (row) => row.botId === where.botId && (!where.id || row.id === where.id),
+        ) ?? null,
+    ) as never;
+    deps.prisma.messagingIdentity.findUnique = vi.fn(
+      async ({ where }: { where: { id: string } }) =>
+        [slack, teams].find((row) => row.id === where.id) ?? null,
+    ) as never;
+    deps.prisma.bot.findUnique = vi.fn(async () => ({ homeMessagingIdentityId: home })) as never;
+    return deps;
+  }
+
+  it("mirrors a reply to the chat app the message came from, not the home", async () => {
+    const deps = depsWith({ ...messagingRun, messagingIdentityId: "mi-teams" }, "mi-slack");
+    await deliverMessagingOutbound(deps, { runId: "run-1" }, context);
+
+    expect(deps.sendToThread).toHaveBeenCalledTimes(1);
+    expect(deps.sendToThread).toHaveBeenCalledWith(
+      { threadId: "teams:D2", body: "Hello from your bot" },
+      context,
+    );
+    expect(deps.rows[0]).toEqual(expect.objectContaining({ identityId: "mi-teams" }));
+  });
+
+  it("sends delegated bot_message replies to the home chat app", async () => {
+    const deps = depsWith(
+      { ...messagingRun, trigger: "bot_message", messagingIdentityId: null },
+      "mi-teams",
+    );
+    await deliverMessagingOutbound(deps, { runId: "run-1" }, context);
+
+    expect(deps.sendToThread).toHaveBeenCalledWith(
+      { threadId: "teams:D2", body: "Hello from your bot" },
+      context,
+    );
+    expect(deps.rows[0]).toEqual(expect.objectContaining({ identityId: "mi-teams" }));
+  });
+
+  it("falls back to the earliest link when the origin was unlinked and no home is set", async () => {
+    const deps = depsWith({ ...messagingRun, messagingIdentityId: "mi-gone" }, null);
+    await deliverMessagingOutbound(deps, { runId: "run-1" }, context);
+
+    expect(deps.sendToThread).toHaveBeenCalledWith(
+      { threadId: "slack:D1", body: "Hello from your bot" },
+      context,
+    );
   });
 });

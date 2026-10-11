@@ -510,6 +510,7 @@ describe("contracts", () => {
             address: "29:test-user",
             botId: "bot-1",
             botName: "Chief",
+            isHome: true,
           },
         ],
       }),

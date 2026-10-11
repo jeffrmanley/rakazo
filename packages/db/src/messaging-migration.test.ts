@@ -54,3 +54,27 @@ describe("messaging_surface channel close-out", () => {
     expect(migrationSql).not.toMatch(/UPDATE "messaging_channel_members" SET "status" = 'left';/);
   });
 });
+
+describe("messaging_multi_identity backfill", () => {
+  const multiIdentitySql = readFileSync(
+    join(
+      dirname(fileURLToPath(import.meta.url)),
+      "../prisma/migrations/20261011120000_messaging_multi_identity/migration.sql",
+    ),
+    "utf8",
+  );
+
+  it("replaces the one-identity-per-bot constraint with a plain index", () => {
+    expect(multiIdentitySql).toMatch(/DROP INDEX "messaging_identities_botId_key"/);
+    expect(multiIdentitySql).toMatch(
+      /CREATE INDEX "messaging_identities_botId_idx" ON "messaging_identities"\("botId"\)/,
+    );
+    expect(multiIdentitySql).not.toMatch(/CREATE UNIQUE INDEX[^;]*"botId"/);
+  });
+
+  it("makes every existing single link that bot's home", () => {
+    expect(multiIdentitySql).toMatch(
+      /UPDATE "bots" b\s+SET "homeMessagingIdentityId" = i\."id"\s+FROM "messaging_identities" i\s+WHERE i\."botId" = b\."id"/,
+    );
+  });
+});

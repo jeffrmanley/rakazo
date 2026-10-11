@@ -379,6 +379,8 @@ Do not commit `.env`. Never put `COMPOSIO_API_KEY`, OpenRouter keys, or provider
 
 Optional messaging platforms (iMessage, Slack, WhatsApp, Telegram, Feishu/Lark, Microsoft Teams) mount when their env credentials are set — see `.env.example`. Point a Feishu/Lark bot event subscription at `/api/v1/messaging/webhook/lark` (webhook/HTTP inbound only; do not enable long connection). Groups stay iMessage-only.
 
+One agent can be linked from several chat apps (for example Slack and Teams): link each with its own code from **Settings → Messaging**. Replies go back to the app a message came from. Proactive messages (connection invites, delegated replies) go to the bot's *home* app, which defaults to the first one linked and can be changed there once a second app is linked.
+
 ### Microsoft Teams
 
 Teams reaches bots in 1:1 chats. Channels and group chats are not delivered yet. The bot is single-tenant: it accepts activities only from the directory in `TEAMS_APP_TENANT_ID` and rejects every other tenant.

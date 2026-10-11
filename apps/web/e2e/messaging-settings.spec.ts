@@ -30,6 +30,7 @@ test("Korean messaging settings show linked chat apps, channels, and connections
               address: "+15551230001",
               botId: "bot-1",
               botName: "Chief",
+              isHome: true,
             },
           ],
         },
@@ -183,6 +184,67 @@ test("linking shows the server's explanation and stays generic for other failure
   await settings.getByRole("button", { name: "Link a chat app" }).click();
   await expect(settings.getByText("Couldn't update messaging settings")).toBeVisible();
   await expect(settings.getByText("TypeError")).toHaveCount(0);
+});
+
+test("a bot linked in two chat apps shows its home and can switch it", async ({ page }) => {
+  const identities = [
+    {
+      id: "mi-slack",
+      provider: "slack",
+      address: "U0123",
+      botId: "bot-1",
+      botName: "Chief",
+      isHome: true,
+    },
+    {
+      id: "mi-teams",
+      provider: "teams",
+      address: "29:abc",
+      botId: "bot-1",
+      botName: "Chief",
+      isHome: false,
+    },
+  ];
+  await page.route("**/rpc/messaging/status", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        json: { enabled: true, providers: ["slack", "teams"], openSignup: false, identities },
+      }),
+    }),
+  );
+  for (const procedure of ["channels/list", "connections/list"]) {
+    await page.route(`**/rpc/messaging/${procedure}`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ json: [] }) }),
+    );
+  }
+  await page.route("**/rpc/messaging/identities/setHome", async (route) => {
+    const body = route.request().postDataJSON() as { json: { identityId: string } };
+    for (const identity of identities) identity.isHome = identity.id === body.json.identityId;
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ json: identities.find((row) => row.isHome) }),
+    });
+  });
+
+  const stamp = Date.now();
+  const userName = `HomeApp ${stamp}`;
+  await signup(page, `home-app-${stamp}@rakazo.test`, "password12", userName);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: new RegExp(userName) }).click();
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Manage messaging settings" }).click();
+  const settings = page.getByTestId("messaging-settings");
+  await expect(settings.getByText("Slack · U0123")).toBeVisible();
+  await expect(settings.getByText("→ Chief · Home")).toBeVisible();
+  // Only the non-home app offers the switch.
+  await expect(settings.getByRole("button", { name: "Make home" })).toHaveCount(1);
+
+  await settings.getByRole("button", { name: "Make home" }).click();
+  await expect(settings.getByText("Microsoft Teams · 29:abc")).toBeVisible();
+  await expect(settings.getByText("→ Chief · Home")).toHaveCount(1);
+  await expect(settings.getByRole("button", { name: "Make home" })).toHaveCount(1);
 });
 
 test("team conversation settings open from messaging overlay", async ({ page }, testInfo) => {

@@ -793,6 +793,8 @@ export const appContract = {
       setBot: oc
         .input(z.object({ identityId: Id, botId: Id }))
         .output(MessagingLinkedIdentitySchema),
+      /** Make this chat app the bot's home for proactive messages. */
+      setHome: oc.input(z.object({ identityId: Id })).output(MessagingLinkedIdentitySchema),
       unlink: oc.input(z.object({ identityId: Id })).output(z.object({ ok: z.literal(true) })),
     },
     channels: {

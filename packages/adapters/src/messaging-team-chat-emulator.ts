@@ -9,6 +9,8 @@ import type {
   MessagingSendResult,
   MessagingSurface,
 } from "@rakazo/adapter-kit";
+import type { Adapter, ChatInstance } from "chat";
+import { Message, parseMarkdown, stringifyMarkdown } from "chat";
 import { type MessagingPlatform, providerOfThreadId } from "./chat-sdk-surface.js";
 
 export interface TeamChatEmulatorInbound {
@@ -158,25 +160,110 @@ export class MessagingTeamChatEmulator implements MessagingSurface {
     this.sent.length = 0;
   }
 
-  /** Platform descriptor for mounting beside other messaging platforms in tests. */
+  /**
+   * Platform descriptor for mounting beside other messaging platforms in
+   * tests. Inbound arrives through the generic webhook route like a real
+   * platform (see buildInboundRequest); outbound posts are recorded in sent.
+   */
   createPlatform(): MessagingPlatform {
+    let chat: ChatInstance | undefined;
+    const adapter = {
+      name: this.provider,
+      userName: "rakazo-emulator",
+      version: "1.0.0",
+      botUsername: "rakazo-emulator",
+      initialize: async (instance: ChatInstance) => {
+        chat = instance;
+      },
+      disconnect: async () => undefined,
+      handleWebhook: async (
+        request: Request,
+        options?: { waitUntil?: (task: Promise<unknown>) => void },
+      ) => {
+        if (!chat) return new Response("not initialized", { status: 503 });
+        const payload = (await request.json()) as TeamChatEmulatorInbound & { handle: string };
+        const inbound = this.buildInbound(payload);
+        // Fire-and-forget like real adapters: the surface drains waitUntil.
+        chat.processMessage(
+          adapter as unknown as Adapter,
+          inbound.threadId,
+          new Message({
+            id: inbound.handle,
+            threadId: inbound.threadId,
+            text: inbound.content,
+            formatted: parseMarkdown(inbound.content),
+            raw: payload,
+            author: {
+              userId: inbound.from,
+              userName: inbound.from,
+              fullName: inbound.fromLabel ?? inbound.from,
+              isBot: Boolean(inbound.senderIsBot),
+              isMe: false,
+            },
+            metadata: { dateSent: new Date(), edited: false },
+            attachments: [],
+            links: [],
+          }),
+          options,
+        );
+        return new Response("ok");
+      },
+      postMessage: async (threadId: string, message: string | { markdown?: string }) => {
+        const body = typeof message === "string" ? message : (message.markdown ?? "");
+        const handle = this.recordSend(threadId, body, "outbound");
+        return { id: handle, threadId, raw: {} };
+      },
+      isDM: (threadId: string) => threadId.startsWith(`${this.provider}:dm:`),
+      openDM: async (address: string) => `${this.provider}:dm:${address}`,
+      startTyping: async () => undefined,
+      encodeThreadId: (data: { threadId: string }) => data.threadId,
+      decodeThreadId: (threadId: string) => ({ threadId }),
+      channelIdFromThreadId: (threadId: string) => threadId,
+      getChannelVisibility: () => "unknown",
+      fetchChannelInfo: async (channelId: string) => ({
+        id: channelId,
+        name: channelId,
+        isDM: channelId.startsWith(`${this.provider}:dm:`),
+        metadata: {},
+      }),
+      fetchThread: async (threadId: string) => ({
+        id: threadId,
+        channelId: threadId,
+        metadata: {},
+      }),
+      fetchMessages: async () => ({ messages: [], nextCursor: undefined }),
+      fetchMessage: async () => null,
+      editMessage: async (threadId: string, messageId: string) => ({
+        id: messageId,
+        threadId,
+        raw: {},
+      }),
+      deleteMessage: async () => undefined,
+      addReaction: async () => undefined,
+      removeReaction: async () => undefined,
+      parseMessage: () => {
+        throw new Error("Team chat emulator parses inbound in handleWebhook");
+      },
+      renderFormatted: (content: unknown) => stringifyMarkdown(content as never),
+    };
     return {
       provider: this.provider,
       capabilities: { ...this.capabilities },
-      // The adapter is only consulted for outbound post / openDM in unit tests that
-      // drive ChatSdkMessagingSurface; prefer createRecordingMessagingSurface for
-      // focused send recording without Chat SDK wiring.
-      adapter: {
-        version: "1.0.0",
-        botUsername: "rakazo-emulator",
-        postMessage: async (threadId: string, message: string | { markdown?: string }) => {
-          const body = typeof message === "string" ? message : (message.markdown ?? "");
-          const handle = this.recordSend(threadId, body, "outbound");
-          return { id: handle, html_url: null };
-        },
-      } as unknown as MessagingPlatform["adapter"],
+      adapter: adapter as unknown as Adapter,
       directThreadId: (address) => `${this.provider}:dm:${address}`,
     };
+  }
+
+  /** Inbound webhook for the platform from createPlatform (no signature: tests only). */
+  buildInboundRequest(partial: TeamChatEmulatorInbound & { handle?: string }): Request {
+    return new Request(`https://rakazo.test/api/v1/messaging/webhook/${this.provider}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        ...partial,
+        handle: partial.handle ?? this.allocateHandle("inbound"),
+      }),
+    });
   }
 
   /** Public handle allocator for test helpers that record outbound sends. */

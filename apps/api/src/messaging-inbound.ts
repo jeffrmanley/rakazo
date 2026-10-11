@@ -12,6 +12,7 @@ import type {
 } from "@rakazo/db";
 import {
   createThreadMessage,
+  homeMessagingIdentity,
   normalizeMessagingLinkCode,
   redeemMessagingLinkCode,
 } from "@rakazo/db";
@@ -115,6 +116,7 @@ async function handleDirectEvent(
     const thread = await deps.prisma.thread.findFirst({ where: { botId: existing.botId } });
     if (!thread) throw new Error(`messaging identity ${existing.id} has no thread`);
     ids = {
+      identityId: existing.id,
       provider: existing.provider,
       address: existing.address,
       userId: existing.userId,
@@ -148,6 +150,9 @@ async function handleDirectEvent(
     prompt: text,
     trigger: "messaging",
     clientNonce: `messaging:${event.provider}:${event.handle}`,
+    // The reply mirrors back to this chat app, whichever of the bot's
+    // linked apps the owner wrote from.
+    messagingIdentityId: ids.identityId,
   });
   if (sent.runId) {
     // Typing bubbles only make sense once a reply is actually coming. Fire
@@ -404,10 +409,9 @@ async function applyOwnerCommand(
   }
 
   const connectedKey = `command:connected:${target.connection.id}`;
+  // Not a reply to anything the requester sent: their bot's home gets it.
   const requesterIdentity = approved
-    ? await deps.prisma.messagingIdentity.findUnique({
-        where: { botId: target.connection.requesterBotId },
-      })
+    ? await homeMessagingIdentity(deps.prisma, target.connection.requesterBotId)
     : null;
   const key = `command:${command}:${target.connection.id}`;
   const claimed = await deps.prisma.$transaction(async (tx) => {
@@ -627,6 +631,7 @@ async function handleChannelEvent(
       prompt,
       trigger: "messaging",
       clientNonce: `messaging:${event.provider}:${event.handle}`,
+      messagingIdentityId: identity.id,
     });
     if (sent.runId) {
       await deps.jobs.enqueue(runContinueJob(sent.runId)).catch((error) => {

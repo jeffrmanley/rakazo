@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "./client.js";
-import { provisionMessagingIdentity } from "./messaging.js";
+import {
+  homeMessagingIdentity,
+  provisionMessagingIdentity,
+  replyMessagingIdentity,
+} from "./messaging.js";
 
 describe("provisionMessagingIdentity", () => {
   it("returns the existing identity without creating anything when already provisioned", async () => {
@@ -30,6 +34,7 @@ describe("provisionMessagingIdentity", () => {
     );
 
     expect(result).toEqual({
+      identityId: "mi-1",
       provider: "sendblue",
       address: "+15551234567",
       userId: "user-1",
@@ -128,6 +133,7 @@ describe("provisionMessagingIdentity create race", () => {
     );
 
     expect(result).toEqual({
+      identityId: "mi-winner",
       provider: "sendblue",
       address: "+15551234567",
       userId: "user-1",
@@ -136,6 +142,56 @@ describe("provisionMessagingIdentity create race", () => {
       threadId: "thread-winner",
       created: false,
     });
+  });
+});
+
+describe("home and reply identities", () => {
+  const slack = { id: "mi-slack", provider: "slack", botId: "bot-1", createdAt: 1 };
+  const teams = { id: "mi-teams", provider: "teams", botId: "bot-1", createdAt: 2 };
+  function prismaWith(home: string | null, identities: Array<typeof slack>) {
+    return {
+      bot: { findUnique: vi.fn(async () => ({ homeMessagingIdentityId: home })) },
+      messagingIdentity: {
+        findFirst: vi.fn(
+          async ({ where }: { where: { id?: string; botId: string }; orderBy?: unknown }) =>
+            identities
+              .filter((row) => row.botId === where.botId && (!where.id || row.id === where.id))
+              .sort((a, b) => a.createdAt - b.createdAt)[0] ?? null,
+        ),
+      },
+    } as unknown as PrismaClient;
+  }
+
+  it("uses the chosen home identity", async () => {
+    await expect(
+      homeMessagingIdentity(prismaWith("mi-teams", [slack, teams]), "bot-1"),
+    ).resolves.toBe(teams);
+  });
+
+  it("defaults to the first linked identity when none is chosen", async () => {
+    await expect(homeMessagingIdentity(prismaWith(null, [teams, slack]), "bot-1")).resolves.toBe(
+      slack,
+    );
+  });
+
+  it("falls back when the chosen home was unlinked or moved to another bot", async () => {
+    await expect(
+      homeMessagingIdentity(prismaWith("mi-gone", [slack, teams]), "bot-1"),
+    ).resolves.toBe(slack);
+    await expect(homeMessagingIdentity(prismaWith("mi-teams", []), "bot-1")).resolves.toBeNull();
+  });
+
+  it("replies through the identity the run arrived on, else the home", async () => {
+    const prisma = prismaWith("mi-slack", [slack, teams]);
+    await expect(
+      replyMessagingIdentity(prisma, { botId: "bot-1", messagingIdentityId: "mi-teams" }),
+    ).resolves.toBe(teams);
+    await expect(
+      replyMessagingIdentity(prisma, { botId: "bot-1", messagingIdentityId: "mi-unlinked" }),
+    ).resolves.toBe(slack);
+    await expect(
+      replyMessagingIdentity(prisma, { botId: "bot-1", messagingIdentityId: null }),
+    ).resolves.toBe(slack);
   });
 });
 
