@@ -7201,7 +7201,9 @@ export function createRunExecutor(deps: ExecutorDeps) {
           } catch (error) {
             getLogger().error("history.compact enqueue failed", error);
           }
-        } catch (error) {
+        } catch (caught) {
+          // A run halted by an audit failure reports that failure, not the abort it caused.
+          const error = auditFailure ?? caught;
           if (!terminalCheckpointComplete) {
             await workspaceCheckpoint.flush().catch(() => undefined);
           }
