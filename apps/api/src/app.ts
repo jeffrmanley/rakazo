@@ -7,6 +7,7 @@ import type {
   BillingProvider,
   JobPublisher,
   ManagedConnectorProvider,
+  MessagingInboundEvent,
   MessagingSurface,
   RealtimeFanout,
   SandboxProvider,
@@ -76,11 +77,14 @@ import type { Actor, AuthCapabilities } from "@rakazo/contracts";
 import { signupAllowlistBootUpdate, signupPolicyFromEnv } from "@rakazo/core";
 import type { Pool, PrismaClient } from "@rakazo/db";
 import {
+  AuditWriteError,
+  createAuditWriter,
   createBoardEvents,
   createDb,
   createPool,
   createThreadEvents,
   IsolationError,
+  installAuditWriter,
   parsePositiveInteger,
   provisionMessagingIdentity,
   pushSessionExpiresAt,
@@ -102,6 +106,12 @@ import { createBillingService } from "./billing.js";
 import { mountBillingRoutes } from "./billing-webhook.js";
 import type { AppEnv } from "./env.js";
 import { loadEnv } from "./env.js";
+import {
+  auditErrorInterceptor,
+  mountAuditRoutes,
+  reportAuditFailureToChat,
+  startAuditSealer,
+} from "./ext-audit.js";
 import { healthRoutes } from "./health.js";
 import { mountLocalSettings } from "./local-settings.js";
 import {
@@ -208,6 +218,11 @@ export async function createApp(
   if (secrets.describe().capabilities.degraded)
     logger.warn("Secret storage degraded; encrypted credentials remain available");
   prisma = withSecretPersistence(prisma, secrets);
+  // Fork extension: EXT_AUDIT_LOG=1 installs the fail-closed audit writer for this process.
+  installAuditWriter(env.ext.auditLog ? createAuditWriter(prisma) : null);
+  const auditSealer = env.ext.auditLog
+    ? startAuditSealer({ prisma, exportDir: env.ext.auditExportDir })
+    : undefined;
   const events = createThreadEvents(prisma, realtime, {
     runSecretWriter: createRunSecretWriter(secrets),
   });
@@ -579,7 +594,10 @@ export async function createApp(
     },
   });
   const rpc = new RPCHandler(router, {
-    clientInterceptors: [onError((error, { path }) => logUnexpectedRpcError(error, path))],
+    clientInterceptors: [
+      auditErrorInterceptor,
+      onError((error, { path }) => logUnexpectedRpcError(error, path)),
+    ],
   });
   const app = new Hono();
   app.use("*", requestLogging(logger));
@@ -665,6 +683,7 @@ export async function createApp(
     return actor;
   });
   mountWebhookHttpRoutes(app, { prisma, secrets, events, jobs });
+  if (env.ext.auditLog) mountAuditRoutes(app, { prisma, authenticate: sessionActor });
   if (billing && billingProvider) {
     mountBillingRoutes(app, {
       billing,
@@ -874,7 +893,7 @@ export async function createApp(
         })();
       }
     }
-    messaging.onInbound(async (event) => {
+    const inboundSink = async (event: MessagingInboundEvent) => {
       if (event.type !== "message") {
         await applyMessagingOutboundStatus(prisma, event);
         return;
@@ -899,6 +918,18 @@ export async function createApp(
         throw new Error("Team chat bridge is unavailable");
       }
       await inbound(event);
+    };
+    messaging.onInbound(async (event) => {
+      try {
+        await inboundSink(event);
+      } catch (error) {
+        // Fail closed: the message was not accepted; tell the sender with the error reference.
+        if (event.type === "message" && error instanceof AuditWriteError) {
+          await reportAuditFailureToChat(messaging, event, error);
+          return;
+        }
+        throw error;
+      }
     });
     mountMessagingWebhookRoutes(app, { messaging });
     // Start polling-mode adapters (e.g. Telegram with no public webhook URL
@@ -954,6 +985,7 @@ export async function createApp(
       jobs: jobKind,
       realtime: realtime.describe().id,
       secrets: secrets.describe(),
+      audit: env.ext.auditLog,
       degraded: secrets.describe().capabilities.degraded ?? false,
       revision: env.gitSha ?? null,
     })),
@@ -978,6 +1010,8 @@ export async function createApp(
       // on waitForComputerReady for the full boot-wait window during shared Postgres journeys.
       auth.disposeOidcDiscovery();
       shutdown.abort();
+      auditSealer?.stop();
+      installAuditWriter(null);
       oauthLogins.abortAll();
       messagingStopped = true;
       clearMessagingRetryDelay?.();

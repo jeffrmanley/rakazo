@@ -230,7 +230,7 @@ export class AuditWriteError extends Error {
   readonly errorRef: string;
 
   constructor(cause: unknown, errorRef: string = randomUUID()) {
-    super(`Audit log unavailable (error_id: ${errorRef})`, { cause });
+    super(`Internal error (error_id: ${errorRef})`, { cause });
     this.name = "AuditWriteError";
     this.errorRef = errorRef;
   }
@@ -404,6 +404,17 @@ export async function listAuditEvents(
   const page = rows.slice(0, limit).map((row) => toAuditEvent(row as AuditRow));
   const last = page[page.length - 1];
   return { events: page, nextAfterSeq: rows.length > limit && last ? last.seq : null };
+}
+
+/** Every space that has started a chain, for the verifier CLI. */
+export async function listAuditChainSpaces(
+  prisma: Pick<PrismaClient, "extAuditChainHead">,
+): Promise<string[]> {
+  const heads = await prisma.extAuditChainHead.findMany({
+    select: { spaceId: true },
+    orderBy: { spaceId: "asc" },
+  });
+  return heads.map((head) => head.spaceId);
 }
 
 export type AuditVerification =

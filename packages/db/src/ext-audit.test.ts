@@ -15,6 +15,7 @@ import {
   getAuditWriter,
   hashAuditEvent,
   installAuditWriter,
+  listAuditChainSpaces,
   listAuditEvents,
   redactAuditText,
   redactAuditValue,
@@ -278,7 +279,7 @@ describe("createAuditWriter", () => {
     expect(failure).toBeInstanceOf(AuditWriteError);
     const wrapped = failure as AuditWriteError;
     expect(wrapped.errorRef).toMatch(/^[0-9a-f-]{36}$/);
-    expect(wrapped.message).toBe(`Audit log unavailable (error_id: ${wrapped.errorRef})`);
+    expect(wrapped.message).toBe(`Internal error (error_id: ${wrapped.errorRef})`);
     expect(wrapped.message).not.toContain("super-secret-value");
     expect(wrapped.message).not.toContain("ext_audit_events");
     expect(wrapped.cause).toBeInstanceOf(Error);
@@ -688,5 +689,17 @@ describe("sealAuditSegments", () => {
     });
     for (const file of files) expect(file.startsWith("/exports/")).toBe(true);
     for (const file of files) expect(file).not.toContain("..");
+  });
+});
+
+describe("listAuditChainSpaces", () => {
+  it("lists every space that has a chain, in a stable order", async () => {
+    const findMany = vi.fn(async () => [{ spaceId: "space-b" }, { spaceId: "space-a" }]);
+    const prisma = { extAuditChainHead: { findMany } } as unknown as PrismaClient;
+    await expect(listAuditChainSpaces(prisma)).resolves.toEqual(["space-b", "space-a"]);
+    expect(findMany).toHaveBeenCalledWith({
+      select: { spaceId: true },
+      orderBy: { spaceId: "asc" },
+    });
   });
 });
