@@ -83,7 +83,7 @@ describe("MessagingTeamChatEmulator", () => {
     expect(emulator.platforms()).toEqual([
       {
         provider: "slack",
-        capabilities: { direct: true, groups: false, typing: false },
+        capabilities: { direct: true, groups: false, typing: false, teamChat: true },
       },
     ]);
     expect(sink).toHaveBeenCalledWith(inbound);

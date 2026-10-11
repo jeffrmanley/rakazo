@@ -383,11 +383,27 @@ One agent can be linked from several chat apps (for example Slack and Teams): li
 
 ### Microsoft Teams
 
-Teams reaches bots in 1:1 chats. Channels and group chats are not delivered yet. The bot is single-tenant: it accepts activities only from the directory in `TEAMS_APP_TENANT_ID` and rejects every other tenant.
+Teams reaches bots in 1:1 chats through the personal line (link codes, replies, proactive DMs). Group chats and channels use the shared team-chat path when `TEAM_CHAT_BOT_ID` is set, exactly like Slack channels: the bot answers when @mentioned, ambient (un-mentioned) messages follow the bot's `Listening` setting and room guidance, and unlinked senders in shared rooms cannot wake message routines. Without `TEAM_CHAT_BOT_ID`, group and channel messages are acknowledged and dropped. The bot is single-tenant: it accepts activities only from the directory in `TEAMS_APP_TENANT_ID` and rejects every other tenant.
 
 1. **App registration.** In the Entra admin center, open **App registrations → New registration**, choose **Accounts in this organizational directory only (Single tenant)**, and register. Copy the **Application (client) ID** to `TEAMS_APP_ID` and the **Directory (tenant) ID** to `TEAMS_APP_TENANT_ID`. Under **Certificates & secrets**, add a client secret and copy its value to `TEAMS_APP_PASSWORD`. Secrets expire, so note the date.
 2. **Azure Bot.** Create an **Azure Bot** resource. Set **Type of App** to **Single Tenant** and use the existing app registration from step 1. Under **Configuration**, set **Messaging endpoint** to `https://<public-host>/api/v1/messaging/webhook/teams`. It must be public HTTPS; for local testing, use a tunnel. Under **Channels**, add **Microsoft Teams**. Azure's **Test in Web Chat** does not work, because Web Chat activities carry no Teams tenant.
-3. **Teams app manifest.** Create a Teams app package with a `manifest.json` whose `bots[0].botId` is `TEAMS_APP_ID` and whose `scopes` include `personal`, plus the two icons. Developer Portal for Teams can generate this, as can `teams app create` from the Teams CLI. Upload it through **Apps → Manage your apps → Upload a custom app**, or have a Teams admin publish it to the organisation.
+3. **Teams app manifest.** Create a Teams app package with a `manifest.json` whose `bots[0].botId` is `TEAMS_APP_ID`, plus the two icons. Developer Portal for Teams can generate this, as can `teams app create` from the Teams CLI. Upload it through **Apps → Manage your apps → Upload a custom app**, or have a Teams admin publish it to the organisation.
+   - `bots[0].scopes`: `["personal"]` for 1:1 chats only; add `"team"` and `"groupChat"` to let the bot be added to channels and group chats. With those scopes Teams delivers every message that @mentions the bot, which is all the default (mention-only) setup needs — no extra permissions.
+   - Ambient replies (the bot reading un-mentioned channel or group messages because `Listening` is on for a room) need resource-specific consent (RSC) so Teams delivers those messages at all. Add to the manifest:
+
+     ```json
+     "webApplicationInfo": { "id": "<TEAMS_APP_ID>", "resource": "https://RscBasedStoreApp" },
+     "authorization": {
+       "permissions": {
+         "resourceSpecific": [
+           { "name": "ChannelMessage.Read.Group", "type": "Application" },
+           { "name": "ChatMessage.Read.Chat", "type": "Application" }
+         ]
+       }
+     }
+     ```
+
+     `ChannelMessage.Read.Group` covers channels, `ChatMessage.Read.Chat` covers group chats. A team owner (or chat member) consents when installing the app. Prefer leaving RSC out until a room actually turns `Listening` on: mention-only works without it and reads nothing else.
 4. **Restart and link.** Restart the API and worker with the three variables set. In Rakazo, open **Settings → Messaging**, start a link, and send the code to the bot in a Teams chat.
 
 Leave `DANGEROUSLY_ALLOW_UNAUTHENTICATED_REQUESTS` unset. The Teams SDK reads that variable and would skip Bot Framework token validation, so Rakazo refuses to start Teams while it is set. Avoid `LOG_LEVEL=debug` in production: at that level the Teams SDK logs inbound activity bodies.

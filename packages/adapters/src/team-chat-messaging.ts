@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import {
+  decodeThreadId as decodeTeamsThreadId,
+  encodeThreadId as encodeTeamsThreadId,
+} from "@chat-adapter/teams";
 import type {
   AdapterContext,
   MessagingInboundMessage,
@@ -8,6 +12,7 @@ import type {
   TeamChatSendRequest,
   TeamChatSendResult,
 } from "@rakazo/adapter-kit";
+import { splitTeamsConversationId } from "./messaging-platforms.js";
 
 /** Map a Chat SDK inbound message into a team-chat event, or null if empty. */
 export function toTeamChatInbound(event: MessagingInboundMessage): TeamChatInboundMessage | null {
@@ -47,12 +52,23 @@ function looksLikeMention(content: string, channelName: string | null): boolean 
 /**
  * Chat SDK Slack thread ids are `slack:CHANNEL:threadTs`. Team-chat stores the
  * room conversation id separately from the in-channel reply thread, so outbound
- * sends must recombine them when a reply thread is present.
+ * sends must recombine them when a reply thread is present. Teams encodes the
+ * conversation id and service URL, with channel threads addressed by a
+ * `;messageid=` suffix inside the conversation id, so it recombines by
+ * decoding rather than by splitting on ":".
  */
 export function resolveMessagingThreadId(
   conversationId: string,
   replyThreadId: string | null,
 ): string {
+  if (conversationId.startsWith("teams:")) {
+    const decoded = decodeTeamsThreadId(conversationId);
+    const { conversationId: channelId } = splitTeamsConversationId(decoded.conversationId);
+    return encodeTeamsThreadId({
+      ...decoded,
+      conversationId: replyThreadId ? `${channelId};messageid=${replyThreadId}` : channelId,
+    });
+  }
   if (!replyThreadId) return conversationId;
   if (conversationId.endsWith(`:${replyThreadId}`)) return conversationId;
   const parts = conversationId.split(":");

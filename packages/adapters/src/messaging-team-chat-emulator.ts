@@ -63,6 +63,7 @@ export class MessagingTeamChatEmulator implements MessagingSurface {
       direct: options.capabilities?.direct ?? true,
       groups: options.capabilities?.groups ?? true,
       typing: options.capabilities?.typing ?? false,
+      teamChat: options.capabilities?.teamChat ?? true,
     };
   }
 

@@ -120,6 +120,7 @@ import {
   prefersTeamChatSurface,
   settleWithTimeout,
   TEAM_CHAT_STARTUP_SHUTDOWN_MS,
+  teamChatProviders,
 } from "./team-chat-startup.js";
 import { mountVoiceHttpRoutes } from "./voice.js";
 import { mountWebhookHttpRoutes } from "./webhook.js";
@@ -677,12 +678,14 @@ export async function createApp(
   let messagingStopped = false;
   let clearMessagingRetryDelay: (() => void) | undefined;
   let messagingInitTask: Promise<void> | undefined;
-  let clearTeamChatRetryDelay: (() => void) | undefined;
-  let teamChatInitTask: Promise<void> | undefined;
   // Messaging webhooks only exist when the surface is enabled.
-  let teamChatBridge: TeamChatBridge | undefined;
-  /** Constructed even before start() succeeds so stop() can cancel in-flight startup. */
-  let teamChatBridgeInstance: TeamChatBridge | undefined;
+  /** One bridge per team-chat platform (Slack, Teams, …), keyed by provider once started. */
+  const teamChatBridges = new Map<string, TeamChatBridge>();
+  /** Every bridge constructed, so stop() can cancel in-flight startup. */
+  const teamChatBridgeInstances: TeamChatBridge[] = [];
+  /** Startup retry loops still running, keyed by provider. */
+  const teamChatInitTasks = new Map<string, Promise<void>>();
+  const clearTeamChatRetryDelays = new Set<() => void>();
   const pendingTeamChatInbound = new PendingTeamChatInbound();
   if (messaging) {
     const inboundDeps = {
@@ -800,7 +803,10 @@ export async function createApp(
       }
     };
     const flushPendingTeamChatInbound = (bridge: TeamChatBridge) => {
-      pendingTeamChatInbound.flush((event) => handleTeamChatInbound(bridge, event));
+      pendingTeamChatInbound.flush(
+        (event) => handleTeamChatInbound(bridge, event),
+        (event) => event.provider === bridge.providerId,
+      );
     };
     if (env.teamChatBotId) {
       const judge =
@@ -823,55 +829,64 @@ export async function createApp(
               deploymentModel: env.defaultModel,
               deploymentModelKey: env.deploymentModelKey,
             });
-      const bridge = new TeamChatBridge({
-        prisma,
-        events,
-        jobs,
-        send: createMessagingTeamChatSender(messaging),
-        providerId: "slack",
-        botId: env.teamChatBotId,
-        judge,
-      });
-      teamChatBridgeInstance = bridge;
-      try {
-        await bridge.start();
-        teamChatBridge = bridge;
-      } catch (error) {
-        getLogger().error("team chat bridge failed to start; retrying", error);
-        teamChatInitTask = (async () => {
-          let delayMs = 2_000;
-          while (!messagingStopped) {
-            await new Promise<void>((resolve) => {
-              const timer = setTimeout(resolve, delayMs);
-              clearTeamChatRetryDelay = () => {
-                clearTimeout(timer);
-                clearTeamChatRetryDelay = undefined;
-                resolve();
-              };
-            });
-            clearTeamChatRetryDelay = undefined;
-            if (messagingStopped) return;
-            try {
-              await bridge.start();
-              if (messagingStopped) {
-                await bridge.stop();
-                return;
+      // One bridge per platform whose rooms are team rooms, all driving the
+      // same team-chat bot: external conversations, recovery nonces and
+      // replies stay keyed to the provider the message arrived on.
+      for (const providerId of teamChatProviders(messaging.platforms())) {
+        const bridge = new TeamChatBridge({
+          prisma,
+          events,
+          jobs,
+          send: createMessagingTeamChatSender(messaging),
+          providerId,
+          botId: env.teamChatBotId,
+          judge,
+        });
+        teamChatBridgeInstances.push(bridge);
+        try {
+          await bridge.start();
+          teamChatBridges.set(providerId, bridge);
+        } catch (error) {
+          getLogger().error("team chat bridge failed to start; retrying", error);
+          teamChatInitTasks.set(
+            providerId,
+            (async () => {
+              let delayMs = 2_000;
+              while (!messagingStopped) {
+                let clearDelay: (() => void) | undefined;
+                await new Promise<void>((resolve) => {
+                  const timer = setTimeout(resolve, delayMs);
+                  clearDelay = () => {
+                    clearTimeout(timer);
+                    resolve();
+                  };
+                  clearTeamChatRetryDelays.add(clearDelay);
+                });
+                if (clearDelay) clearTeamChatRetryDelays.delete(clearDelay);
+                if (messagingStopped) return;
+                try {
+                  await bridge.start();
+                  if (messagingStopped) {
+                    await bridge.stop();
+                    return;
+                  }
+                  teamChatBridges.set(providerId, bridge);
+                  flushPendingTeamChatInbound(bridge);
+                  return;
+                } catch (retryError) {
+                  if (
+                    retryError instanceof Error &&
+                    retryError.message === "Team chat bridge start cancelled"
+                  ) {
+                    return;
+                  }
+                  getLogger().error("team chat bridge failed to start; retrying", retryError);
+                  delayMs = Math.min(delayMs * 5, 30_000);
+                }
               }
-              teamChatBridge = bridge;
-              flushPendingTeamChatInbound(bridge);
-              return;
-            } catch (retryError) {
-              if (
-                retryError instanceof Error &&
-                retryError.message === "Team chat bridge start cancelled"
-              ) {
-                return;
-              }
-              getLogger().error("team chat bridge failed to start; retrying", retryError);
-              delayMs = Math.min(delayMs * 5, 30_000);
-            }
-          }
-        })();
+            })(),
+          );
+        }
       }
     }
     messaging.onInbound(async (event) => {
@@ -880,7 +895,7 @@ export async function createApp(
         return;
       }
       if (prefersTeamChatSurface(event, env.teamChatBotId)) {
-        const bridge = teamChatBridge;
+        const bridge = teamChatBridges.get(event.provider);
         if (bridge) {
           await handleTeamChatInbound(bridge, event);
           return;
@@ -888,7 +903,7 @@ export async function createApp(
         // Bridge is still starting (or retrying). Do not fall through to the
         // personal-line inbound path — that bypasses externalMessage ownership
         // and can wake routines for unlinked TeamChat senders.
-        if (teamChatInitTask) {
+        if (teamChatInitTasks.has(event.provider)) {
           const pending = pendingTeamChatInbound.enqueue(event);
           if (!pending) {
             throw new Error("Team chat inbound buffer is full");
@@ -981,18 +996,25 @@ export async function createApp(
       oauthLogins.abortAll();
       messagingStopped = true;
       clearMessagingRetryDelay?.();
-      clearTeamChatRetryDelay?.();
+      for (const clearDelay of clearTeamChatRetryDelays) clearDelay();
       pendingTeamChatInbound.reject(new Error("Team chat bridge stopped before startup"));
-      // Cancel in-flight start() before awaiting the retry task so stop() cannot
+      // Cancel in-flight start() before awaiting the retry tasks so stop() cannot
       // sit on DB/reconcile work that bridge.start() is still running.
       await settleWithTimeout(
-        teamChatBridgeInstance ? teamChatBridgeInstance.stop().catch(() => undefined) : undefined,
+        teamChatBridgeInstances.length
+          ? Promise.all(
+              teamChatBridgeInstances.map((bridge) => bridge.stop().catch(() => undefined)),
+            )
+          : undefined,
         TEAM_CHAT_STARTUP_SHUTDOWN_MS,
       );
       await messagingInitTask?.catch(() => undefined);
-      await settleWithTimeout(teamChatInitTask, TEAM_CHAT_STARTUP_SHUTDOWN_MS);
+      await settleWithTimeout(
+        teamChatInitTasks.size ? Promise.all(teamChatInitTasks.values()) : undefined,
+        TEAM_CHAT_STARTUP_SHUTDOWN_MS,
+      );
       await messaging?.shutdown?.();
-      await teamChatBridge?.stop();
+      for (const bridge of teamChatBridges.values()) await bridge.stop();
       await email?.drain?.();
       await reconciler?.stop();
       await jobs.close();

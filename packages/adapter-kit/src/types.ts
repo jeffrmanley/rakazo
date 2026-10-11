@@ -690,6 +690,12 @@ export interface MessagingCapabilities {
   direct: boolean;
   groups: boolean;
   typing: boolean;
+  /**
+   * Rooms (channels, group chats) are team rooms for the shared team-chat
+   * bot (TEAM_CHAT_BOT_ID) rather than personal-line groups: the platform
+   * reports a workspace id and mention/ambient kind on inbound messages.
+   */
+  teamChat?: boolean;
 }
 
 /** One messaging platform behind the chat surface (sendblue, slack, …). */
