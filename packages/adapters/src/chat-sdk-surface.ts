@@ -135,7 +135,11 @@ export class ChatSdkMessagingSurface implements MessagingSurface {
     _context: AdapterContext,
   ): Promise<MessagingSendResult> {
     await this.ensureInitialized();
-    const sent = await this.chat.thread(request.threadId).post(request.body);
+    // Bot replies are Markdown. A bare string posts as literal text, which
+    // Slack shows with raw `**bold**` and `- lists`; a markdown message lets
+    // every adapter render it natively (Slack markdown_text, Teams markdown
+    // activities, plain text where the platform has no formatting).
+    const sent = await this.chat.thread(request.threadId).post({ markdown: request.body });
     const handle = "id" in sent && typeof sent.id === "string" ? sent.id : "";
     return { handle };
   }

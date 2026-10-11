@@ -169,8 +169,9 @@ export class MessagingTeamChatEmulator implements MessagingSurface {
       adapter: {
         version: "1.0.0",
         botUsername: "rakazo-emulator",
-        postMessage: async (threadId: string, message: { text?: string }) => {
-          const handle = this.recordSend(threadId, message.text ?? "", "outbound");
+        postMessage: async (threadId: string, message: string | { markdown?: string }) => {
+          const body = typeof message === "string" ? message : (message.markdown ?? "");
+          const handle = this.recordSend(threadId, body, "outbound");
           return { id: handle, html_url: null };
         },
       } as unknown as MessagingPlatform["adapter"],
