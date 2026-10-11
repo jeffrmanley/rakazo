@@ -318,6 +318,23 @@ describe("createMessagingInboundHandler DM routing", () => {
     );
   });
 
+  it("ignores a space id carried by the webhook payload and uses the linked account's space", async () => {
+    const deps = createDeps();
+    const handle = createMessagingInboundHandler(deps);
+    // Hostile or buggy payloads may carry spaceId/userId/botId-looking fields; only the
+    // verified sender's linked identity decides where the message lands.
+    await handle({
+      ...dmEvent,
+      ...({ spaceId: "ws-evil", userId: "user-evil", botId: "bot-evil" } as object),
+    });
+
+    expect(deps.provision).not.toHaveBeenCalled();
+    expect(deps.sendUserMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ spaceId: "ws-1", userId: "user-1", botId: "bot-1" }),
+    );
+    expect(JSON.stringify(deps.sendUserMessage.mock.calls)).not.toContain("evil");
+  });
+
   it("provisions on first contact and uses the new identity", async () => {
     const deps = createDeps({ identity: null });
     const handle = createMessagingInboundHandler(deps);
