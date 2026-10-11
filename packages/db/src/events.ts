@@ -395,6 +395,7 @@ export async function sendUserMessage(
       const message = await createThreadMessageInTransaction(tx, {
         threadId: input.threadId,
         role: "user",
+        userId: input.userId,
         blocks: input.blocks,
         clientNonce: input.clientNonce,
       });

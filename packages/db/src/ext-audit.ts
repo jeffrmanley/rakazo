@@ -16,7 +16,7 @@ import { withTransactionRetry } from "./transaction-retry.js";
  * shows up as a chain break that `verifyAuditChain` pinpoints by sequence.
  *
  * The writer fails closed: a failed insert raises AuditWriteError, which
- * carries an `errorId` for the generic error shown to callers and nothing
+ * carries an `errorRef` for the generic error shown to callers and nothing
  * else about the failure.
  */
 
@@ -227,18 +227,18 @@ function truncate(text: string): string {
 
 /** A failed audit write. The message is safe to show; the cause is only logged. */
 export class AuditWriteError extends Error {
-  readonly errorId: string;
+  readonly errorRef: string;
 
-  constructor(cause: unknown, errorId: string = randomUUID()) {
-    super(`Audit log unavailable (error_id: ${errorId})`, { cause });
+  constructor(cause: unknown, errorRef: string = randomUUID()) {
+    super(`Audit log unavailable (error_id: ${errorRef})`, { cause });
     this.name = "AuditWriteError";
-    this.errorId = errorId;
+    this.errorRef = errorRef;
   }
 
   static from(error: unknown): AuditWriteError {
     if (error instanceof AuditWriteError) return error;
     const wrapped = new AuditWriteError(error);
-    getLogger().error("audit write failed", error, { "error.id": wrapped.errorId });
+    getLogger().error("audit write failed", error, { "error.id": wrapped.errorRef });
     return wrapped;
   }
 }

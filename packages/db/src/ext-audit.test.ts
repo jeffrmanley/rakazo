@@ -277,8 +277,8 @@ describe("createAuditWriter", () => {
       .catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(AuditWriteError);
     const wrapped = failure as AuditWriteError;
-    expect(wrapped.errorId).toMatch(/^[0-9a-f-]{36}$/);
-    expect(wrapped.message).toBe(`Audit log unavailable (error_id: ${wrapped.errorId})`);
+    expect(wrapped.errorRef).toMatch(/^[0-9a-f-]{36}$/);
+    expect(wrapped.message).toBe(`Audit log unavailable (error_id: ${wrapped.errorRef})`);
     expect(wrapped.message).not.toContain("super-secret-value");
     expect(wrapped.message).not.toContain("ext_audit_events");
     expect(wrapped.cause).toBeInstanceOf(Error);

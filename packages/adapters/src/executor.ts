@@ -99,7 +99,7 @@ import {
   stableJsonValue,
   toolEffectIdempotencyKey,
 } from "@rakazo/core/node/approval-effect-key";
-import type { McpServer, Prisma, PrismaClient, ThreadEvents } from "@rakazo/db";
+import type { AuditWriteError, McpServer, Prisma, PrismaClient, ThreadEvents } from "@rakazo/db";
 import {
   appendEventInTransaction,
   createSpaceForMember,
@@ -107,6 +107,7 @@ import {
   effectiveMemoryScope,
   findDefaultModelCredential,
   findModelCredential,
+  getAuditWriter,
   InvalidSpaceNameError,
   isTooManyDatabaseConnections,
   loadRunHistoryMessages,
@@ -237,6 +238,7 @@ import { checkpointRunComputerWorkspace } from "./computer-workspace.js";
 import { redactConnectorPayload, sanitizeConnectorError } from "./connector-safety.js";
 import { formatCurrentTimeInstruction } from "./current-time.js";
 import { resolveDeploymentModel } from "./deployment-model.js";
+import { auditedToolExecution } from "./ext-audit-tools.js";
 import { handoffToGroupBot, loadGroupContext } from "./group-handoff.js";
 import {
   COMPACTION_BATCH_SIZE,
@@ -4045,7 +4047,10 @@ export function createRunExecutor(deps: ExecutorDeps) {
           return occurrence;
         };
 
-        const applyTool = async (
+        // Fork extension: a failed audit write halts the run instead of letting the
+        // model continue on an unrecorded tool call or result.
+        let auditFailure: AuditWriteError | undefined;
+        const executeToolUnaudited = async (
           name: string,
           args: Record<string, unknown>,
           executionId: string,
@@ -6320,6 +6325,16 @@ export function createRunExecutor(deps: ExecutorDeps) {
           return finish({ error: `unknown tool ${name}` });
         };
 
+        const applyTool = auditedToolExecution({
+          audit: getAuditWriter(),
+          target: { spaceId: run.spaceId, botId: bot.id, runId },
+          secrets: () => runSecrets,
+          execute: executeToolUnaudited,
+          onAuditFailure: (error) => {
+            auditFailure ??= error;
+            runAbortController?.abort(error);
+          },
+        });
         const pluginLine =
           connectedPlugins.length > 0
             ? `Connected plugins: ${connectedPlugins.map((row) => `${row.displayName} (${row.connectorId}:${row.provider})`).join(", ")}. Prefer those plugin tools over the computer browser or web search when reading app data (repos, releases, mail, calendar, and similar).`
@@ -7020,6 +7035,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
             }
           }
 
+          if (auditFailure) throw auditFailure;
           if (approvalPausePending || !leaseValid) return;
           approvedEffectReplays.assertDrained();
           pendingProgress += progressRedactor.finish();
