@@ -113,7 +113,7 @@ export type BudgetBlock = {
 /** The reason a new run of this bot may not start now, or null. */
 export async function budgetBlockFor(
   prisma: PrismaClient,
-  run: Pick<RunRef, "spaceId" | "botId" | "modelId">,
+  run: Pick<RunRef, "spaceId" | "botId">,
   now = new Date(),
 ): Promise<BudgetBlock | null> {
   const policy = installed;
@@ -124,10 +124,10 @@ export async function budgetBlockFor(
     now,
     defaults: policy,
   });
-  return blockFromStatus(status, run.modelId);
+  return blockFromStatus(status);
 }
 
-function blockFromStatus(status: BudgetStatus, modelId?: string | null): BudgetBlock | null {
+function blockFromStatus(status: BudgetStatus): BudgetBlock | null {
   if (status.space.level === "blocked") {
     return {
       scope: "space",
@@ -152,9 +152,6 @@ function blockFromStatus(status: BudgetStatus, modelId?: string | null): BudgetB
       },
     };
   }
-  if (isPremiumModelId(modelId) && !status.settings.premium) {
-    return { scope: "premium", text: PREMIUM_MODEL_REFUSAL, detail: { scope: "premium", modelId } };
-  }
   return null;
 }
 
@@ -165,25 +162,59 @@ function blockFromStatus(status: BudgetStatus, modelId?: string | null): BudgetB
  */
 export async function refuseRunOverBudget(
   deps: GuardDeps & { events: ThreadEvents },
-  input: {
-    run: RunRef & { taskId: string; sourceMessageId?: string | null };
-    workerId: string;
-    fence: number;
-    attemptId: string;
-  },
+  input: RefuseInput,
 ): Promise<boolean> {
   if (!installed) return false;
+  const block = await budgetBlockFor(deps.prisma, input.run);
+  if (!block) return false;
+  await refuseRun(deps, input, block);
+  return true;
+}
+
+type RefuseInput = {
+  run: RunRef & { taskId: string; sourceMessageId?: string | null };
+  workerId: string;
+  fence: number;
+  attemptId: string;
+};
+
+/**
+ * Premium hook, once the run's model is selected (bot, connection, space or deployment
+ * default): a Fable or Mythos class model on a non-premium bot refuses the run with the
+ * premium notice. `allows` also filters backups and sub-agent models for the run.
+ */
+export async function premiumModelGate(
+  prisma: PrismaClient,
+  run: Pick<RunRef, "spaceId" | "botId">,
+): Promise<{ allows: (modelId: string | null | undefined) => boolean }> {
+  const premium =
+    !installed || (await loadBotBudget(prisma, { spaceId: run.spaceId, botId: run.botId })).premium;
+  return { allows: (modelId) => premium || !isPremiumModelId(modelId) };
+}
+
+/** Refuses a run whose selected model the bot may not use. */
+export async function refuseRunForModel(
+  deps: GuardDeps & { events: ThreadEvents },
+  input: RefuseInput & { modelId: string },
+): Promise<void> {
+  await refuseRun(deps, input, {
+    scope: "premium",
+    text: PREMIUM_MODEL_REFUSAL,
+    detail: { scope: "premium", modelId: input.modelId },
+  });
+}
+
+/** Records the block first (fail closed), then finishes the run with its notice. */
+async function refuseRun(
+  deps: GuardDeps & { events: ThreadEvents },
+  input: RefuseInput,
+  block: BudgetBlock,
+): Promise<void> {
   const { run } = input;
   const bot = await deps.prisma.bot.findUniqueOrThrow({
     where: { id: run.botId },
-    select: { name: true, modelId: true },
+    select: { name: true },
   });
-  const block = await budgetBlockFor(deps.prisma, {
-    spaceId: run.spaceId,
-    botId: run.botId,
-    modelId: run.modelId ?? bot.modelId,
-  });
-  if (!block) return false;
   await recordBudgetBlock({
     spaceId: run.spaceId,
     botId: run.botId,
@@ -205,7 +236,6 @@ export async function refuseRunOverBudget(
     markUnread: true,
   });
   if (finished) await afterBudgetFinish(deps, run, bot.name, block.text, finished);
-  return true;
 }
 
 async function afterBudgetFinish(
@@ -570,7 +600,6 @@ export async function skipRoutineOverBudget(
   input: {
     routine: { id: string; spaceId: string; crons: string[] };
     botId: string;
-    modelId?: string | null;
     scheduledAt: Date;
     nextRunAt: Date | null;
   },
@@ -579,7 +608,6 @@ export async function skipRoutineOverBudget(
   const block = await budgetBlockFor(deps.prisma, {
     spaceId: input.routine.spaceId,
     botId: input.botId,
-    modelId: input.modelId,
   });
   if (!block) return false;
   const skipped = await deps.prisma.$transaction(async (tx) => {

@@ -246,6 +246,8 @@ import {
   claimRunWithinBotLimit,
   delegationLimiter,
   haltRunForBudget,
+  premiumModelGate,
+  refuseRunForModel,
   refuseRunOverBudget,
   skipRoutineOverBudget,
 } from "./ext-budget-guard.js";
@@ -3166,7 +3168,6 @@ export function createRunExecutor(deps: ExecutorDeps) {
         await skipRoutineOverBudget(deps, {
           routine,
           botId: bot.id,
-          modelId: routine.modelId ?? bot.modelId,
           scheduledAt,
           nextRunAt,
         })
@@ -3750,6 +3751,19 @@ export function createRunExecutor(deps: ExecutorDeps) {
         }
         if (!runModelProvider || !runModelId) {
           await failRunBeforeModel(MISSING_MODEL_MESSAGE);
+          return;
+        }
+        // Fork extension (EXT_BUDGETS): Fable/Mythos-class models only on premium bots, judged
+        // on the model actually selected; backups are held to it too.
+        const premiumGate = await premiumModelGate(deps.prisma, run);
+        if (!premiumGate.allows(runModelId)) {
+          await refuseRunForModel(deps, {
+            run,
+            workerId,
+            fence,
+            attemptId: attempt.id,
+            modelId: runModelId,
+          });
           return;
         }
         // An incompatible saved model is a configuration error. Record it on the run.
@@ -6557,6 +6571,9 @@ export function createRunExecutor(deps: ExecutorDeps) {
             getLogger().warn("Backup models could not be loaded", { runId, error });
           }
         }
+        fallbackModels = fallbackModels.filter((candidate) =>
+          premiumGate.allows(candidate.modelId),
+        );
         const fallbackModelKeys = new Set(
           fallbackModels
             .filter(
