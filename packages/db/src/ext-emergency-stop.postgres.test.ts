@@ -212,4 +212,58 @@ describePostgres("ext emergency stop (PostgreSQL)", () => {
       statuses: ["queued", "running"],
     });
   });
+
+  it("cancels a large scope in batches, so no single transaction outlives its timeout", async () => {
+    const big = await provision("big");
+    const count = 250;
+    const tasks = Array.from({ length: count }, (_, index) => ({
+      id: `stop-batch-task-${suffix}-${index}`,
+      spaceId: big.spaceId,
+      botId: big.botId,
+      threadId: big.threadId,
+      userId: big.userId,
+      prompt: "batch",
+      status: "queued",
+    }));
+    await prisma.task.createMany({ data: tasks });
+    await prisma.run.createMany({
+      data: tasks.map((task, index) => ({
+        id: `stop-batch-run-${suffix}-${index}`,
+        spaceId: big.spaceId,
+        botId: big.botId,
+        threadId: big.threadId,
+        taskId: task.id,
+        userId: big.userId,
+        status: "queued",
+        trigger: "user",
+      })),
+    });
+    const transactions: Array<{ timeout?: number }> = [];
+    const spy = new Proxy(prisma, {
+      get(target, key, receiver) {
+        if (key === "$transaction") {
+          return (fn: unknown, options?: { timeout?: number }) => {
+            transactions.push(options ?? {});
+            return (target.$transaction as (...args: unknown[]) => unknown)(fn, options);
+          };
+        }
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    const cancelled = await cancelRunsForStop(spy, {
+      spaceId: big.spaceId,
+      statuses: ["queued"],
+    });
+    expect(cancelled.runIds).toHaveLength(count);
+    expect(cancelled.threads).toEqual([{ threadId: big.threadId, seq: expect.any(Number) }]);
+    await expect(
+      prisma.run.count({ where: { spaceId: big.spaceId, status: "cancelled" } }),
+    ).resolves.toBe(count);
+    await expect(
+      prisma.event.count({ where: { threadId: big.threadId, type: "run.cancelled" } }),
+    ).resolves.toBe(count);
+    // Three batches of at most 100 runs, each with an explicit timeout.
+    expect(transactions).toHaveLength(3);
+    for (const options of transactions) expect(options.timeout).toBeGreaterThan(5_000);
+  });
 });

@@ -96,7 +96,13 @@ export class ControlError extends Error {
 
 type ControlPrisma = Pick<
   PrismaClient,
-  "$transaction" | "spaceMember" | "bot" | "user" | "messagingIdentity" | "deploymentSettings"
+  | "$transaction"
+  | "spaceMember"
+  | "bot"
+  | "user"
+  | "run"
+  | "messagingIdentity"
+  | "deploymentSettings"
 >;
 
 function deny(principal: ControlPrincipal, scope: ControlScope, reason: string): ControlError {
