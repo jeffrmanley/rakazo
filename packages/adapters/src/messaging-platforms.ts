@@ -129,7 +129,7 @@ export function messagingPlatformsFromEnv(
   if (env.slackBotToken && env.slackSigningSecret) {
     platforms.push({
       provider: "slack",
-      capabilities: { direct: true, groups: true, typing: false },
+      capabilities: { direct: true, groups: true, typing: false, teamChat: true },
       adapter: createSlackAdapter({
         botToken: env.slackBotToken,
         signingSecret: env.slackSigningSecret,
@@ -205,17 +205,18 @@ export function messagingPlatformsFromEnv(
   // App ID, password, and tenant are all required: the Bot Framework token
   // proves the request came from Bot Connector for this app but not which
   // directory sent it, so the tenant is what pins the bot to one tenant.
-  // Channels and group chats stay off until team chat is per-provider
-  // (TeamChatBridge is keyed to slack), so they cannot half-work.
+  // 1:1 chats use the personal line; channels and group chats are team
+  // rooms for the shared team-chat bot, like Slack channels.
   if (env.teamsAppId && env.teamsAppPassword && env.teamsAppTenantId) {
     platforms.push({
       provider: "teams",
-      capabilities: { direct: true, groups: false, typing: false },
+      capabilities: { direct: true, groups: true, typing: false, teamChat: true },
       adapter: createSingleTenantTeamsAdapter({
         appId: env.teamsAppId,
         appPassword: env.teamsAppPassword,
         tenantId: env.teamsAppTenantId,
       }),
+      enrichTeamRoom: enrichTeamsTeamRoom,
     });
   }
 
@@ -410,6 +411,64 @@ export function enrichSlackTeamRoom(
       eventType === "app_mention" || mentionsSlackBot(text, botUserId) ? "mention" : "ambient";
   }
   return enrichment;
+}
+
+/**
+ * Team-room fields from a Teams group-chat or channel activity. 1:1 chats
+ * carry nothing so they stay on the personal line. The tenant is the
+ * workspace (one bot serves one tenant); the conversation key is the chat
+ * or channel without the `;messageid=` suffix Teams appends for channel
+ * threads, which becomes the reply thread instead.
+ */
+export function enrichTeamsTeamRoom(
+  raw: unknown,
+  base: MessagingInboundMessage,
+): Partial<MessagingInboundMessage> {
+  if (base.isDirect) return {};
+  const activity = asRecord(raw);
+  if (!activity) return {};
+  const conversation = asRecord(activity.conversation) ?? {};
+  const channelData = asRecord(activity.channelData) ?? {};
+  const tenant =
+    stringField(conversation, "tenantId") ?? stringField(asRecord(channelData.tenant) ?? {}, "id");
+  const { conversationId, messageId } = splitTeamsConversationId(
+    stringField(conversation, "id") ?? "",
+  );
+  const channel = asRecord(channelData.channel) ?? {};
+  const team = asRecord(channelData.team) ?? {};
+  const from = asRecord(activity.from) ?? {};
+  const recipient = asRecord(activity.recipient) ?? {};
+  const enrichment: Partial<MessagingInboundMessage> = {
+    conversationKey: conversationId || base.threadId,
+    replyThreadId: messageId,
+    channelName: stringField(channel, "name") ?? stringField(team, "name") ?? base.channelName,
+    senderIsBot: (stringField(from, "id") ?? "").startsWith("28:"),
+    kind: mentionsTeamsBot(activity.entities, stringField(recipient, "id")) ? "mention" : "ambient",
+  };
+  if (tenant) enrichment.workspaceId = tenant.toLowerCase();
+  return enrichment;
+}
+
+/** `19:abc@thread.tacv2;messageid=123` → channel id plus the thread's root message id. */
+export function splitTeamsConversationId(id: string): {
+  conversationId: string;
+  messageId: string | null;
+} {
+  const match = /^(.*?);messageid=([^;]+)$/.exec(id);
+  return match
+    ? { conversationId: match[1]!, messageId: match[2]! }
+    : { conversationId: id, messageId: null };
+}
+
+/** Teams marks an @-mention of the bot as a mention entity for the recipient account. */
+function mentionsTeamsBot(entities: unknown, botId: string | undefined): boolean {
+  if (!botId || !Array.isArray(entities)) return false;
+  return entities.some((entry) => {
+    const entity = asRecord(entry);
+    if (entity?.type !== "mention") return false;
+    const mentioned = stringField(asRecord(entity.mentioned) ?? {}, "id");
+    return mentioned !== undefined && mentioned.toLowerCase() === botId.toLowerCase();
+  });
 }
 
 /** Bot user id from Slack's event authorizations (the app that received the event). */

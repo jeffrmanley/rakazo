@@ -7,6 +7,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { authClient } from "../lib/auth";
 import type { AuthCapabilities } from "../lib/auth-capabilities";
 import { fetchAuthCapabilities } from "../lib/auth-capabilities";
+import { brand } from "../lib/brand";
 import { clearSpaceSelection } from "../lib/rpc";
 import { runSsoFlow } from "../lib/sso-flow";
 import { authErrorText, credentialIssueText } from "../lib/user-error";
@@ -37,12 +38,13 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
   const [capabilityError, setCapabilityError] = useState(false);
   const [capabilityAttempt, setCapabilityAttempt] = useState(0);
   const passwordFieldId = mode === "in" ? "current-password" : "new-password";
+  const brandName = brand.name;
   const title = sent ? (
     <Trans>Check your email</Trans>
   ) : mode === "in" ? (
-    <Trans>Sign in to Rakazo</Trans>
+    <Trans>Sign in to {brandName}</Trans>
   ) : mode === "up" ? (
-    <Trans>Create your Rakazo</Trans>
+    <Trans>Create your {brandName}</Trans>
   ) : (
     <Trans>Reset your password</Trans>
   );

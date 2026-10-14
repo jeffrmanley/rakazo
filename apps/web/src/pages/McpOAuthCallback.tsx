@@ -2,9 +2,12 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Button } from "@rakazo/ui-web";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { brand } from "../lib/brand";
 import { MCP_OAUTH_CHANNEL } from "../lib/mcp-connect";
 import { rpc } from "../lib/rpc";
 import { errorText } from "../lib/user-error";
+
+const brandName = brand.name;
 
 // The window.open name set by the OAuth popup flow. Providers whose login
 // pages send COOP sever window.opener mid-flow, but the window name survives,
@@ -58,7 +61,7 @@ export function McpOAuthCallbackPage() {
         {error ? <p className="mt-2 max-w-md text-sm text-muted-foreground">{error}</p> : null}
         {showReturn ? (
           <Button type="button" className="mt-5" onClick={() => navigate("/app")}>
-            <Trans>Return to Rakazo</Trans>
+            <Trans>Return to {brandName}</Trans>
           </Button>
         ) : (
           <p className="mt-2 text-sm text-muted-foreground">

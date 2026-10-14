@@ -15,6 +15,7 @@ export interface MessagingIdentityRequest {
 }
 
 export interface ProvisionedMessagingIdentity {
+  identityId: string;
   provider: string;
   address: string;
   userId: string;
@@ -22,6 +23,58 @@ export interface ProvisionedMessagingIdentity {
   botId: string;
   threadId: string;
   created: boolean;
+}
+
+export interface HomeMessagingIdentity {
+  id: string;
+  provider: string;
+  address: string;
+  dmThreadId: string | null;
+  userId: string;
+  spaceId: string;
+  botId: string;
+  outboundSinceInbound: number;
+}
+
+/**
+ * Where a bot's proactive messages go (connection invites, delegated
+ * replies, confirmations that are not answers to a specific inbound). The
+ * owner picks it in Messaging settings; unset, or pointing at an identity
+ * that has since been unlinked or moved to another bot, falls back to the
+ * earliest linked chat app so a bot with any link is always reachable.
+ */
+export async function homeMessagingIdentity(
+  prisma: Pick<PrismaClient, "bot" | "messagingIdentity">,
+  botId: string,
+): Promise<HomeMessagingIdentity | null> {
+  const bot = await prisma.bot.findUnique({
+    where: { id: botId },
+    select: { homeMessagingIdentityId: true },
+  });
+  if (bot?.homeMessagingIdentityId) {
+    const home = await prisma.messagingIdentity.findFirst({
+      where: { id: bot.homeMessagingIdentityId, botId },
+    });
+    if (home) return home;
+  }
+  return prisma.messagingIdentity.findFirst({ where: { botId }, orderBy: { createdAt: "asc" } });
+}
+
+/**
+ * The identity a run's reply mirrors to: the chat app its inbound arrived
+ * through while that identity still belongs to the bot, else the home.
+ */
+export async function replyMessagingIdentity(
+  prisma: Pick<PrismaClient, "bot" | "messagingIdentity">,
+  run: { botId: string; messagingIdentityId: string | null },
+): Promise<HomeMessagingIdentity | null> {
+  if (run.messagingIdentityId) {
+    const origin = await prisma.messagingIdentity.findFirst({
+      where: { id: run.messagingIdentityId, botId: run.botId },
+    });
+    if (origin) return origin;
+  }
+  return homeMessagingIdentity(prisma, run.botId);
 }
 
 /** Addresses come from verified platform webhooks; this guards the DB shape. */
@@ -60,6 +113,7 @@ export async function provisionMessagingIdentity(
     const thread = await prisma.thread.findFirst({ where: { botId: existing.botId } });
     if (!thread) throw new Error(`messaging identity ${existing.id} has no thread`);
     return {
+      identityId: existing.id,
       provider,
       address,
       userId: existing.userId,
@@ -132,8 +186,9 @@ export async function provisionMessagingIdentity(
   const thread = await prisma.thread.findFirst({ where: { botId } });
   if (!thread) throw new Error(`bot ${botId} has no thread after createBot`);
 
+  let identityId: string;
   try {
-    await prisma.messagingIdentity.create({
+    const identity = await prisma.messagingIdentity.create({
       data: {
         provider,
         address,
@@ -143,6 +198,7 @@ export async function provisionMessagingIdentity(
         botId,
       },
     });
+    identityId = identity.id;
   } catch {
     // A concurrent first-inbound won the (provider, address) race; report its
     // result.
@@ -158,6 +214,7 @@ export async function provisionMessagingIdentity(
         : await prisma.thread.findFirst({ where: { botId: winner.botId } });
     if (!winnerThread) throw new Error(`bot ${winner.botId} has no thread`);
     return {
+      identityId: winner.id,
       provider,
       address,
       userId: winner.userId,
@@ -167,7 +224,16 @@ export async function provisionMessagingIdentity(
       created: false,
     };
   }
-  return { provider, address, userId: user.id, spaceId, botId, threadId: thread.id, created: true };
+  return {
+    identityId,
+    provider,
+    address,
+    userId: user.id,
+    spaceId,
+    botId,
+    threadId: thread.id,
+    created: true,
+  };
 }
 
 function titleCase(value: string): string {
@@ -278,9 +344,8 @@ export async function redeemMessagingLinkCode(
       };
     });
   } catch (error) {
-    // botId is unique (one chat app per bot) and (provider, address) can race
-    // a concurrent inbound; either way the code is spent and the sender can
-    // request a fresh one.
+    // (provider, address) can race a concurrent inbound; the code is spent
+    // and the sender can request a fresh one.
     if (isUniqueViolationError(error)) return null;
     throw error;
   }

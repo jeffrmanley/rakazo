@@ -44,6 +44,7 @@ function createDeps(
   const enqueue = vi.fn(async () => undefined);
   const typing = vi.fn(async (_threadId: string) => undefined);
   const provision = vi.fn(async (request: { provider: string; address: string }) => ({
+    identityId: "mi-new",
     provider: request.provider,
     address: request.address,
     userId: "user-new",
@@ -115,6 +116,14 @@ function createDeps(
         createdIdentities.push(created);
         return created;
       }),
+      // Home resolution: the single fixture identity is its bot's only link.
+      findFirst: vi.fn(async ({ where }: { where: { botId?: string; id?: string } }) =>
+        identity &&
+        (!where.botId || where.botId === identity.botId) &&
+        (!where.id || where.id === identity.id)
+          ? identity
+          : null,
+      ),
     },
     messagingLinkCode,
     bot: { findUnique: vi.fn(async () => ({ name: "Chief" })) },
@@ -312,6 +321,7 @@ describe("createMessagingInboundHandler DM routing", () => {
       prompt: "hello bot",
       trigger: "messaging",
       clientNonce: "messaging:sendblue:handle-1",
+      messagingIdentityId: "mi-1",
     });
     expect(deps.enqueue).toHaveBeenCalledWith(
       expect.objectContaining({ name: "run.continue", payload: { runId: "run-1" } }),
@@ -339,6 +349,7 @@ describe("createMessagingInboundHandler DM routing", () => {
         botId: "bot-new",
         userId: "user-new",
         clientNonce: "messaging:sendblue:handle-1",
+        messagingIdentityId: "mi-new",
       }),
     );
   });
@@ -706,37 +717,35 @@ describe("createMessagingInboundHandler owner commands", () => {
       update: vi.fn(async () => ({})),
       updateMany: vi.fn(async () => ({ count: 1 })),
     };
-    deps.prisma.messagingIdentity.findUnique = vi.fn(
-      async ({
-        where,
-      }: {
-        where: { provider_address?: { provider: string; address: string }; botId?: string };
-      }) => {
-        if (where.botId === "bot-9") {
-          return {
-            id: "mi-9",
-            provider: "sendblue",
-            address: "+15559999999",
-            userId: "user-9",
-            spaceId: "ws-9",
-            botId: "bot-9",
-            outboundSinceInbound: 0,
-          };
-        }
-        return {
-          id: "mi-1",
-          provider: "sendblue",
-          address: "+15551111111",
-          userId: "user-1",
-          spaceId: "ws-1",
-          botId: "bot-1",
-          outboundSinceInbound: 0,
-        };
-      },
+    // The requester's confirmation goes to their bot's home chat app.
+    deps.prisma.messagingIdentity.findFirst = vi.fn(
+      async ({ where }: { where: { botId?: string } }) =>
+        where.botId === "bot-9"
+          ? {
+              id: "mi-9",
+              provider: "sendblue",
+              address: "+15559999999",
+              userId: "user-9",
+              spaceId: "ws-9",
+              botId: "bot-9",
+              outboundSinceInbound: 0,
+            }
+          : {
+              id: "mi-1",
+              provider: "sendblue",
+              address: "+15551111111",
+              userId: "user-1",
+              spaceId: "ws-1",
+              botId: "bot-1",
+              outboundSinceInbound: 0,
+            },
     );
     const handle = createMessagingInboundHandler(deps);
     await handle({ ...dmEvent, content: "YES" });
 
+    expect(deps.prisma.bot.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "bot-9" } }),
+    );
     expect(deps.prisma.agentConnection.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "ac-1", status: "pending" },
@@ -1213,6 +1222,16 @@ describe("createMessagingInboundHandler confirmation atomicity", () => {
       update: vi.fn(async () => ({})),
       updateMany: vi.fn(async () => ({ count: 1 })),
     };
+    // The requester's bot has its own home chat app to confirm on.
+    deps.prisma.messagingIdentity.findFirst = vi.fn(async () => ({
+      id: "mi-9",
+      provider: "sendblue",
+      address: "+15559999999",
+      userId: "user-9",
+      spaceId: "ws-9",
+      botId: "bot-9",
+      outboundSinceInbound: 0,
+    }));
     const txCreateMany = vi.fn(async ({ data }: { data: Array<Record<string, unknown>> }) => {
       deps.outboundRows.push(...data);
       return { count: data.length };
@@ -1476,5 +1495,27 @@ describe("teamChatSenderCanWakeMessageRoutines", () => {
         senderIsBot: true,
       }),
     ).resolves.toBe(false);
+  });
+});
+
+describe("createMessagingInboundHandler white-label copy", () => {
+  it("names the configured product in the group intro and invite", async () => {
+    const deps = createDeps();
+    deps.brandName = "withJZ Crew";
+    const handle = createMessagingInboundHandler(deps);
+    await handle(groupEvent);
+
+    const bodies = deps.outboundRows.map((row) => String(row.body));
+    expect(bodies.some((body) => body.includes("hosts withJZ Crew personal agents"))).toBe(true);
+    expect(bodies.some((body) => body.includes("linked to your withJZ Crew agent"))).toBe(true);
+    expect(bodies.join("\n")).not.toContain("Rakazo");
+  });
+
+  it("keeps upstream copy when no brand is configured", async () => {
+    const deps = createDeps();
+    const handle = createMessagingInboundHandler(deps);
+    await handle(groupEvent);
+    const bodies = deps.outboundRows.map((row) => String(row.body));
+    expect(bodies.some((body) => body.includes("hosts Rakazo personal agents"))).toBe(true);
   });
 });

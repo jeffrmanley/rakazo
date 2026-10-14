@@ -18,12 +18,22 @@ In scope:
 - A single-tenant Azure Bot registration authenticated with a client secret.
 - Web and mobile labels for the `teams` provider. Documentation and `.env.example`.
 
+- Group chats and channels on the team-chat path (added after the first version). The platform
+  declares `groups: true, teamChat: true` and enriches room activities with the tenant as
+  `workspaceId`, the chat or channel id (without the `;messageid=` thread suffix) as
+  `conversationKey`, the thread's root message id as `replyThreadId`, `kind: "mention"` when the
+  activity carries a mention entity for the bot account (`28:<appId>`) and `"ambient"` otherwise,
+  and `senderIsBot` for `28:` senders. `apps/api/src/app.ts` starts one `TeamChatBridge` per
+  platform with `teamChat: true` (Slack, Teams), each keyed by its own provider id, so Teams rooms
+  are stored and recovered as Teams conversations. Replies recombine the channel id with the reply
+  thread through the adapter's thread-id codec (`resolveMessagingThreadId`). 1:1 chats carry no
+  workspace id and stay on the personal line even when `TEAM_CHAT_BOT_ID` is set, so a user's
+  personal Teams link keeps working beside the team bot. Without `TEAM_CHAT_BOT_ID` room messages
+  are acknowledged and dropped. Manifest requirements (scopes, RSC for ambient) are documented in
+  `docs/self-host.md`.
+
 Out of scope (kept for follow-ups; see "Open questions"):
 
-- Channel and group-chat conversations, including the team-chat path. `TeamChatBridge` is
-  currently hard-wired to `providerId: "slack"` in `apps/api/src/app.ts`, so Teams rooms would be
-  stored as Slack conversations. Teams declares `groups: false`, so the surface drops channel and
-  group-chat messages. They never fall into the personal-line path or the Slack-bound bridge.
 - Multi-tenant bots, federated or managed-identity auth, certificate auth, and sovereign clouds
   (`TEAMS_API_URL`, GCC-High).
 - Adaptive Card approvals, typing indicators, and outbound attachments.
@@ -60,9 +70,10 @@ teamsAppTenantId?: string | undefined;
 ```ts
 {
   provider: "teams",
-  capabilities: { direct: true, groups: false, typing: false },
+  capabilities: { direct: true, groups: true, typing: false, teamChat: true },
   adapter, // createTeamsAdapter({ appType: "SingleTenant", appId, appPassword, appTenantId })
            // wrapped by the tenant guard below
+  enrichTeamRoom: enrichTeamsTeamRoom,
 }
 ```
 
@@ -117,7 +128,7 @@ teamsAppTenantId?: string | undefined;
 
 1. With any of the three variables missing, `messagingPlatformsFromEnv` mounts no `teams`
    platform. With all three present, it mounts `teams` with
-   `{ direct: true, groups: false, typing: false }`.
+   `{ direct: true, groups: true, typing: false, teamChat: true }`.
 2. `messagingEnvFromProcess` maps `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, and `TEAMS_APP_TENANT_ID`
    with trim and empty-to-undefined. `loadEnv` in `apps/api` does the same.
 3. The adapter is built as `SingleTenant` with the configured tenant. It does not pick up
@@ -130,11 +141,13 @@ teamsAppTenantId?: string | undefined;
 7. A validly signed, correct-tenant personal message reaches the inbound sink as
    `{ provider: "teams", isDirect: true, from: <29:… user id>, content }`, and the response is
    2xx.
-8. A validly signed channel or group-chat message is acknowledged but not delivered
-   (`groups: false`).
+8. A validly signed group-chat or channel message reaches the inbound sink with the tenant as
+   `workspaceId`, the room as `conversationKey`, the thread root (channels) as `replyThreadId`,
+   and `kind` `mention` or `ambient`; with `TEAM_CHAT_BOT_ID` set it is handled by the Teams
+   `TeamChatBridge`, otherwise it is acknowledged and dropped.
 9. A sink failure returns 500, so Bot Framework retries.
-10. Teams inbound events carry no `workspaceId`, so `prefersTeamChatSurface` never routes them into
-    the Slack-bound team-chat bridge.
+10. Teams 1:1 activities carry no `workspaceId`, so `prefersTeamChatSurface` keeps them on the
+    personal line; room activities do and reach the Teams bridge.
 11. The web and mobile provider labels return `Microsoft Teams`.
 
 ## Edge cases
@@ -169,8 +182,6 @@ teamsAppTenantId?: string | undefined;
 - **Identity linking.** Linking uses the existing DM link code, with address = Teams user ID
   (`29:…`). Should Rakazo also match on the Entra object ID or UPN (for example, auto-link a user
   whose verified email matches a Rakazo account)?
-- **Team chat.** Make `TeamChatBridge` per-provider (`providerId` from the event) so that Teams
-  channels and group chats can use the team-chat path that `TEAM_CHAT_BOT_ID` intends.
 - **Approvals.** Rakazo approvals could render as Adaptive Cards (the adapter supports buttons and
   `onAction`) instead of text replies.
 - **Attachments.** Inbound attachment URLs need bot-token-authenticated fetches. `mediaUrl`

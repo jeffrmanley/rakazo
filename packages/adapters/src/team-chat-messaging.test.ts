@@ -1,3 +1,7 @@
+import {
+  decodeThreadId as decodeTeamsThreadId,
+  encodeThreadId as encodeTeamsThreadId,
+} from "@chat-adapter/teams";
 import type { MessagingInboundMessage, MessagingSurface } from "@rakazo/adapter-kit";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -89,6 +93,35 @@ describe("resolveMessagingThreadId", () => {
 
   it("leaves conversationId alone when it already ends with replyThreadId", () => {
     expect(resolveMessagingThreadId("slack:C1:100.1", "100.1")).toBe("slack:C1:100.1");
+  });
+
+  it("addresses Teams channel threads through the ;messageid= suffix", () => {
+    const serviceUrl = "https://smba.trafficmanager.net/teams/";
+    const channel = encodeTeamsThreadId({
+      conversationId: "19:channel@thread.tacv2;messageid=111",
+      conversationType: "channel",
+      serviceUrl,
+    });
+    // A later message in another thread of the same channel updates the
+    // stored conversation id; the reply still lands in its own thread.
+    const resolved = resolveMessagingThreadId(channel, "222");
+    expect(decodeTeamsThreadId(resolved)).toMatchObject({
+      conversationId: "19:channel@thread.tacv2;messageid=222",
+      serviceUrl,
+    });
+    expect(resolved.startsWith("teams:")).toBe(true);
+    const sameThread = resolveMessagingThreadId(channel, "111");
+    expect(sameThread).toBe(channel);
+    // Group chats have no thread: the suffix is dropped, nothing is appended.
+    const group = encodeTeamsThreadId({
+      conversationId: "19:group@thread.v2",
+      conversationType: "groupChat",
+      serviceUrl,
+    });
+    expect(resolveMessagingThreadId(group, null)).toBe(group);
+    expect(decodeTeamsThreadId(resolveMessagingThreadId(channel, null)).conversationId).toBe(
+      "19:channel@thread.tacv2",
+    );
   });
 });
 

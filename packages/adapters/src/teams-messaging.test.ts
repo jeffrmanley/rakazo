@@ -261,7 +261,7 @@ describe("Teams messaging conformance", () => {
           threadId: expect.stringMatching(/^teams:/),
         }),
       ]);
-      // No workspace id: Teams must not route into the Slack-bound team-chat bridge.
+      // No workspace id: 1:1 chats stay on the personal line, not the team-chat bridge.
       expect(events[0]).not.toHaveProperty("workspaceId");
     });
 
@@ -281,18 +281,69 @@ describe("Teams messaging conformance", () => {
       expect(events).toHaveLength(1);
     });
 
-    it.each(["groupChat", "channel"] as const)(
-      "acknowledges but does not deliver %s messages",
-      async (conversationType) => {
-        const { surface, events } = await createSurface();
-        const response = await surface.handleWebhook(
-          "teams",
-          webhook(activity({ conversationType }), botFrameworkToken()),
-        );
-        expect(response?.status).toBeLessThan(300);
-        expect(events).toEqual([]);
-      },
-    );
+    it("delivers a group-chat @mention as a team-room mention in the tenant workspace", async () => {
+      const { surface, events } = await createSurface();
+      const response = await surface.handleWebhook(
+        "teams",
+        webhook(
+          {
+            ...activity({ conversationType: "groupChat" }),
+            text: "<at>Rakazo</at> ship it",
+            entities: [
+              {
+                type: "mention",
+                mentioned: { id: `28:${appId}`, name: "Rakazo" },
+                text: "<at>Rakazo</at>",
+              },
+            ],
+          },
+          botFrameworkToken(),
+        ),
+      );
+      expect(response?.status).toBeLessThan(300);
+      expect(events).toEqual([
+        expect.objectContaining({
+          provider: "teams",
+          isDirect: false,
+          from: userId,
+          workspaceId: tenantId,
+          conversationKey: "19:group-test@thread.v2",
+          replyThreadId: null,
+          kind: "mention",
+          senderIsBot: false,
+        }),
+      ]);
+    });
+
+    it("delivers a channel thread message keyed by channel with the thread as reply target", async () => {
+      const { surface, events } = await createSurface();
+      const base = activity({ conversationType: "channel" });
+      const response = await surface.handleWebhook(
+        "teams",
+        webhook(
+          {
+            ...base,
+            conversation: {
+              ...base.conversation,
+              id: "19:channel-test@thread.tacv2;messageid=1700000000999",
+            },
+          },
+          botFrameworkToken(),
+        ),
+      );
+      expect(response?.status).toBeLessThan(300);
+      expect(events).toEqual([
+        expect.objectContaining({
+          provider: "teams",
+          isDirect: false,
+          workspaceId: tenantId,
+          conversationKey: "19:channel-test@thread.tacv2",
+          replyThreadId: "1700000000999",
+          // No @mention: ambient, so listen policy decides.
+          kind: "ambient",
+        }),
+      ]);
+    });
 
     it("drops the bot's own messages", async () => {
       const { surface, events } = await createSurface();

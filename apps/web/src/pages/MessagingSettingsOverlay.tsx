@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 
 import { providerLabel } from "../lib/messaging";
 import { rpc } from "../lib/rpc";
+import { rpcErrorMessage } from "../lib/rpc-errors";
 import { ExternalConversationSettings } from "./ExternalConversationSettings";
 
 export function MessagingSettingsOverlay({ onClose }: { onClose: () => void }) {
@@ -62,12 +63,19 @@ export function MessagingSettingsOverlay({ onClose }: { onClose: () => void }) {
     try {
       await action();
       await refresh();
-    } catch {
-      setError(t`Couldn't update messaging settings`);
+    } catch (cause) {
+      setError(rpcErrorMessage(cause, t`Couldn't update messaging settings`));
     }
   }
 
   const agentByIdentity = new Map(status?.identities.map((i) => [i.id, i.botName]) ?? []);
+  // Home only matters once a bot is reachable from more than one chat app:
+  // replies always follow the app a message came from, and with a single
+  // link there is nothing to choose for proactive messages.
+  const linksPerBot = new Map<string, number>();
+  for (const identity of status?.identities ?? []) {
+    linksPerBot.set(identity.botId, (linksPerBot.get(identity.botId) ?? 0) + 1);
+  }
   function channelMeta(channel: MessagingChannelMembership): string {
     return [
       providerLabel(channel.provider),
@@ -127,17 +135,35 @@ export function MessagingSettingsOverlay({ onClose }: { onClose: () => void }) {
                     {providerLabel(identity.provider)} · {identity.address}{" "}
                     <span className="text-[12px] text-muted-foreground/70">
                       → {identity.botName}
+                      {(linksPerBot.get(identity.botId) ?? 0) > 1 && identity.isHome ? (
+                        <> · {t`Home`}</>
+                      ) : null}
                     </span>
                   </span>
-                  <Button
-                    variant="secondary"
-                    className="rounded-full"
-                    onClick={() =>
-                      void act(() => rpc.messaging.identities.unlink({ identityId: identity.id }))
-                    }
-                  >
-                    <Trans>Unlink</Trans>
-                  </Button>
+                  <span className="flex gap-2">
+                    {(linksPerBot.get(identity.botId) ?? 0) > 1 && !identity.isHome ? (
+                      <Button
+                        variant="secondary"
+                        className="rounded-full"
+                        onClick={() =>
+                          void act(() =>
+                            rpc.messaging.identities.setHome({ identityId: identity.id }),
+                          )
+                        }
+                      >
+                        <Trans>Make home</Trans>
+                      </Button>
+                    ) : null}
+                    <Button
+                      variant="secondary"
+                      className="rounded-full"
+                      onClick={() =>
+                        void act(() => rpc.messaging.identities.unlink({ identityId: identity.id }))
+                      }
+                    >
+                      <Trans>Unlink</Trans>
+                    </Button>
+                  </span>
                 </li>
               ))}
             </ul>

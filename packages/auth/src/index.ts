@@ -7,6 +7,7 @@ import {
   isMessagingEmail,
   parseAllowlist,
   signupPolicyFromEnv,
+  UPSTREAM_BRAND,
 } from "@rakazo/core";
 import type { PrismaClient } from "@rakazo/db";
 import { bootstrapUserSpace } from "@rakazo/db";
@@ -25,6 +26,7 @@ import {
   oidcProofKey,
   sessionForAuthHook,
 } from "./account-security.js";
+import { escapeHtml } from "./escape-html.js";
 import type { OidcConfig } from "./oidc.js";
 import { oidcDiscovery } from "./oidc.js";
 
@@ -39,6 +41,8 @@ export interface AuthEnv {
   signupsEnabled: string | undefined;
   signupAllowlist: string | undefined;
   extraOrigins?: string[];
+  /** Product name in emails and the auth app name; upstream's unless white-labelled. */
+  brandName?: string;
   email?: TransactionalEmailProvider;
   onEmailError?: (error: unknown) => void;
   beforeDeleteUser?: (userId: string) => Promise<void>;
@@ -249,7 +253,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
     throw new Error("Password auth requires OIDC when disabled");
   const discovery = env.oidc ? oidcDiscovery(env.oidc) : undefined;
   const auth = betterAuth({
-    appName: "Rakazo",
+    appName: env.brandName ?? UPSTREAM_BRAND.name,
     secret: env.secret,
     baseURL: env.baseURL,
     trustedOrigins: [...buildTrustedOrigins(env), "rakazo://"],
@@ -270,7 +274,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
             // Keep the response timing generic. Production providers track and retry the promise,
             // while the composition root drains accepted delivery during graceful shutdown.
             void env.email
-              ?.send(passwordResetEmail(user, url))
+              ?.send(passwordResetEmail(user, url, env.brandName))
               .catch((error) => env.onEmailError?.(error));
           }
         : undefined,
@@ -285,7 +289,9 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
               "callbackURL",
               new URL("/sign-in", env.webOrigin).href,
             );
-            await env.email!.send(verificationEmail(user.email, verificationUrl.href));
+            await env.email!.send(
+              verificationEmail(user.email, verificationUrl.href, env.brandName),
+            );
           }
         : undefined,
     },
@@ -359,7 +365,13 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
     plugins: [
       bearer(),
       expo(),
-      accountSecurity(env.email, env.oidc?.name, env.oidc?.issuer, env.passwordAuth !== false),
+      accountSecurity(
+        env.email,
+        env.oidc?.name,
+        env.oidc?.issuer,
+        env.passwordAuth !== false,
+        env.brandName,
+      ),
       ...(discovery ? [discovery.plugin] : []),
       organization({
         allowUserToCreateOrganization: false,
@@ -555,43 +567,42 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
   });
 }
 
-export function verificationEmail(email: string, url: string): TransactionalEmail {
+export function verificationEmail(
+  email: string,
+  url: string,
+  brandName: string = UPSTREAM_BRAND.name,
+): TransactionalEmail {
+  const safeBrand = escapeHtml(brandName);
   return {
     to: email,
-    subject: "Verify your Rakazo email",
-    text: `Verify your email, then return to Rakazo to sign in:\n\n${url}\n\nThis link expires in one hour. If you did not register, ignore this email.`,
-    html: `<p><a href="${escapeHtml(url)}">Verify email</a>, then return to Rakazo to sign in.</p><p>This link expires in one hour. If you did not register, ignore this email.</p>`,
+    subject: `Verify your ${brandName} email`,
+    text: `Verify your email, then return to ${brandName} to sign in:\n\n${url}\n\nThis link expires in one hour. If you did not register, ignore this email.`,
+    html: `<p><a href="${escapeHtml(url)}">Verify email</a>, then return to ${safeBrand} to sign in.</p><p>This link expires in one hour. If you did not register, ignore this email.</p>`,
   };
 }
 
 export function passwordResetEmail(
   user: { id: string; email: string; name: string },
   resetUrl: string,
+  brandName: string = UPSTREAM_BRAND.name,
 ): TransactionalEmail {
   const name = user.name.trim() || "there";
   const safeName = escapeHtml(name);
   const safeUrl = escapeHtml(resetUrl);
+  const safeBrand = escapeHtml(brandName);
   return {
     to: user.email,
-    subject: "Reset your Rakazo password",
+    subject: `Reset your ${brandName} password`,
     text: [
       `Hi ${name},`,
       "",
-      "Reset your Rakazo password using this link:",
+      `Reset your ${brandName} password using this link:`,
       resetUrl,
       "",
       "This link expires in one hour. If you did not request this, you can ignore this email.",
     ].join("\n"),
-    html: `<p>Hi ${safeName},</p><p>Reset your Rakazo password:</p><p><a href="${safeUrl}">Reset password</a></p><p>This link expires in one hour. If you did not request this, you can ignore this email.</p>`,
+    html: `<p>Hi ${safeName},</p><p>Reset your ${safeBrand} password:</p><p><a href="${safeUrl}">Reset password</a></p><p>This link expires in one hour. If you did not request this, you can ignore this email.</p>`,
   };
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(
-    /[&<>"']/g,
-    (character) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]!,
-  );
 }
 
 export type Auth = ReturnType<typeof createAuth>;

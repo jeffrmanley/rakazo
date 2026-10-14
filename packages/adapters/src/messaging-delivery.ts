@@ -8,7 +8,11 @@ import { messagingDeliverJob, runContinueJob } from "@rakazo/adapter-kit";
 import type { MessageBlock } from "@rakazo/contracts";
 import { botMessageHopExhausted, nextBotMessageHop } from "@rakazo/core";
 import type { PrismaClient, ThreadEvents } from "@rakazo/db";
-import { appendEventInTransaction, createThreadMessageInTransaction } from "@rakazo/db";
+import {
+  appendEventInTransaction,
+  createThreadMessageInTransaction,
+  replyMessagingIdentity,
+} from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 
 /**
@@ -90,9 +94,9 @@ async function mirrorRun(deps: MessagingDeliveryDeps, runId: string): Promise<vo
     return;
   }
 
-  const identity = await deps.prisma.messagingIdentity.findUnique({
-    where: { botId: run.botId },
-  });
+  // Replies follow the chat app the inbound came through; delegated
+  // bot_message replies have no origin conversation and go to the home.
+  const identity = await replyMessagingIdentity(deps.prisma, run);
   if (!identity) return;
 
   // bot_message runs can carry the bot's user-facing reply after a delegate wake.
@@ -124,12 +128,11 @@ async function mirrorRun(deps: MessagingDeliveryDeps, runId: string): Promise<vo
  */
 async function mirrorChannelRun(
   deps: MessagingDeliveryDeps,
-  run: { id: string; botId: string },
+  run: { id: string; botId: string; messagingIdentityId: string | null },
   channelBlock: Extract<MessageBlock, { kind: "channel_message" }>,
 ): Promise<void> {
-  const identity = await deps.prisma.messagingIdentity.findUnique({
-    where: { botId: run.botId },
-  });
+  // The fan-out stamps the member identity the channel reached the bot by.
+  const identity = await replyMessagingIdentity(deps.prisma, run);
   if (!identity) return;
   const channel = await deps.prisma.messagingChannel.findUnique({
     where: { id: channelBlock.channelId },
@@ -220,6 +223,7 @@ async function mirrorChannelRun(
           prompt: `[Group "${channel.name ?? "group"}" — ${fromLabel}]: ${text}`,
           trigger: "messaging",
           clientNonce,
+          messagingIdentityId: peerIdentity.id,
         });
         if (sent.runId) {
           await deps.jobs.enqueue(runContinueJob(sent.runId)).catch((error) => {

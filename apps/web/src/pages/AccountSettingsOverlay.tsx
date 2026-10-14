@@ -17,6 +17,7 @@ import {
   setBotsSidebarDensity,
   subscribeBotsSidebarDensity,
 } from "../lib/bots-sidebar-density-pref";
+import { upstreamRepositoryUrl, whiteLabelled } from "../lib/brand";
 import { getActiveUiLocale, setUiLocale } from "../lib/i18n";
 import {
   getRemoteImagesPreference,
@@ -287,6 +288,25 @@ export function GeneralSettingsPanels({
           <ApprovalRulesSettings />
         </div>
       </details>
+
+      {whiteLabelled ? (
+        <p
+          data-testid="brand-credit"
+          className="px-1 text-[12px] text-muted-foreground/70"
+          lang="en"
+        >
+          Built on{" "}
+          <a
+            href={upstreamRepositoryUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="underline-offset-2 hover:underline"
+          >
+            Rakazo
+          </a>{" "}
+          (Apache-2.0)
+        </p>
+      ) : null}
     </div>
   );
 }

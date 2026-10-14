@@ -6,6 +6,7 @@ import {
   isBlockedAuthPath,
   passwordResetEmail,
   resolveSignupPolicy,
+  verificationEmail,
 } from "./index.js";
 
 describe("auth policy", () => {
@@ -175,5 +176,29 @@ describe("resolveSignupPolicy", () => {
         signupAllowlist: "environment-only@example.com",
       }),
     ).resolves.toEqual({ enabled: false, allowlist: ["approved@example.com"] });
+  });
+});
+
+describe("white-label emails", () => {
+  it("name the configured product instead of upstream", () => {
+    const verification = verificationEmail(
+      "ada@example.test",
+      "https://crew.test/verify",
+      "withJZ Crew",
+    );
+    expect(verification.subject).toBe("Verify your withJZ Crew email");
+    expect(verification.text).toContain("return to withJZ Crew to sign in");
+    expect(`${verification.subject}${verification.text}${verification.html}`).not.toContain(
+      "Rakazo",
+    );
+
+    const reset = passwordResetEmail(
+      { id: "user-1", email: "ada@example.test", name: "Ada" },
+      "https://crew.test/reset",
+      "<Crew & Co>",
+    );
+    expect(reset.subject).toBe("Reset your <Crew & Co> password");
+    expect(reset.html).toContain("Reset your &lt;Crew &amp; Co&gt; password");
+    expect(reset.html).not.toContain("<Crew & Co>");
   });
 });

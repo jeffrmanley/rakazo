@@ -1,6 +1,7 @@
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type { ModelOAuthSignInMode, ThinkingLevel } from "@rakazo/contracts";
+import { UPSTREAM_BRAND } from "@rakazo/core";
 import { supplementPiModels } from "./pi-current-models.js";
 import { LOCAL_PROVIDER_ID, registerLocalProvider } from "./pi-local-provider.js";
 import { SUBSCRIPTION_SIGN_IN_PROVIDERS } from "./pi-oauth.js";
@@ -85,14 +86,19 @@ function pinnedCatalogProbeBaseUrl(
   return [...urls][0] ?? null;
 }
 
-export function listPiCatalog(): PiCatalogEntry[] {
-  cachedCatalog ??= buildPiCatalog();
-  return cachedCatalog;
+/** The model catalog; billing copy names the product the deployment presents itself as. */
+export function listPiCatalog(brandName: string = UPSTREAM_BRAND.name): PiCatalogEntry[] {
+  let catalog = cachedCatalogs.get(brandName);
+  if (!catalog) {
+    catalog = buildPiCatalog(brandName);
+    cachedCatalogs.set(brandName, catalog);
+  }
+  return catalog;
 }
 
-let cachedCatalog: PiCatalogEntry[] | undefined;
+const cachedCatalogs = new Map<string, PiCatalogEntry[]>();
 
-function buildPiCatalog(): PiCatalogEntry[] {
+function buildPiCatalog(brandName: string): PiCatalogEntry[] {
   catalogProbeBaseUrls.clear();
   const models = registerOpenAiCompatibleCatalog(
     registerLocalProvider(supplementPiModels(builtinModels())),
@@ -106,10 +112,7 @@ function buildPiCatalog(): PiCatalogEntry[] {
     const oauthLabel =
       signInMeta?.loginLabel ?? provider.auth.oauth?.loginLabel ?? provider.auth.oauth?.name;
     const subscription = Boolean(provider.auth.oauth?.isSubscription);
-    const billing = catalogBilling(provider.id, provider.name, {
-      apiKey,
-      oauth,
-    });
+    const billing = catalogBilling(provider.id, provider.name, { apiKey, oauth }, brandName);
     const providerModels = provider.getModels();
     const probeBaseUrl = pinnedCatalogProbeBaseUrl(provider.id, providerModels);
     if (probeBaseUrl) catalogProbeBaseUrls.set(provider.id, probeBaseUrl);
@@ -202,22 +205,23 @@ function catalogBilling(
   providerId: string,
   name: string,
   opts: { apiKey: boolean; oauth: boolean },
+  brandName: string,
 ) {
   const signInMeta = SUBSCRIPTION_SIGN_IN_PROVIDERS[providerId];
-  if (signInMeta) return signInMeta.billing;
+  if (signInMeta) return signInMeta.billing(brandName);
   if (providerId === LOCAL_PROVIDER_ID) {
-    return "Runs on infrastructure configured by the deployment owner. No model charges from Rakazo.";
+    return `Runs on infrastructure configured by the deployment owner. No model charges from ${brandName}.`;
   }
   if (providerId === OPENAI_COMPATIBLE_PROVIDER_ID) {
-    return "Runs on a URL you control. Rakazo does not pay for model usage.";
+    return `Runs on a URL you control. ${brandName} does not pay for model usage.`;
   }
   if (opts.oauth && !opts.apiKey) {
-    return `${name} subscription login is not in the Rakazo UI yet. Skip if this deployment already has credentials.`;
+    return `${name} subscription login is not in the ${brandName} UI yet. Skip if this deployment already has credentials.`;
   }
   if (opts.apiKey) {
-    return `Uses your ${name} API key. Rakazo does not pay for model usage.`;
+    return `Uses your ${name} API key. ${brandName} does not pay for model usage.`;
   }
-  return `Uses your ${name} key. Rakazo does not pay for model usage.`;
+  return `Uses your ${name} key. ${brandName} does not pay for model usage.`;
 }
 
 export const scriptedCatalogEntry: PiCatalogEntry = {

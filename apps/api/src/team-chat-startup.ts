@@ -15,6 +15,11 @@ export const TEAMCHAT_AGENT_OWNERSHIP_REASON = "message_teamchat_agent";
 /** Hold deferred rows while a TeamChat wake may still create its run. */
 export const MESSAGE_ROUTING_RESERVATION_MS = 30 * 60_000;
 
+/**
+ * Slack (and its emulator) hand every message to the team-chat bot once one
+ * is configured. Other platforms join per room: Teams group chats and
+ * channels carry a workspace id while 1:1 chats stay on the personal line.
+ */
 export function prefersTeamChatSurface(
   event: Pick<MessagingInboundMessage, "provider" | "workspaceId">,
   teamChatBotId: string | undefined | null,
@@ -27,9 +32,16 @@ export function prefersTeamChatSurface(
   );
 }
 
+/** Providers that get their own TeamChatBridge: one per platform whose rooms are team rooms. */
+export function teamChatProviders(
+  platforms: Array<{ provider: string; capabilities: { teamChat?: boolean } }>,
+): string[] {
+  return platforms.filter((platform) => platform.capabilities.teamChat).map((p) => p.provider);
+}
+
 /** Queue TeamChat-shaped messages until TeamChatBridge.receive is available. */
 export class PendingTeamChatInbound {
-  private readonly events: Array<{
+  private events: Array<{
     event: MessagingInboundMessage;
     resolve: () => void;
     reject: (error: unknown) => void;
@@ -48,8 +60,14 @@ export class PendingTeamChatInbound {
     });
   }
 
-  flush(handle: (event: MessagingInboundMessage) => Promise<void>): void {
-    for (const pending of this.events.splice(0, this.events.length)) {
+  /** Hand queued events to a ready bridge; with `select`, only the matching ones. */
+  flush(
+    handle: (event: MessagingInboundMessage) => Promise<void>,
+    select: (event: MessagingInboundMessage) => boolean = () => true,
+  ): void {
+    const ready = this.events.filter((pending) => select(pending.event));
+    this.events = this.events.filter((pending) => !select(pending.event));
+    for (const pending of ready) {
       void handle(pending.event).then(pending.resolve, pending.reject);
     }
   }

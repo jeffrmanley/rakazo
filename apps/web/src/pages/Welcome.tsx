@@ -1,5 +1,6 @@
 import { Trans } from "@lingui/react/macro";
 import { Link, useNavigate } from "react-router-dom";
+import { brand, whiteLabelled } from "../lib/brand";
 import { WindowChrome } from "./WindowChrome";
 
 export function WelcomePage() {
@@ -16,15 +17,19 @@ export function WelcomePage() {
             <span className="h-[17px] w-2 rounded-full bg-card sm:h-6 sm:w-[11px]" />
           </div>
           <h1 className="text-[56px] leading-none tracking-[-0.03em] text-foreground sm:text-[76px]">
-            Rakazo
+            {brand.name}
           </h1>
         </div>
         <p className="max-w-[600px] text-center text-[27px] leading-[1.4] text-foreground/75">
-          <Trans>
-            Your team of always-on agents
-            <br />
-            that you can give real work to.
-          </Trans>
+          {whiteLabelled ? (
+            brand.tagline
+          ) : (
+            <Trans>
+              Your team of always-on agents
+              <br />
+              that you can give real work to.
+            </Trans>
+          )}
         </p>
         <div className="flex flex-wrap items-center justify-center gap-2">
           <button

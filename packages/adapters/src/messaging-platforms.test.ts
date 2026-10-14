@@ -1,13 +1,16 @@
+import type { MessagingInboundMessage } from "@rakazo/adapter-kit";
 import { Domain } from "chat-adapter-lark";
 import { describe, expect, it, vi } from "vitest";
 import {
   enrichSlackTeamRoom,
+  enrichTeamsTeamRoom,
   isMessagingEnabled,
   isMessagingSurfaceEnabled,
   type MessagingEnvironmentValues,
   messagingEnvFromProcess,
   messagingPlatformsFromEnv,
   parseSendblueStatus,
+  splitTeamsConversationId,
 } from "./messaging-platforms.js";
 
 // Fake credentials: adapters are constructed offline, never called.
@@ -268,12 +271,134 @@ describe("messagingPlatformsFromEnv", () => {
       platforms.map((platform) => [platform.provider, platform.capabilities]),
     );
     expect(capabilities.sendblue).toEqual({ direct: true, groups: true, typing: true });
-    expect(capabilities.slack).toEqual({ direct: true, groups: true, typing: false });
+    // Slack and Teams rooms are team rooms for the shared team-chat bot.
+    expect(capabilities.slack).toEqual({
+      direct: true,
+      groups: true,
+      typing: false,
+      teamChat: true,
+    });
     expect(capabilities.whatsapp).toEqual({ direct: true, groups: false, typing: false });
     expect(capabilities.telegram).toEqual({ direct: true, groups: false, typing: false });
     expect(capabilities.lark).toEqual({ direct: true, groups: false, typing: false });
-    // Teams channels/group chats stay off until team chat is per-provider.
-    expect(capabilities.teams).toEqual({ direct: true, groups: false, typing: false });
+    expect(capabilities.teams).toEqual({
+      direct: true,
+      groups: true,
+      typing: false,
+      teamChat: true,
+    });
+  });
+});
+
+describe("teams team-room enrichment", () => {
+  const botId = "28:00000000-0000-4000-8000-0000000000A1";
+  const base = (overrides: Partial<MessagingInboundMessage> = {}): MessagingInboundMessage => ({
+    type: "message",
+    provider: "teams",
+    handle: "1700000000001",
+    threadId: "teams:conv:url",
+    isDirect: false,
+    from: "29:user",
+    fromLabel: "Ada",
+    channelName: null,
+    participants: [],
+    content: "hello",
+    mediaUrl: null,
+    ...overrides,
+  });
+  const activity = (overrides: Record<string, unknown> = {}) => ({
+    type: "message",
+    from: { id: "29:user", name: "Ada" },
+    recipient: { id: botId.toLowerCase(), name: "Rakazo" },
+    conversation: {
+      id: "19:group@thread.v2",
+      conversationType: "groupChat",
+      tenantId: "0000TENANT",
+    },
+    channelData: { tenant: { id: "0000TENANT" } },
+    entities: [],
+    ...overrides,
+  });
+
+  it("leaves 1:1 chats on the personal line", () => {
+    expect(enrichTeamsTeamRoom(activity(), base({ isDirect: true }))).toEqual({});
+  });
+
+  it("routes a group chat to the tenant workspace and detects @mentions of the bot", () => {
+    const mentioned = enrichTeamsTeamRoom(
+      activity({
+        entities: [
+          { type: "mention", mentioned: { id: botId, name: "Rakazo" }, text: "<at>Rakazo</at>" },
+        ],
+      }),
+      base(),
+    );
+    expect(mentioned).toEqual({
+      workspaceId: "0000tenant",
+      conversationKey: "19:group@thread.v2",
+      replyThreadId: null,
+      channelName: null,
+      senderIsBot: false,
+      kind: "mention",
+    });
+    // Mentioning someone else is ambient; so is no mention at all.
+    expect(
+      enrichTeamsTeamRoom(
+        activity({ entities: [{ type: "mention", mentioned: { id: "29:other", name: "Grace" } }] }),
+        base(),
+      ).kind,
+    ).toBe("ambient");
+    expect(enrichTeamsTeamRoom(activity(), base()).kind).toBe("ambient");
+  });
+
+  it("keys channel threads by channel and replies into the thread", () => {
+    const enriched = enrichTeamsTeamRoom(
+      activity({
+        conversation: {
+          id: "19:channel@thread.tacv2;messageid=1700000000123",
+          conversationType: "channel",
+          tenantId: "0000TENANT",
+        },
+        channelData: {
+          tenant: { id: "0000TENANT" },
+          team: { id: "19:team@thread.tacv2", name: "Launch" },
+          channel: { id: "19:channel@thread.tacv2", name: "general" },
+        },
+      }),
+      base(),
+    );
+    expect(enriched).toMatchObject({
+      workspaceId: "0000tenant",
+      conversationKey: "19:channel@thread.tacv2",
+      replyThreadId: "1700000000123",
+      channelName: "general",
+      kind: "ambient",
+    });
+  });
+
+  it("flags other bots as automated senders and copes with missing tenant data", () => {
+    const enriched = enrichTeamsTeamRoom(
+      activity({
+        from: { id: "28:another-app", name: "GitHub" },
+        conversation: { id: "19:group@thread.v2", conversationType: "groupChat" },
+        channelData: {},
+      }),
+      base(),
+    );
+    expect(enriched.senderIsBot).toBe(true);
+    expect(enriched).not.toHaveProperty("workspaceId");
+    expect(enrichTeamsTeamRoom("not an activity", base())).toEqual({});
+  });
+
+  it("splits the channel thread suffix off Teams conversation ids", () => {
+    expect(splitTeamsConversationId("19:c@thread.tacv2;messageid=42")).toEqual({
+      conversationId: "19:c@thread.tacv2",
+      messageId: "42",
+    });
+    expect(splitTeamsConversationId("19:g@thread.v2")).toEqual({
+      conversationId: "19:g@thread.v2",
+      messageId: null,
+    });
   });
 });
 

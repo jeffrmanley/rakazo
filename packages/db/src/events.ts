@@ -213,6 +213,8 @@ export interface SendUserMessageInput {
   createRun?: boolean;
   /** When true, start a new run even if the bot is already busy (team-chat delivery). */
   allowParallelRun?: boolean;
+  /** Linked chat app a messaging inbound arrived through; the reply mirrors back there. */
+  messagingIdentityId?: string;
   /** Model every routine in an inbound delivery agreed on. */
   modelPin?: {
     modelProvider: string;
@@ -442,6 +444,7 @@ export async function sendUserMessage(
             trigger: input.trigger,
             clientNonce: input.clientNonce ? `send:${message.id}` : undefined,
             sourceMessageId: message.id,
+            messagingIdentityId: input.messagingIdentityId ?? null,
             ...(input.modelPin
               ? {
                   modelProvider: input.modelPin.modelProvider,

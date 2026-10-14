@@ -71,9 +71,29 @@ function messagingDeps(
   };
   const defaultChannel = { id: "ch-1", provider: "sendblue", name: "Family", members: [] };
   const connectionState = connection ? { ...connection } : null;
+  const peerIdentity = {
+    id: "mi-9",
+    provider: "sendblue",
+    address: "+15559999999",
+    userId: "user-9",
+    botId: "bot-9",
+  };
+  const identityPool = [
+    ...(overrides.identities ?? (resolvedIdentity ? [resolvedIdentity] : [])),
+    peerIdentity,
+  ] as Array<Record<string, unknown>>;
   const prisma = {
     messagingIdentity: {
-      findFirst: vi.fn(async () => resolvedIdentity),
+      // Ownership checks (id + userId) and home resolution (botId, earliest).
+      findFirst: vi.fn(
+        async ({ where }: { where?: { id?: string; userId?: string; botId?: string } } = {}) =>
+          identityPool.find(
+            (row) =>
+              (!where?.id || row.id === where.id) &&
+              (!where?.userId || row.userId === where.userId) &&
+              (!where?.botId || row.botId === where.botId),
+          ) ?? null,
+      ),
       findMany: vi.fn(
         async () => overrides.identities ?? (resolvedIdentity ? [resolvedIdentity] : []),
       ),
@@ -186,9 +206,24 @@ function messagingDeps(
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) => ({
         id: where.id,
         name: where.id === "bot-9" ? "Helper" : "Assistant",
+        homeMessagingIdentityId: null,
       })),
-      findFirst: vi.fn(async ({ where }: { where: { id: string } }) =>
-        where.id.startsWith("bot-") ? { id: where.id } : null,
+      // Bots the caller owns in the current space are bot-1, bot-2, …; bot-9
+      // belongs to user-9 and bot-ws2 lives in another space.
+      findFirst: vi.fn(
+        async ({ where }: { where: { id: string; spaceId?: string; userId?: string } }) =>
+          where.id.startsWith("bot-") &&
+          where.id !== "bot-9" &&
+          where.id !== "bot-ws2" &&
+          (!where.spaceId || where.spaceId === "ws-1") &&
+          (!where.userId || where.userId === "user-1")
+            ? { id: where.id }
+            : null,
+      ),
+      updateMany: vi.fn(async ({ where }: { where: { id?: string; userId?: string } }) =>
+        where.id === undefined || (where.id !== "bot-9" && where.userId !== "user-9")
+          ? { count: 1 }
+          : { count: 0 },
       ),
     },
     messagingLinkCode: {
@@ -312,10 +347,30 @@ describe("messaging.status", () => {
             address: "+15551111111",
             botId: "bot-1",
             botName: "Assistant",
+            isHome: true,
           },
         ],
       },
     });
+  });
+
+  it("marks the bot's home among several linked chat apps", async () => {
+    const slack = { ...identity, id: "mi-slack", provider: "slack", address: "U1" };
+    const teams = { ...identity, id: "mi-teams", provider: "teams", address: "29:u" };
+    const { handler, actor, prisma } = messagingDeps({ identities: [slack, teams] });
+    (prisma.bot.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "bot-1",
+      name: "Assistant",
+      homeMessagingIdentityId: "mi-teams",
+    });
+    const response = await call(handler, actor, "messaging/status");
+    const body = (await response.json()) as {
+      json: { identities: Array<{ id: string; isHome: boolean }> };
+    };
+    expect(body.json.identities.map((row) => [row.id, row.isHome])).toEqual([
+      ["mi-slack", false],
+      ["mi-teams", true],
+    ]);
   });
 
   it("reports no identities when the caller has not linked a chat app", async () => {
@@ -343,11 +398,41 @@ describe("messaging.link", () => {
     );
   });
 
-  it("refuses to issue a code for an already-linked bot", async () => {
-    const { handler, actor } = messagingDeps();
-    // messagingIdentity.findUnique resolves an identity for bot-1 by default.
+  it("issues a second code for a bot that already has a chat app linked", async () => {
+    const { handler, actor, prisma } = messagingDeps();
+    // messagingIdentity resolves an identity for bot-1 by default: one agent
+    // can be reached from several chat apps.
     const response = await call(handler, actor, "messaging/link/start", { botId: "bot-1" });
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
+    expect(prisma.messagingLinkCode.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ userId: "user-1", spaceId: "ws-1", botId: "bot-1" }),
+      }),
+    );
+  });
+
+  it("binds the code to the session's user and space, never to request input", async () => {
+    const { handler, actor, prisma } = messagingDeps();
+    const response = await call(handler, actor, "messaging/link/start", {
+      botId: "bot-1",
+      spaceId: "ws-evil",
+      userId: "user-evil",
+    });
+    expect(response.status).toBe(200);
+    expect(prisma.messagingLinkCode.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ userId: "user-1", spaceId: "ws-1" }),
+      }),
+    );
+  });
+
+  it("refuses codes for bots the caller does not own or that live in another space", async () => {
+    const { handler, actor, prisma } = messagingDeps();
+    const foreignOwner = await call(handler, actor, "messaging/link/start", { botId: "bot-9" });
+    expect(foreignOwner.status).toBe(404);
+    const otherSpace = await call(handler, actor, "messaging/link/start", { botId: "bot-ws2" });
+    expect(otherSpace.status).toBe(404);
+    expect(prisma.messagingLinkCode.create).not.toHaveBeenCalled();
   });
 });
 
@@ -366,11 +451,54 @@ describe("messaging.identities", () => {
         address: "+15551111111",
         botId: "bot-2",
         botName: "Assistant",
+        isHome: false,
       },
     });
   });
 
-  it("unlinks only the caller's own identity", async () => {
+  it("refuses to move another user's identity or to target a foreign bot", async () => {
+    const { handler, actor, prisma } = messagingDeps();
+    const foreignIdentity = await call(handler, actor, "messaging/identities/setBot", {
+      identityId: "mi-9",
+      botId: "bot-2",
+    });
+    expect(foreignIdentity.status).toBe(404);
+    const foreignBot = await call(handler, actor, "messaging/identities/setBot", {
+      identityId: "mi-1",
+      botId: "bot-9",
+    });
+    expect(foreignBot.status).toBe(404);
+    const otherSpace = await call(handler, actor, "messaging/identities/setBot", {
+      identityId: "mi-1",
+      botId: "bot-ws2",
+      spaceId: "ws-2",
+    });
+    expect(otherSpace.status).toBe(404);
+    expect(prisma.messagingIdentity.update).not.toHaveBeenCalled();
+  });
+
+  it("makes a linked chat app the bot's home", async () => {
+    const { handler, actor, prisma } = messagingDeps();
+    const response = await call(handler, actor, "messaging/identities/setHome", {
+      identityId: "mi-1",
+    });
+    expect(response.status).toBe(200);
+    expect(prisma.bot.updateMany).toHaveBeenCalledWith({
+      where: { id: "bot-1", userId: "user-1", archivedAt: null },
+      data: { homeMessagingIdentityId: "mi-1" },
+    });
+  });
+
+  it("refuses to make another user's identity a home", async () => {
+    const { handler, actor, prisma } = messagingDeps();
+    const response = await call(handler, actor, "messaging/identities/setHome", {
+      identityId: "mi-9",
+    });
+    expect(response.status).toBe(404);
+    expect(prisma.bot.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("unlinks only the caller's own identity and clears a home that pointed at it", async () => {
     const { handler, actor, prisma } = messagingDeps();
     const response = await call(handler, actor, "messaging/identities/unlink", {
       identityId: "mi-1",
@@ -378,6 +506,10 @@ describe("messaging.identities", () => {
     expect(response.status).toBe(200);
     expect(prisma.messagingIdentity.deleteMany).toHaveBeenCalledWith({
       where: { id: "mi-1", userId: "user-1" },
+    });
+    expect(prisma.bot.updateMany).toHaveBeenCalledWith({
+      where: { homeMessagingIdentityId: "mi-1" },
+      data: { homeMessagingIdentityId: null },
     });
     const missing = await call(handler, actor, "messaging/identities/unlink", {
       identityId: "mi-other",
@@ -903,6 +1035,7 @@ describe("messaging.connections.respond confirmation atomicity", () => {
         fn({
           agentConnection: prisma.agentConnection,
           messagingIdentity: prisma.messagingIdentity,
+          bot: prisma.bot,
           messagingOutbound: {
             createMany: txCreateMany,
             deleteMany: vi.fn(async () => ({ count: 0 })),

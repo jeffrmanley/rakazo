@@ -6,6 +6,7 @@ import {
   PendingTeamChatInbound,
   prefersTeamChatSurface,
   settleWithTimeout,
+  teamChatProviders,
 } from "./team-chat-startup.js";
 
 function message(overrides: Partial<MessagingInboundMessage> = {}): MessagingInboundMessage {
@@ -37,15 +38,64 @@ describe("team chat startup helpers", () => {
     expect(prefersTeamChatSurface(message(), undefined)).toBe(false);
   });
 
-  it("keeps Teams direct messages off the Slack-bound team-chat bridge", () => {
-    // TeamChatBridge is keyed to the slack provider; Teams events carry no
-    // workspace id so they stay on the personal-line path.
+  it("sends Teams rooms to the team-chat bridge and keeps Teams 1:1 chats on the personal line", () => {
     expect(
       prefersTeamChatSurface(
         message({ provider: "teams", workspaceId: undefined, threadId: "teams:a:b" }),
         "bot-1",
       ),
     ).toBe(false);
+    expect(
+      prefersTeamChatSurface(
+        message({
+          provider: "teams",
+          isDirect: false,
+          workspaceId: "tenant-1",
+          conversationKey: "19:group@thread.v2",
+          kind: "mention",
+        }),
+        "bot-1",
+      ),
+    ).toBe(true);
+  });
+
+  it("gives every team-chat platform its own bridge and leaves personal lines out", () => {
+    expect(
+      teamChatProviders([
+        { provider: "sendblue", capabilities: { direct: true, groups: true, typing: true } },
+        {
+          provider: "slack",
+          capabilities: { direct: true, groups: true, typing: false, teamChat: true },
+        },
+        { provider: "telegram", capabilities: { direct: true, groups: false, typing: false } },
+        {
+          provider: "teams",
+          capabilities: { direct: true, groups: true, typing: false, teamChat: true },
+        },
+      ]),
+    ).toEqual(["slack", "teams"]);
+  });
+
+  it("flushes only the events a newly ready bridge can take", async () => {
+    const pending = new PendingTeamChatInbound();
+    const slack = pending.enqueue(message({ handle: "Ev-slack", provider: "slack" }));
+    const teams = pending.enqueue(message({ handle: "Ev-teams", provider: "teams" }));
+    const handled: string[] = [];
+    pending.flush(
+      async (event) => {
+        handled.push(event.handle);
+      },
+      (event) => event.provider === "teams",
+    );
+    await teams;
+    expect(handled).toEqual(["Ev-teams"]);
+    expect(pending.size).toBe(1);
+    pending.flush(async (event) => {
+      handled.push(event.handle);
+    });
+    await slack;
+    expect(handled).toEqual(["Ev-teams", "Ev-slack"]);
+    expect(pending.size).toBe(0);
   });
 
   it("settles buffered TeamChat inbound only after the bridge receives it", async () => {

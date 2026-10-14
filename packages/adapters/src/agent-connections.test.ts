@@ -109,6 +109,37 @@ function createDeps(
           return null;
         },
       ),
+      // Home resolution (earliest link per bot) and the provider-scoped
+      // target lookup across every chat app the sender's bot is linked to.
+      findFirst: vi.fn(
+        async ({
+          where,
+        }: {
+          where: {
+            botId?: string;
+            id?: string;
+            address?: string;
+            provider?: { in: string[] };
+          };
+        }) => {
+          if (where.address) {
+            if (!where.provider?.in.includes("sendblue")) return null;
+            if (where.address === "+15552222222") return targetIdentity;
+            if (where.address === "+15551111111") return requesterIdentity;
+            return null;
+          }
+          if (where.botId === "bot-2" || where.id === "mi-2") return targetIdentity;
+          if (where.botId === "bot-1" || where.id === "mi-1") return requesterIdentity;
+          return null;
+        },
+      ),
+      findMany: vi.fn(async ({ where }: { where: { botId?: string } }) =>
+        where.botId === "bot-1"
+          ? [{ provider: requesterIdentity.provider }]
+          : where.botId === "bot-2"
+            ? [{ provider: targetIdentity.provider }]
+            : [],
+      ),
     },
     bot: {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) =>
