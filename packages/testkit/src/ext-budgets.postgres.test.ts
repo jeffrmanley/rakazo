@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { ComposioEmulator } from "@rakazo/adapters";
+import { budgetAfterModelCall, ComposioEmulator } from "@rakazo/adapters";
 import {
   BUDGET_BLOCK_TEXT,
   BUDGET_SPACE_BLOCK_TEXT,
@@ -285,6 +285,81 @@ describeBudgets("fork extension: budgets end to end (scripted runtime)", () => {
       )
       .toBe(0);
     await Promise.all(pending);
+  });
+
+  it("sends the 80% notice once, in chat through the bot's home messaging identity", async () => {
+    const owner = await newOwner("notice");
+    const botId = await newBot(owner, "Chatty");
+    const identity = await prisma.messagingIdentity.create({
+      data: {
+        provider: "slack",
+        address: `U-${stamp}`,
+        userId: owner.userId,
+        spaceId: owner.spaceId,
+        botId,
+        verifiedAt: new Date(),
+      },
+    });
+    await prisma.bot.update({
+      where: { id: botId },
+      data: { homeMessagingIdentityId: identity.id },
+    });
+    await spend(owner, botId, 2.5);
+    const deps = { prisma, jobs: handles.jobs, events: {} as never };
+    const run = { spaceId: owner.spaceId, botId };
+
+    // 83%: notified, not halted. A second crossing the same UTC day sends nothing.
+    await expect(budgetAfterModelCall(deps, run)).resolves.toBe(false);
+    await spend(owner, botId, 0.5);
+    await expect(budgetAfterModelCall(deps, run)).resolves.toBe(true);
+    const sent = await prisma.messagingOutbound.findMany({ where: { identityId: identity.id } });
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      kind: "dm",
+      body: "Chatty has used $2.50 of its $3.00 daily budget.",
+    });
+    // Tomorrow is a new budget day with its own notice.
+    const tomorrow = new Date(Date.now() + 86_400_000);
+    await prisma.usageRecord.create({
+      data: {
+        spaceId: owner.spaceId,
+        userId: owner.userId,
+        botId,
+        provider: "fixture",
+        model: "fixture",
+        costUsd: 2.7,
+        createdAt: tomorrow,
+      },
+    });
+    await budgetAfterModelCall(deps, run, tomorrow);
+    expect(await prisma.messagingOutbound.count({ where: { identityId: identity.id } })).toBe(2);
+  });
+
+  it("alerts the space owner once per month at $400", async () => {
+    const owner = await newOwner("monthly");
+    const botId = await newBot(owner, "Monthly");
+    const identity = await prisma.messagingIdentity.create({
+      data: {
+        provider: "slack",
+        address: `U-month-${stamp}`,
+        userId: owner.userId,
+        spaceId: owner.spaceId,
+        botId,
+      },
+    });
+    const deps = { prisma, jobs: handles.jobs, events: {} as never };
+    await spend(owner, botId, 399.99);
+    await budgetAfterModelCall(deps, { spaceId: owner.spaceId, botId });
+    const monthly = () =>
+      prisma.messagingOutbound.findMany({
+        where: { identityId: identity.id, body: { contains: "this month" } },
+      });
+    expect(await monthly()).toHaveLength(0);
+    await spend(owner, botId, 0.01);
+    await budgetAfterModelCall(deps, { spaceId: owner.spaceId, botId });
+    await budgetAfterModelCall(deps, { spaceId: owner.spaceId, botId });
+    const alerts = await monthly();
+    expect(alerts.map((row) => row.body)).toEqual(["This space has spent $400.00 this month."]);
   });
 
   it("keeps each space's budgets private and ignores a spoofed spaceId", async () => {
