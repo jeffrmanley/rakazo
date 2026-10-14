@@ -2,8 +2,10 @@ import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import type { BrandView } from "@rakazo/contracts";
-import type { Brand } from "@rakazo/core";
-import { isWhiteLabelled, brandManifest as manifestFor } from "@rakazo/core";
+// The subpath, not the package root: vite.config.ts loads this file in Node, which cannot
+// load the root barrel's TypeScript sources.
+import type { Brand } from "@rakazo/core/brand";
+import { isWhiteLabelled, brandManifest as manifestFor } from "@rakazo/core/brand";
 import type { Plugin, PreviewServer, ViteDevServer } from "vite";
 
 /** Favicons and PWA icons a white-label build may replace from PUBLIC_BRAND_ASSETS_DIR. */

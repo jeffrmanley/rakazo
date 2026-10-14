@@ -5,10 +5,10 @@ Apache License 2.0 (see `LICENSE`). Section 4(b) of that license asks a modified
 prominent notices stating that files were changed. This file is that notice: it lists every
 file the fork added, modified or removed relative to the upstream commit it branched from.
 
-The product name of this deployment is configured with `PUBLIC_BRAND_NAME` (see
-`docs/self-host.md`, "White-label branding"). The fork does not use the Rakazo name as a
-product name; package names, environment variables and internal identifiers keep their
-upstream names, and the Apache-2.0 credit in Settings links back to the upstream repository.
+The product name and logo of a deployment are set by its owner in Settings → Branding or with
+`PUBLIC_BRAND_*` (see `docs/self-host.md`, "White-label branding"). The fork does not use the
+Rakazo name as a product name and no screen names it; package names, environment variables and
+internal identifiers keep their upstream names. This file and `LICENSE` are the attribution.
 
 ## What changed
 
@@ -17,7 +17,10 @@ upstream names, and the Apache-2.0 credit in Settings links back to the upstream
 - Bot replies rendered as Markdown in chat apps (Slack mrkdwn, Teams Markdown).
 - One agent linked from several chat apps, with a per-bot home identity for proactive messages.
 - The Messaging settings overlay shows the server's reason when a request is refused.
-- White-label branding through `PUBLIC_BRAND_*`, with this notice and the Settings credit.
+- White-label branding through `PUBLIC_BRAND_*`, with this notice.
+- Runtime branding: the deployment owner sets the name, short name, tagline and logo in
+  Settings → Branding (stored in `deployment_settings`, served by public `/api/v1/brand`
+  endpoints); emails, chat replies and default prompts follow it without a rebuild.
 
 ## Files
 
@@ -31,12 +34,15 @@ Relative to upstream commit `2d666c4`.
 ### `apps/api`
 
 - `apps/api/src/app.ts` (modified)
+- `apps/api/src/brand.test.ts` (added)
+- `apps/api/src/brand.ts` (added)
 - `apps/api/src/env.test.ts` (modified)
 - `apps/api/src/env.ts` (modified)
 - `apps/api/src/messaging-inbound.test.ts` (modified)
 - `apps/api/src/messaging-inbound.ts` (modified)
 - `apps/api/src/router-messaging.test.ts` (modified)
 - `apps/api/src/router.ts` (modified)
+- `apps/api/src/server-update.ts` (modified)
 - `apps/api/src/team-chat-bridge.ts` (modified)
 - `apps/api/src/team-chat-startup.test.ts` (modified)
 - `apps/api/src/team-chat-startup.ts` (modified)
@@ -54,6 +60,8 @@ Relative to upstream commit `2d666c4`.
 - `apps/web/public/site.webmanifest` (removed)
 - `apps/web/src/brand-plugin.test.ts` (added)
 - `apps/web/src/brand-plugin.ts` (added)
+- `apps/web/src/components/BrandLogo.tsx` (added)
+- `apps/web/src/lib/brand.test.ts` (added)
 - `apps/web/src/lib/brand.ts` (added)
 - `apps/web/src/lib/messaging.test.ts` (added)
 - `apps/web/src/lib/messaging.ts` (modified)
@@ -69,14 +77,22 @@ Relative to upstream commit `2d666c4`.
 - `apps/web/src/locales/ru/messages.po` (modified)
 - `apps/web/src/locales/tr/messages.po` (modified)
 - `apps/web/src/locales/zh-CN/messages.po` (modified)
+- `apps/web/src/main.tsx` (modified)
 - `apps/web/src/pages/AccountSettingsOverlay.tsx` (modified)
 - `apps/web/src/pages/Auth.tsx` (modified)
+- `apps/web/src/pages/BrandingSettingsPanel.tsx` (added)
 - `apps/web/src/pages/McpOAuthCallback.tsx` (modified)
 - `apps/web/src/pages/MessagingSettingsOverlay.tsx` (modified)
 - `apps/web/src/pages/ModelSettingsOverlay.tsx` (modified)
+- `apps/web/src/pages/SettingsOverlay.tsx` (modified)
+- `apps/web/src/pages/Shell.tsx` (modified)
 - `apps/web/src/pages/Welcome.tsx` (modified)
 - `apps/web/src/vite-env.d.ts` (modified)
 - `apps/web/vite.config.ts` (modified)
+
+### `apps/worker`
+
+- `apps/worker/src/index.ts` (modified)
 
 ### `docs/self-host.md`
 
@@ -85,6 +101,12 @@ Relative to upstream commit `2d666c4`.
 ### `docs/teams-adapter-spec.md`
 
 - `docs/teams-adapter-spec.md` (added)
+
+### `infra/compose`
+
+- `infra/compose/docker-compose.images.yml` (modified)
+- `infra/compose/docker-compose.prod.yml` (modified)
+- `infra/compose/docker-compose.yml` (modified)
 
 ### `packages/adapter-kit`
 
@@ -96,7 +118,14 @@ Relative to upstream commit `2d666c4`.
 - `packages/adapters/src/agent-connections.test.ts` (modified)
 - `packages/adapters/src/agent-connections.ts` (modified)
 - `packages/adapters/src/chat-sdk-surface.ts` (modified)
+- `packages/adapters/src/compacted-context.test.ts` (added)
+- `packages/adapters/src/compacted-context.ts` (added)
+- `packages/adapters/src/executor.ts` (modified)
+- `packages/adapters/src/history-compaction.test.ts` (modified)
+- `packages/adapters/src/history-compaction.ts` (modified)
 - `packages/adapters/src/index.ts` (modified)
+- `packages/adapters/src/mcp-oauth.test.ts` (modified)
+- `packages/adapters/src/mcp-oauth.ts` (modified)
 - `packages/adapters/src/messaging-context.ts` (modified)
 - `packages/adapters/src/messaging-delivery.test.ts` (modified)
 - `packages/adapters/src/messaging-delivery.ts` (modified)
@@ -109,6 +138,9 @@ Relative to upstream commit `2d666c4`.
 - `packages/adapters/src/pi-models.test.ts` (modified)
 - `packages/adapters/src/pi-models.ts` (modified)
 - `packages/adapters/src/pi-oauth.ts` (modified)
+- `packages/adapters/src/pi-runtime.ts` (modified)
+- `packages/adapters/src/runtime-context.test.ts` (modified)
+- `packages/adapters/src/runtime-context.ts` (modified)
 - `packages/adapters/src/team-chat-messaging.test.ts` (modified)
 - `packages/adapters/src/team-chat-messaging.ts` (modified)
 - `packages/adapters/src/teams-emulator.ts` (added)
@@ -123,21 +155,32 @@ Relative to upstream commit `2d666c4`.
 
 ### `packages/contracts`
 
+- `packages/contracts/src/brand.ts` (added)
 - `packages/contracts/src/domain.ts` (modified)
 - `packages/contracts/src/index.test.ts` (modified)
+- `packages/contracts/src/index.ts` (modified)
 - `packages/contracts/src/rpc.ts` (modified)
 
 ### `packages/core`
 
+- `packages/core/package.json` (modified)
+- `packages/core/src/brand-logo.test.ts` (added)
+- `packages/core/src/brand-logo.ts` (added)
 - `packages/core/src/brand.test.ts` (added)
 - `packages/core/src/brand.ts` (added)
 - `packages/core/src/index.ts` (modified)
+- `packages/core/src/self-update.test.ts` (modified)
+- `packages/core/src/self-update.ts` (modified)
 
 ### `packages/db`
 
 - `packages/db/prisma/migrations/20261011120000_messaging_multi_identity/migration.sql` (added)
+- `packages/db/prisma/migrations/20261015120000_runtime_brand/migration.sql` (added)
 - `packages/db/prisma/schema.prisma` (modified)
+- `packages/db/src/brand-settings.postgres.test.ts` (added)
+- `packages/db/src/brand-settings.ts` (added)
 - `packages/db/src/events.ts` (modified)
+- `packages/db/src/index.ts` (modified)
 - `packages/db/src/messaging-migration.test.ts` (modified)
 - `packages/db/src/messaging.test.ts` (modified)
 - `packages/db/src/messaging.ts` (modified)

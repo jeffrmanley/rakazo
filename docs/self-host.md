@@ -410,16 +410,28 @@ Leave `DANGEROUSLY_ALLOW_UNAUTHENTICATED_REQUESTS` unset. The Teams SDK reads th
 
 ## White-label branding
 
-A deployment can present itself under its own name. Everything defaults to the upstream product, so an unset configuration changes nothing.
+A deployment can present itself under its own name and logo. Everything defaults to the upstream product, so an unset configuration changes nothing.
+
+### At runtime (Settings → Branding)
+
+The deployment owner (the first account on the server) sets the brand in **Settings → Branding**: name, short name (home-screen label), tagline and a logo. Saving applies at once, with no rebuild or restart: the tab title, favicon and home-screen icon, the PWA manifest, the welcome, sign-in and sign-up screens, the sidebar, emails and chat-app replies all follow it. Other API and worker processes pick a change up within 30 seconds. Clearing a field falls back to the variable below, then to upstream.
+
+- **Logo:** PNG, JPEG or WebP, at most 1 MB, 64 to 4096 pixels on each side. The type is read from the file's contents; SVG is not accepted. Without an upload a white-labelled deployment shows a generated monogram (the first letter of the name).
+- **Who can change it:** only the deployment owner. Other members do not see the section; refused attempts are logged with the user id.
+- **Public endpoints** (no session, for the browser before sign-in): `GET /api/v1/brand`, `GET /api/v1/brand/logo` and `GET /api/v1/brand/manifest.webmanifest`. They sit under `/api/`, which the bundled Caddy and the web server already route to the API.
+
+### From the environment
 
 | Variable | Effect |
 | --- | --- |
-| `PUBLIC_BRAND_NAME` | Replaces every user-visible "Rakazo": the browser tab title, PWA manifest, sign-in, onboarding and settings screens, emails, and chat-app replies. |
+| `PUBLIC_BRAND_NAME` | The product name wherever no runtime name is set: the browser tab title, PWA manifest, sign-in, onboarding and settings screens, emails, and chat-app replies. |
 | `PUBLIC_BRAND_SHORT_NAME` | Manifest `short_name` (home-screen label). Defaults to the brand name. |
 | `PUBLIC_BRAND_TAGLINE` | Manifest description and the welcome screen line under the name. |
-| `PUBLIC_BRAND_ASSETS_DIR` | Directory of replacement `favicon.ico`, `favicon.png`, `favicon-16x16.png`, `favicon-32x32.png`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`. Files missing there keep the defaults. |
+| `PUBLIC_BRAND_ASSETS_DIR` | Directory of replacement `favicon.ico`, `favicon.png`, `favicon-16x16.png`, `favicon-32x32.png`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png` for the web build. Files missing there keep the defaults. An uploaded logo takes precedence; when this is set the API serves these icons instead of a monogram. |
 
-The web app reads these at build time (`pnpm --filter @rakazo/web build`, or the dev server), the API at start (emails, messaging replies). Package names, environment variables, logs and internal identifiers keep their upstream names, and the code stays under `LICENSE` (Apache-2.0). A white-labelled build shows a "Built on Rakazo (Apache-2.0)" line with a link to the upstream repository at the bottom of **Settings → General**; `FORK_CHANGES.md` lists the files a fork changed, as Apache-2.0 section 4(b) asks. The web E2E suite checks that an upstream build is unchanged and that a build made with `PUBLIC_BRAND_NAME` set shows the upstream name nowhere but that credit (`apps/web/e2e/branding.spec.ts`): run `pnpm test:e2e -- --spec=e2e/branding.spec.ts` once as is and once with `PUBLIC_BRAND_NAME` exported. The Expo mobile app is not covered by these variables yet.
+The API reads them at start; the web build reads them at build time and the web server at start, as a fallback for the first page load while the API cannot answer. Give the API and web services the same values (the bundled Compose files pass them to both from `.env`). Each field resolves on its own: runtime value, then variable, then upstream.
+
+Package names, environment variables, logs and internal identifiers keep their upstream names, and the code stays under `LICENSE` (Apache-2.0); `FORK_CHANGES.md` lists the files a fork changed, as Apache-2.0 section 4(b) asks. No screen names the upstream product once a brand is set. The web E2E spec `apps/web/e2e/branding.spec.ts` checks an upstream build is unchanged, that a build made with `PUBLIC_BRAND_NAME` exported shows the upstream name nowhere, and (with `BRAND_E2E_OWNER=1` on its own database: `BRAND_E2E_OWNER=1 pnpm test:e2e -- --spec=e2e/branding.spec.ts`) the owner's runtime rebrand end to end. The Expo mobile app and the desktop shell are not covered yet.
 
 ## Choosing a computer provider
 

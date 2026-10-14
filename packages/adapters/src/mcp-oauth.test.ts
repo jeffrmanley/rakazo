@@ -253,6 +253,18 @@ describe("MCP OAuth", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
+  it("registers under the configured product name", () => {
+    const upstream = new StoredMcpOAuthProvider("server-1", {}, async () => undefined, {
+      redirectUri: "https://app.example.test/mcp/oauth/callback",
+    });
+    expect(upstream.clientMetadata.client_name).toBe("Rakazo");
+    const branded = new StoredMcpOAuthProvider("server-1", {}, async () => undefined, {
+      redirectUri: "https://app.example.test/mcp/oauth/callback",
+      clientName: "Acme Crew",
+    });
+    expect(branded.clientMetadata.client_name).toBe("Acme Crew");
+  });
+
   it("does not renew a token that is still inside its lifetime", async () => {
     const refreshNetwork = vi.fn(async () => ({
       fetch: async () => new Response(),

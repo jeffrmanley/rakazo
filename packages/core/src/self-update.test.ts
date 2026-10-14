@@ -200,6 +200,14 @@ describe("detectRestartSupervisor", () => {
     });
     expect(restartSupervisorAdvice(detectRestartSupervisor({}))).toContain(RESTART_SUPERVISOR_ENV);
     expect(restartSupervisorAdvice({ kind: "systemd", label: "systemd" })).toContain("systemd");
+    const branded = [
+      restartSupervisorAdvice({ kind: "systemd", label: "systemd" }, "Acme Crew"),
+      restartSupervisorAdvice({ kind: "none", label: null }, "Acme Crew"),
+    ];
+    for (const advice of branded) {
+      expect(advice).toContain("Acme Crew");
+      expect(advice).not.toContain("Rakazo");
+    }
   });
 });
 

@@ -96,13 +96,14 @@ async function main() {
   const ticketBoardEnabled = process.env.TICKET_BOARD_ENABLED === "true";
   const boardEvents = createBoardEvents(realtime);
   const dataDir = process.env.DATA_DIR ?? "./data";
+  // Runtime branding for persona prompts and MCP client registration: the owner's setting, then PUBLIC_BRAND_*.
+  const brandName = createBrandReader(prisma, process.env).name;
   const runtime =
     process.env.AGENT_RUNTIME === "scripted"
       ? new ScriptedAgentRuntime()
       : new PiAgentRuntime({
           sessionRoot: resolvePiSessionRoot(dataDir),
-          // Runtime branding for persona prompts: the owner's setting, then PUBLIC_BRAND_*.
-          brandName: createBrandReader(prisma, process.env).name,
+          brandName,
         });
   // Same resolver the API uses, so both processes agree on provider, model and key.
   const { key: deploymentModelKey, configured: deploymentModelConfigured } =
@@ -116,7 +117,7 @@ async function main() {
     prisma,
   });
   const allowPrivateEndpoint = process.env.MCP_ALLOW_PRIVATE_ENDPOINT === "true";
-  const mcpOAuth = new McpOAuthBroker(prisma, secrets, {}, allowPrivateEndpoint);
+  const mcpOAuth = new McpOAuthBroker(prisma, secrets, {}, allowPrivateEndpoint, brandName);
   const mcp = new McpConnector(
     prisma,
     secrets,

@@ -1108,7 +1108,10 @@ export function createRouter(deps: RouterDeps) {
     updater: {
       status: authed.updater.status.handler(async ({ context }) => {
         if (!context.actor.isDeploymentOwner) throw new ORPCError("FORBIDDEN");
-        return readServerUpdateStatus(updaterConfig(deps));
+        return readServerUpdateStatus({
+          ...updaterConfig(deps),
+          productName: await brand.reader.name(),
+        });
       }),
       check: authed.updater.check.handler(async ({ context, input }) => {
         if (!context.actor.isDeploymentOwner) throw new ORPCError("FORBIDDEN");

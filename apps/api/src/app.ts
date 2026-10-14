@@ -311,11 +311,15 @@ export async function createApp(
       dataDir: env.dataDir,
       prisma,
     });
+  // Runtime branding: the owner's stored values, then PUBLIC_BRAND_*, then upstream.
+  const brand = createBrandService({ prisma, env: env.brandEnv, assets: env.brandAssets });
+  const brandName = () => brand.reader.name();
   const mcpOAuth = new McpOAuthBroker(
     prisma,
     secrets,
     remoteConnectors,
     env.mcpAllowPrivateEndpoint,
+    brandName,
   );
   const memoryProviders = new SpaceMemoryProviderResolver(prisma, secrets);
   const oauthLogins = new PiOAuthLogins();
@@ -397,9 +401,6 @@ export async function createApp(
   const connector = stack.destination;
   await connector.start();
   integrationSettings.warmDirectories();
-  // Runtime branding: the owner's stored values, then PUBLIC_BRAND_*, then upstream.
-  const brand = createBrandService({ prisma, env: env.brandEnv, assets: env.brandAssets });
-  const brandName = () => brand.reader.name();
   const runtime =
     runtimeOverride ??
     (env.agentRuntime === "scripted"
