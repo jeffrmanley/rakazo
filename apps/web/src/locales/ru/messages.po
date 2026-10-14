@@ -3363,6 +3363,7 @@ msgid "Paste your API key, then test again."
 msgstr "Вставьте API-ключ и повторите тест."
 
 #: src/pages/RoutineEditor.tsx
+#: src/pages/Shell.tsx
 msgid "Paused"
 msgstr "Приостановлено"
 
@@ -3729,6 +3730,11 @@ msgstr "Восстановите последнее сохраненное ра�
 #: src/components/ComputerUpdateProgress.tsx
 msgid "Restoring your workspace"
 msgstr "Восстановление вашего рабочего пространства"
+
+#: src/pages/BotContextMenu.tsx
+#: src/pages/Shell.tsx
+msgid "Resume"
+msgstr "Возобновить"
 
 #: src/components/AccountAccess.tsx
 #: src/pages/Auth.tsx
@@ -4229,9 +4235,14 @@ msgstr ""
 msgid "Steps"
 msgstr "Шаги"
 
+#: src/pages/BotContextMenu.tsx
 #: src/pages/Shell.tsx
 msgid "Stop"
 msgstr "Остановить"
+
+#: src/pages/Shell.tsx
+msgid "Stop all"
+msgstr "Остановить все"
 
 #: src/pages/Shell.tsx
 msgid "Stop speaking"

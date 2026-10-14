@@ -3363,8 +3363,9 @@ msgid "Paste your API key, then test again."
 msgstr "Füge deinen API-Schlüssel ein und teste erneut."
 
 #: src/pages/RoutineEditor.tsx
+#: src/pages/Shell.tsx
 msgid "Paused"
-msgstr ""
+msgstr "Pausiert"
 
 #: src/pages/Shell.tsx
 #: src/pages/shell/chat-context.tsx
@@ -3729,6 +3730,11 @@ msgstr ""
 #: src/components/ComputerUpdateProgress.tsx
 msgid "Restoring your workspace"
 msgstr ""
+
+#: src/pages/BotContextMenu.tsx
+#: src/pages/Shell.tsx
+msgid "Resume"
+msgstr "Fortsetzen"
 
 #: src/components/AccountAccess.tsx
 #: src/pages/Auth.tsx
@@ -4229,9 +4235,14 @@ msgstr ""
 msgid "Steps"
 msgstr "Schritte"
 
+#: src/pages/BotContextMenu.tsx
 #: src/pages/Shell.tsx
 msgid "Stop"
 msgstr "Stoppen"
+
+#: src/pages/Shell.tsx
+msgid "Stop all"
+msgstr "Alle stoppen"
 
 #: src/pages/Shell.tsx
 msgid "Stop speaking"

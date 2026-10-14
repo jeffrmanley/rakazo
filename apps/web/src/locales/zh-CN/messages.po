@@ -3363,6 +3363,7 @@ msgid "Paste your API key, then test again."
 msgstr "请粘贴你的 API 密钥，然后重新测试。"
 
 #: src/pages/RoutineEditor.tsx
+#: src/pages/Shell.tsx
 msgid "Paused"
 msgstr "已暂停"
 
@@ -3729,6 +3730,11 @@ msgstr "还原上次保存的工作区。电脑上未保存的工作会丢失。
 #: src/components/ComputerUpdateProgress.tsx
 msgid "Restoring your workspace"
 msgstr ""
+
+#: src/pages/BotContextMenu.tsx
+#: src/pages/Shell.tsx
+msgid "Resume"
+msgstr "恢复"
 
 #: src/components/AccountAccess.tsx
 #: src/pages/Auth.tsx
@@ -4229,9 +4235,14 @@ msgstr ""
 msgid "Steps"
 msgstr "步骤"
 
+#: src/pages/BotContextMenu.tsx
 #: src/pages/Shell.tsx
 msgid "Stop"
 msgstr "停止"
+
+#: src/pages/Shell.tsx
+msgid "Stop all"
+msgstr "全部停止"
 
 #: src/pages/Shell.tsx
 msgid "Stop speaking"
