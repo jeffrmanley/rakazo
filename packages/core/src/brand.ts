@@ -85,6 +85,15 @@ export function validateBrandText(input: BrandTextInput): BrandTextValidation {
   return { ok: true, value };
 }
 
+/**
+ * The brand name for chat copy sent as Markdown (Slack, Teams, …): Markdown,
+ * link, HTML and mention syntax is backslash-escaped so the name renders
+ * literally and cannot add formatting, links or @-mentions.
+ */
+export function escapeBrandMarkdown(name: string): string {
+  return name.replace(/[\\`*_~[\]()<>&@!#|]/g, (char) => `\\${char}`);
+}
+
 export interface BrandManifestIcon {
   src: string;
   sizes: string;

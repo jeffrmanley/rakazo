@@ -2,7 +2,12 @@ import type { JobPublisher, MessagingInboundMessage } from "@rakazo/adapter-kit"
 import { messagingDeliverJob, runContinueJob } from "@rakazo/adapter-kit";
 import { isBotStopped } from "@rakazo/adapters";
 import type { MessageBlock } from "@rakazo/contracts";
-import { parseMessagingCommand, sanitizeMessagingLabel, UPSTREAM_BRAND } from "@rakazo/core";
+import {
+  escapeBrandMarkdown,
+  parseMessagingCommand,
+  sanitizeMessagingLabel,
+  UPSTREAM_BRAND,
+} from "@rakazo/core";
 import type {
   MessagingIdentityRequest,
   Prisma,
@@ -687,8 +692,9 @@ async function inviteMember(
   });
 }
 
+/** The brand name for chat copy, escaped because replies are sent as Markdown. */
 async function brandNameOf(deps: Pick<MessagingInboundDeps, "brandName">): Promise<string> {
-  return (await deps.brandName?.()) ?? UPSTREAM_BRAND.name;
+  return escapeBrandMarkdown((await deps.brandName?.()) ?? UPSTREAM_BRAND.name);
 }
 
 async function ownerFirstName(

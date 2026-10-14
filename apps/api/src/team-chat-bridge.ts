@@ -6,7 +6,7 @@ import type {
 } from "@rakazo/adapter-kit";
 import { runContinueJob } from "@rakazo/adapter-kit";
 import { AutomatedSenderPoliciesSchema, type MessageBlock } from "@rakazo/contracts";
-import { BOT_MESSAGE_MAX_HOPS, UPSTREAM_BRAND } from "@rakazo/core";
+import { BOT_MESSAGE_MAX_HOPS, escapeBrandMarkdown, UPSTREAM_BRAND } from "@rakazo/core";
 import type { PrismaClient, ThreadEvents } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import type { TeamChatEngagementJudge } from "./team-chat-judge.js";
@@ -140,8 +140,9 @@ export class TeamChatBridge {
     return this.deps.providerId;
   }
 
+  /** The brand name for room replies, escaped because they are sent as Markdown. */
   private async brandName(): Promise<string> {
-    return (await this.deps.brandName?.()) ?? UPSTREAM_BRAND.name;
+    return escapeBrandMarkdown((await this.deps.brandName?.()) ?? UPSTREAM_BRAND.name);
   }
 
   /** Mark a deferred row as having an in-process routine wake until clearRoutineWake. */

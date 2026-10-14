@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   brandManifest,
   brandMonogramSvg,
+  escapeBrandMarkdown,
   isWhiteLabelled,
   resolveBrand,
   UPSTREAM_BRAND,
@@ -195,5 +196,23 @@ describe("brandMonogramSvg", () => {
     expect(brandMonogramSvg("😀 Crew")).toContain(">😀</text>");
     expect(brandMonogramSvg("élan")).toContain(">É</text>");
     expect(brandMonogramSvg("   ")).toContain("></text>");
+  });
+});
+
+describe("escapeBrandMarkdown", () => {
+  it("leaves plain names alone", () => {
+    expect(escapeBrandMarkdown("Acme Crew 2")).toBe("Acme Crew 2");
+  });
+
+  it("escapes Markdown, link and mention syntax so chat apps show the name literally", () => {
+    expect(escapeBrandMarkdown("*Acme* _Crew_ ~x~ `y`")).toBe(
+      "\\*Acme\\* \\_Crew\\_ \\~x\\~ \\`y\\`",
+    );
+    expect(escapeBrandMarkdown("[Click](https://evil.example)")).toBe(
+      "\\[Click\\]\\(https://evil.example\\)",
+    );
+    expect(escapeBrandMarkdown("<@U123> <!here> @here & \\")).toBe(
+      "\\<\\@U123\\> \\<\\!here\\> \\@here \\& \\\\",
+    );
   });
 });
