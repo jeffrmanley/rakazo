@@ -47,7 +47,7 @@ describe("brand plugin", () => {
     const html = await transform(brand);
     expect(html).toContain("<title>withJZ &quot;Crew&quot;</title>");
     expect(html).toContain('<meta name="apple-mobile-web-app-title" content="Crew" />');
-    expect(html).toContain('<meta name="description" content="Agents &lt;for> the crew." />');
+    expect(html).toContain('<meta name="description" content="Agents &lt;for&gt; the crew." />');
     expect(html).not.toContain("Rakazo");
     expect(JSON.parse(brandManifest(brand))).toMatchObject({
       name: 'withJZ "Crew"',
@@ -95,7 +95,7 @@ describe("runtime brand HTML", () => {
       view({ name: "Acme </script><script>x()</script>", shortName: "Acme", tagline: "Hi." }),
     );
     expect(html).not.toContain("Rakazo");
-    expect(html).toContain("<title>Acme &lt;/script>&lt;script>x()&lt;/script></title>");
+    expect(html).toContain("<title>Acme &lt;/script&gt;&lt;script&gt;x()&lt;/script&gt;</title>");
     expect(html).toContain('<meta name="apple-mobile-web-app-title" content="Acme" />');
     expect(html).toContain('<meta name="description" content="Hi." />');
     expect(html.match(/rel="icon"/g)).toHaveLength(1);
@@ -107,6 +107,33 @@ describe("runtime brand HTML", () => {
     // The embedded JSON cannot close its script element.
     expect(html.match(/<\/script>/g)).toHaveLength(1);
     expect(embeddedBrand(html)?.name).toBe("Acme </script><script>x()</script>");
+  });
+
+  it("inserts brand text literally: replacement patterns and quotes cannot reshape the HTML", () => {
+    const exploit = "0;url=https://evil.example$2 http-equiv=refresh x=$2";
+    for (const text of ["$'", "$`", "$&", "$1", "$2", "$$", "$<name>", exploit, "a'b\"c>d"]) {
+      const brand = view({ name: text, shortName: text, tagline: text, version: text });
+      const html = brandHtml(INDEX, brand);
+      const escaped = text
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      expect(html, text).toContain(`<title>${escaped}</title>`);
+      expect(html, text).toContain(`<meta name="description" content="${escaped}" />`);
+      expect(html, text).toContain(
+        `<meta name="apple-mobile-web-app-title" content="${escaped}" />`,
+      );
+      // The exploit's text stays inside the quoted content value; no new attribute appears.
+      expect(html, text).not.toMatch(/content="[^"]*"\s+http-equiv/);
+      // Nothing duplicated or dropped around the replaced tags.
+      expect(html.match(/<title>/g), text).toHaveLength(1);
+      expect(html.match(/<meta /g), text).toHaveLength(2);
+      expect(html.match(/<\/head>/g), text).toHaveLength(1);
+      expect(html.endsWith("</head><body></body></html>"), text).toBe(true);
+      expect(embeddedBrand(html)?.tagline, text).toBe(text);
+    }
   });
 
   it("points at an uploaded logo even under the upstream name", () => {

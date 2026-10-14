@@ -28,21 +28,37 @@ const BRAND_API_PATH = "/api/v1/brand";
 /** Element id of the brand JSON the server embeds, read by lib/brand.ts before first render. */
 export const EMBEDDED_BRAND_ID = "rakazo-brand";
 
-const escapeAttribute = (value: string) =>
-  value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+/** Escapes text for an HTML attribute or element body. */
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+/**
+ * Replace the first match of `pattern`, keeping its first and last groups,
+ * with `value` between them. A replacer function, never a replacement string,
+ * so `$&`, `$1`, `` $` `` and the like in brand text stay literal.
+ */
+function replaceBetween(html: string, pattern: RegExp, value: string): string {
+  return html.replace(pattern, (_match, before: string, after: string) => before + value + after);
+}
 
 /** Title and meta tags, as the build writes them. */
 function brandText(html: string, brand: Pick<Brand, "name" | "shortName" | "tagline">): string {
-  return html
-    .replace(/<title>[^<]*<\/title>/, `<title>${escapeAttribute(brand.name)}</title>`)
-    .replace(
-      /(<meta name="apple-mobile-web-app-title" content=")[^"]*(")/,
-      `$1${escapeAttribute(brand.shortName)}$2`,
-    )
-    .replace(
-      /(<meta name="description" content=")[^"]*(")/,
-      `$1${escapeAttribute(brand.tagline)}$2`,
-    );
+  let out = replaceBetween(html, /(<title>)[^<]*(<\/title>)/, escapeHtml(brand.name));
+  out = replaceBetween(
+    out,
+    /(<meta name="apple-mobile-web-app-title" content=")[^"]*(")/,
+    escapeHtml(brand.shortName),
+  );
+  return replaceBetween(
+    out,
+    /(<meta name="description" content=")[^"]*(")/,
+    escapeHtml(brand.tagline),
+  );
 }
 
 /**
@@ -54,26 +70,24 @@ function brandText(html: string, brand: Pick<Brand, "name" | "shortName" | "tagl
 export function brandHtml(html: string, view: BrandView): string {
   let out = brandText(html, view);
   if (view.customLogo || isWhiteLabelled(view)) {
-    const icon = escapeAttribute(view.iconUrl);
+    const icon = escapeHtml(view.iconUrl);
     let first = true;
-    out = out
-      .replace(/<link rel="icon"[^>]*>(\s*)/g, (_match, space: string) => {
-        if (!first) return "";
-        first = false;
-        return `<link rel="icon" href="${icon}" />${space}`;
-      })
-      .replace(/(<link rel="apple-touch-icon" href=")[^"]*(")/, `$1${icon}$2`)
-      .replace(
-        /(<link rel="manifest" href=")[^"]*(")/,
-        `$1${BRAND_API_PATH}/manifest.webmanifest?v=${encodeURIComponent(view.version)}$2`,
-      );
+    out = out.replace(/<link rel="icon"[^>]*>(\s*)/g, (_match, space: string) => {
+      if (!first) return "";
+      first = false;
+      return `<link rel="icon" href="${icon}" />${space}`;
+    });
+    out = replaceBetween(out, /(<link rel="apple-touch-icon" href=")[^"]*(")/, icon);
+    out = replaceBetween(
+      out,
+      /(<link rel="manifest" href=")[^"]*(")/,
+      escapeHtml(`${BRAND_API_PATH}/manifest.webmanifest?v=${encodeURIComponent(view.version)}`),
+    );
   }
-  // JSON in a non-executed script; "<" is escaped so the data cannot close the element.
-  const json = JSON.stringify(view).replace(/</g, "\\u003c");
-  return out.replace(
-    "</head>",
-    `<script type="application/json" id="${EMBEDDED_BRAND_ID}">${json}</script></head>`,
-  );
+  // JSON in a non-executed script; "<" and ">" are escaped so the data cannot close the element.
+  const json = JSON.stringify(view).replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
+  const script = `<script type="application/json" id="${EMBEDDED_BRAND_ID}">${json}</script>`;
+  return out.replace("</head>", () => `${script}</head>`);
 }
 
 /** The brand view a server falls back to when the API cannot be asked. */
