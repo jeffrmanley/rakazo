@@ -7,6 +7,7 @@ import {
   fetchSafeWebBytes,
   fetchSafeWebText,
   isBlockedHostname,
+  WEB_TOOL_USER_AGENT,
 } from "./web-ssrf.js";
 
 const publicResolver = async () => [{ address: "203.0.113.10", family: 4 as const }];
@@ -98,6 +99,21 @@ describe("web SSRF policy", () => {
     });
     expect(result.url).toBe("https://example.test/final");
     expect(result.body).toContain("hello");
+  });
+
+  it("identifies itself with a product-neutral User-Agent by default", async () => {
+    const agents: Array<string | null> = [];
+    const fetchMock: typeof fetch = async (_input, init) => {
+      agents.push(new Headers(init?.headers).get("user-agent"));
+      return new Response("ok", { status: 200, headers: { "content-type": "text/plain" } });
+    };
+    await fetchSafeWebText("https://example.test/", {
+      fetch: fetchMock,
+      resolveHostname: publicResolver,
+    });
+    expect(agents).toEqual([WEB_TOOL_USER_AGENT]);
+    expect(WEB_TOOL_USER_AGENT).not.toMatch(/rakazo/i);
+    expect(WEB_TOOL_USER_AGENT).not.toContain("github.com");
   });
 
   it("refuses ports outside allowedPorts on every hop", async () => {

@@ -93,6 +93,12 @@ export function isBlockedHostname(hostname: string): boolean {
 
 type SafeWebResponse<Body> = { url: string; body: Body; contentType: string | null };
 
+/**
+ * User-Agent for agent web tools. Third-party sites see it, so it names no
+ * product and links nowhere; it is constant, not the runtime brand.
+ */
+export const WEB_TOOL_USER_AGENT = "Mozilla/5.0 (compatible; AgentFetch/0.1)";
+
 export async function fetchSafeWebText(
   url: string,
   options: SafeWebFetchOptions = {},
@@ -129,7 +135,7 @@ export async function fetchSafeWebBytes(
       resolve,
       dispatcher,
       maxBytes,
-      userAgent: options.userAgent ?? "Rakazo/0.1 (+https://github.com/elie222/rakazo)",
+      userAgent: options.userAgent ?? WEB_TOOL_USER_AGENT,
       headers: options.headers,
       signal,
       redirectsRemaining: options.maxRedirects ?? MAX_REDIRECTS,
