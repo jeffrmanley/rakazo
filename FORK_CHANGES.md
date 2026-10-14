@@ -104,6 +104,7 @@ Relative to upstream commit `2d666c4`.
 
 ### `packages/adapter-kit`
 
+- `packages/adapter-kit/src/interfaces.ts` (modified)
 - `packages/adapter-kit/src/types.ts` (modified)
 
 ### `packages/adapters`
@@ -128,6 +129,8 @@ Relative to upstream commit `2d666c4`.
 - `packages/adapters/src/pi-models.test.ts` (modified)
 - `packages/adapters/src/pi-models.ts` (modified)
 - `packages/adapters/src/pi-oauth.ts` (modified)
+- `packages/adapters/src/slack-commands.test.ts` (added)
+- `packages/adapters/src/slack-emulator.ts` (added)
 - `packages/adapters/src/team-chat-messaging.test.ts` (modified)
 - `packages/adapters/src/team-chat-messaging.ts` (modified)
 - `packages/adapters/src/teams-emulator.ts` (added)

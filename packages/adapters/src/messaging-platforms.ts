@@ -135,6 +135,7 @@ export function messagingPlatformsFromEnv(
         signingSecret: env.slackSigningSecret,
       }),
       enrichTeamRoom: enrichSlackTeamRoom,
+      respondToCommand: respondToSlackCommand,
     });
   }
 
@@ -517,4 +518,25 @@ function sendblueTransport(raw: unknown): string | null {
   if (typeof raw !== "object" || raw === null) return null;
   const service = (raw as { service?: unknown }).service;
   return service === "iMessage" || service === "SMS" || service === "RCS" ? service : null;
+}
+
+const SLACK_RESPONSE_URL = /^https:\/\/hooks\.slack\.com\//;
+
+/**
+ * Ephemeral reply to a slash command through its response_url (valid for 30
+ * minutes, no channel membership needed). The URL comes from the verified
+ * payload, and only Slack's own hook host is ever contacted.
+ */
+export async function respondToSlackCommand(raw: unknown, body: string): Promise<void> {
+  const url = (raw as { response_url?: unknown } | null)?.response_url;
+  if (typeof url !== "string" || !SLACK_RESPONSE_URL.test(url)) {
+    throw new Error("Slack command has no trusted response_url");
+  }
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ response_type: "ephemeral", text: body }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw new Error(`Slack response_url answered ${response.status}`);
 }

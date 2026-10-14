@@ -46,6 +46,7 @@ import type {
   MemorySearchRequest,
   MemorySearchResult,
   MemorySnapshot,
+  MessagingCommand,
   MessagingInboundEvent,
   MessagingPlatformDescriptor,
   MessagingSendRequest,
@@ -390,6 +391,12 @@ export interface MessagingSurface {
   handleWebhook(provider: string, request: Request): Promise<Response> | null;
   /** Register the single downstream consumer of inbound events. */
   onInbound(sink: (event: MessagingInboundEvent) => Promise<void>): void;
+  /**
+   * Handle these platform slash commands (e.g. ["/stop", "/resume"]) on
+   * platforms that have them. The webhook is acknowledged before the handler
+   * finishes, so slow work never trips the platform's reply deadline.
+   */
+  onCommand?(commands: string[], handler: (command: MessagingCommand) => Promise<void>): void;
   sendToThread(
     request: MessagingSendRequest,
     context: AdapterContext,

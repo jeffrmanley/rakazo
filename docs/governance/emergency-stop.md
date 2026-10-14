@@ -92,9 +92,44 @@ changes. Commands are handled before any routing, so they work while the bot is 
 create a run. The reply confirms the action (`Stopped Crew.`, `Resumed this space.`, …). Global
 stops are not available from chat.
 
-Slack treats a message that starts with `/` as one of its own slash commands. Unless a `/stop`
-slash command is registered for the app, start the message with a mention (`@Crew /stop`) or a
-space.
+In Teams the command is typed as ordinary text and reaches the bot like any message.
+
+### Slack slash commands
+
+In Slack, `/stop` and `/resume` are the app's slash commands. Slack posts them, form encoded, to
+the same Request URL as events, `/api/v1/messaging/webhook/slack`, and the same adapter verifies
+them: the signature over the timestamp and body with `SLACK_SIGNING_SECRET`, and a timestamp at
+most five minutes old (an unsigned, mis-signed or replayed request is answered 401 before
+anything runs). A repeated delivery of the same invocation (`trigger_id`) inside ten minutes is
+dropped (remembered by the API process). The sender's Slack user id must be a linked identity of an owner, as above; the reply is
+ephemeral (only the sender sees it) through Slack's `response_url`, and only `hooks.slack.com`
+is ever contacted. The webhook is acknowledged at once and the command finishes in the
+background, so a slow stop never trips Slack's three second deadline. With the module off the
+command changes nothing and answers `This command is not available.`
+
+Register both commands in the Slack app manifest (the `commands` bot scope is required):
+
+```yaml
+features:
+  slash_commands:
+    - command: /stop
+      url: https://<your-hooks-host>/api/v1/messaging/webhook/slack
+      description: Stop a bot, or every bot in this space
+      usage_hint: "[bot name]"
+      should_escape: false
+    - command: /resume
+      url: https://<your-hooks-host>/api/v1/messaging/webhook/slack
+      description: Resume a stopped bot, or this space
+      usage_hint: "[bot name]"
+      should_escape: false
+oauth_config:
+  scopes:
+    bot:
+      - commands
+```
+
+Without the slash commands registered, Slack refuses a message that starts with `/`; typing
+`@Crew /stop` (a mention first) still works as a plain-text fallback.
 
 ## Web app
 
@@ -140,4 +175,7 @@ With the audit log off, stops and resumes are not audited.
   spoofing and isolation, queued runs, a restart, routines, audit fail-safe and fail-closed,
   global stops, an aborted in-flight model call within five seconds, a tool call finishing
   mid-stop, the computer pause, Slack and Teams commands and paused replies, refusal of
-  non-owners, and the flag off).
+  non-owners, signed Slack slash commands (owner, non-owner, unsigned, forged and replayed requests,
+flag off), plain-text `/stop` in a Teams 1:1 chat, and the flag off). The surface-level Slack tests
+(`packages/adapters/src/slack-commands.test.ts`) run the pinned Slack adapter against the
+`SlackEmulator` and check that events still reach the inbound path.
