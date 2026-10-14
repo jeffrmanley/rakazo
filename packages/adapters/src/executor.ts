@@ -240,6 +240,16 @@ import { redactConnectorPayload, sanitizeConnectorError } from "./connector-safe
 import { formatCurrentTimeInstruction } from "./current-time.js";
 import { resolveDeploymentModel } from "./deployment-model.js";
 import { auditedToolExecution } from "./ext-audit-tools.js";
+import {
+  admitDelegation,
+  BudgetStop,
+  budgetAfterModelCall,
+  claimRunWithinBotLimit,
+  delegationLimitedTools,
+  haltRunForBudget,
+  refuseRunOverBudget,
+  skipRoutineOverBudget,
+} from "./ext-budget-guard.js";
 import type { RunStopGuard } from "./ext-emergency-stop.js";
 import {
   cancelStoppedRun,
@@ -3152,6 +3162,17 @@ export function createRunExecutor(deps: ExecutorDeps) {
             new Date(Math.max(Date.now(), scheduledAt.getTime())),
             routine.timezone,
           );
+      // Fork extension (EXT_BUDGETS): over a daily cap the routine is skipped, not retried.
+      if (
+        await skipRoutineOverBudget(deps, {
+          routine,
+          botId: bot.id,
+          modelId: routine.modelId ?? bot.modelId,
+          scheduledAt,
+          nextRunAt,
+        })
+      )
+        return;
       const previousLastRunAt = routine.lastRunAt;
       const skillRecords = await listAgentSkillRecords(deps.prisma, {
         spaceId: routine.spaceId,
@@ -3265,28 +3286,31 @@ export function createRunExecutor(deps: ExecutorDeps) {
 
       const fence = nextFence(run.leaseFence);
       const now = new Date();
-      const leased = await deps.prisma.run.updateMany({
-        where: {
-          id: runId,
-          ...continueRunClaimFence(run),
-          OR: [
-            { status: { in: ["queued", "waiting_input", "waiting_takeover"] } },
-            {
-              status: { in: ["leased", "running"] },
-              leaseExpiresAt: { lte: now },
-            },
-          ],
-        },
-        data: {
-          status: "leased",
-          leaseOwner: workerId,
-          leaseFence: fence,
-          leaseExpiresAt: new Date(Date.now() + 5 * 60_000),
-          error: null,
-          checkpoint: null,
-        },
-      });
-      if (leased.count !== 1) return;
+      // Fork extension (EXT_BUDGETS): over the bot's concurrency cap the run stays queued.
+      const leased = await claimRunWithinBotLimit(deps, run, (db) =>
+        db.run.updateMany({
+          where: {
+            id: runId,
+            ...continueRunClaimFence(run),
+            OR: [
+              { status: { in: ["queued", "waiting_input", "waiting_takeover"] } },
+              {
+                status: { in: ["leased", "running"] },
+                leaseExpiresAt: { lte: now },
+              },
+            ],
+          },
+          data: {
+            status: "leased",
+            leaseOwner: workerId,
+            leaseFence: fence,
+            leaseExpiresAt: new Date(Date.now() + 5 * 60_000),
+            error: null,
+            checkpoint: null,
+          },
+        }),
+      );
+      if (leased?.count !== 1) return;
 
       const current = await deps.prisma.run.findUniqueOrThrow({
         where: { id: runId },
@@ -3369,6 +3393,9 @@ export function createRunExecutor(deps: ExecutorDeps) {
 
       const runSecrets = [...deps.secrets];
       try {
+        // Fork extension (EXT_BUDGETS): over a daily cap the run is refused with a notice.
+        if (await refuseRunOverBudget(deps, { run, workerId, fence, attemptId: attempt.id }))
+          return;
         const sourceBlocks =
           run.trigger === "messaging" && run.sourceMessageId
             ? ((
@@ -4077,6 +4104,14 @@ export function createRunExecutor(deps: ExecutorDeps) {
         // Fork extension: a failed audit write halts the run instead of letting the
         // model continue on an unrecorded tool call or result.
         let auditFailure: AuditWriteError | undefined;
+        // Fork extension (EXT_BUDGETS): set when a finished model call crossed a daily cap;
+        // the run halts instead of making another call.
+        let budgetStop: BudgetStop | undefined;
+        const checkBudgetAfterModelCall = async () => {
+          if (budgetStop || !(await budgetAfterModelCall(deps, run))) return;
+          budgetStop = new BudgetStop();
+          runAbortController?.abort(budgetStop);
+        };
         const executeToolUnaudited = async (
           name: string,
           args: Record<string, unknown>,
@@ -6357,7 +6392,12 @@ export function createRunExecutor(deps: ExecutorDeps) {
             audit: getAuditWriter(),
             target: { spaceId: run.spaceId, botId: bot.id, runId },
             secrets: () => runSecrets,
-            execute: executeToolUnaudited,
+            execute: delegationLimitedTools(
+              deps.prisma,
+              run,
+              executeToolUnaudited,
+              () => budgetStop !== undefined,
+            ),
             onAuditFailure: (error) => {
               auditFailure ??= error;
               runAbortController?.abort(error);
@@ -6547,7 +6587,9 @@ export function createRunExecutor(deps: ExecutorDeps) {
                   parentRunId: runId,
                   operationId: runId,
                 });
+                await checkBudgetAfterModelCall();
               },
+              admitDelegation: (tool) => admitDelegation(deps.prisma, run, tool),
               prompt,
               contextStrategy,
               instructions: userTurnInstructions({
@@ -7051,6 +7093,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
                 parentRunId: runId,
                 operationId: runId,
               });
+              await checkBudgetAfterModelCall();
             } else if (event.type === "done") {
               if (!assembled && event.text) {
                 if (publishedMidTurnUserMessage || discardedMidTurnNarration) {
@@ -7067,6 +7110,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
 
           if (auditFailure) throw auditFailure;
           if (stopGuard.stopped) throw new EmergencyStopError(stopGuard.stopped);
+          if (budgetStop) throw budgetStop;
           if (approvalPausePending || !leaseValid) return;
           approvedEffectReplays.assertDrained();
           pendingProgress += progressRedactor.finish();
@@ -7245,6 +7289,16 @@ export function createRunExecutor(deps: ExecutorDeps) {
           const error = auditFailure ?? caught;
           if (!terminalCheckpointComplete) {
             await workspaceCheckpoint.flush().catch(() => undefined);
+          }
+          if (budgetStop && !auditFailure) {
+            await haltRunForBudget(deps, {
+              run,
+              botName: bot.name,
+              workerId,
+              fence,
+              attemptId: attempt.id,
+            });
+            return;
           }
           const message = redactSecrets(
             error instanceof Error ? error.message : String(error),

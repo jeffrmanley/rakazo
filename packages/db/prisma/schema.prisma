@@ -1101,6 +1101,9 @@ model UsageRecord {
   createdAt         DateTime @default(now())
 
   @@index([spaceId, userId, createdAt])
+  /// Fork extension (EXT_BUDGETS): today's spend per space and per bot.
+  @@index([spaceId, createdAt])
+  @@index([spaceId, botId, createdAt])
   @@map("usage_records")
 }
 
@@ -1558,4 +1561,88 @@ model ExtControlStop {
   @@index([spaceId, resumedAt])
   @@index([scope, resumedAt])
   @@map("ext_control_stops")
+}
+
+/// Fork extension: per-bot budget and limits (EXT_BUDGETS). FK-free like the audit
+/// tables: settings of a deleted bot are inert and never cascade into spend history.
+/// Null limits follow the deployment defaults (EXT_MAX_*).
+model ExtBotBudget {
+  botId             String   @id
+  spaceId           String
+  /// assistant | worker | swarm | custom
+  profile           String   @default("assistant")
+  customDailyUsd    Float?
+  /// Allows the most expensive model tier; only a space owner can set it.
+  premium           Boolean  @default(false)
+  maxConcurrentRuns Int?
+  maxSpawnDepth     Int?
+  maxSpawnFanout    Int?
+  createdAt         DateTime @default(now())
+  createdBy         String
+  updatedAt         DateTime @updatedAt
+  updatedBy         String
+
+  @@index([spaceId])
+  @@map("ext_bot_budgets")
+}
+
+/// Fork extension: per-space daily cap. Null follows EXT_BUDGET_SPACE_DAILY_USD.
+model ExtSpaceBudget {
+  spaceId   String   @id
+  dailyUsd  Float?
+  createdAt DateTime @default(now())
+  createdBy String
+  updatedAt DateTime @updatedAt
+  updatedBy String
+
+  @@map("ext_space_budgets")
+}
+
+/// Fork extension: a top-up raises one bot's (botId set) or the space's (botId null)
+/// cap for one UTC day only. Append-only history of who raised what.
+model ExtBudgetTopUp {
+  id        String   @id
+  spaceId   String
+  botId     String?
+  /// UTC calendar day the top-up applies to, YYYY-MM-DD.
+  day       String
+  amountUsd Float
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([spaceId, day])
+  @@map("ext_budget_topups")
+}
+
+/// Fork extension: notices already sent (80% per cap per UTC day, monthly alert per
+/// month). The unique key is the de-duplication across workers.
+model ExtBudgetNotice {
+  id        String   @id
+  spaceId   String
+  kind      String
+  subjectId String
+  period    String
+  createdAt DateTime @default(now())
+
+  @@unique([kind, subjectId, period])
+  @@index([spaceId])
+  @@map("ext_budget_notices")
+}
+
+/// Fork extension: one row per delegation a run started (bot-to-bot message, spawned
+/// bot with a first task, group handoff, sub-agent, cloud agent). `depth` is the
+/// child's distance from the run a person started; fan-out counts rows per parent.
+model ExtRunSpawn {
+  id          String   @id
+  spaceId     String
+  parentRunId String
+  /// The run the delegation created; null for in-run sub-agents and external agents.
+  childRunId  String?  @unique
+  tool        String
+  depth       Int
+  createdAt   DateTime @default(now())
+
+  @@index([parentRunId])
+  @@index([spaceId])
+  @@map("ext_run_spawns")
 }

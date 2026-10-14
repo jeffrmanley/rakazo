@@ -60,6 +60,7 @@ export * from "./email-emulator.js";
 export * from "./executor.js";
 export * from "./expo-push.js";
 export * from "./ext-audit-tools.js";
+export * from "./ext-budget-guard.js";
 export * from "./ext-emergency-stop.js";
 export * from "./fake-browser.js";
 export * from "./fake-sandbox.js";

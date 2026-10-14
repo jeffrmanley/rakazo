@@ -235,6 +235,7 @@ import {
   resolveBusyBotName,
   toComputerStatus,
 } from "./computer-status.js";
+import { assertPremiumModelAllowed } from "./ext-budgets.js";
 import { searchIntegrationCatalog } from "./integration-catalog.js";
 import {
   dismissMcpServerApprovals,
@@ -1662,6 +1663,11 @@ export function createRouter(deps: RouterDeps) {
           input.modelId !== undefined &&
           (input.modelProvider !== existing.modelProvider || input.modelId !== existing.modelId);
         if (settingModel && input.modelProvider && input.modelId) {
+          await assertPremiumModelAllowed(deps.prisma, {
+            spaceId: context.actor.spaceId,
+            botId: existing.id,
+            modelId: input.modelId,
+          });
           const credential = await findModelCredential(
             deps.prisma,
             context.actor,
@@ -3271,6 +3277,11 @@ export function createRouter(deps: RouterDeps) {
         }
         const bot = await repos.getBot(context.actor, input.botId);
         await assertRoutineModel(deps, context.actor, input);
+        await assertPremiumModelAllowed(deps.prisma, {
+          spaceId: context.actor.spaceId,
+          botId: bot.id,
+          modelId: input.modelId,
+        });
         // Validate every recurring cron even when inactive; @once and webhook-only have no next date.
         let nextRunAt: Date | null = null;
         if (input.crons.length > 0 && !isOneShotRoutineCrons(input.crons)) {
@@ -3358,6 +3369,11 @@ export function createRouter(deps: RouterDeps) {
             : input.thinkingLevel;
         if (modelChanged) {
           await assertRoutineModel(deps, context.actor, { modelProvider, modelId });
+          await assertPremiumModelAllowed(deps.prisma, {
+            spaceId: context.actor.spaceId,
+            botId: existing.botId,
+            modelId,
+          });
         }
         if (crons.length === 0 && !webhookEnabled && !githubEnabled && !messageProvider) {
           throw new ORPCError("BAD_REQUEST", {
