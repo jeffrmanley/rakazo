@@ -140,6 +140,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArtifactFileCard } from "../components/ArtifactFileCard";
 import { AskCard } from "../components/AskCard";
 import { ActiveBotGlyph, CollaborationMarker } from "../components/ai/CollaborationMarker";
+import { BrandLogo } from "../components/BrandLogo";
 import { CloudAgentCard } from "../components/CloudAgentCard";
 import { ComputerMaintenanceActions } from "../components/ComputerMaintenanceActions";
 import {
@@ -2850,7 +2851,10 @@ export function ShellPage() {
         }`}
       >
         <div className="app-drag flex items-center justify-between px-[18px] pb-3 pt-4">
-          <WindowChrome />
+          <div className="flex items-center gap-2">
+            <WindowChrome />
+            <BrandLogo className="size-7 rounded-lg" />
+          </div>
           <div className="relative flex items-center gap-2.5">
             <button
               type="button"

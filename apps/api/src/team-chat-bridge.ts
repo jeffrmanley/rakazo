@@ -56,8 +56,8 @@ interface TeamChatBridgeDeps {
   judge?: TeamChatEngagementJudge;
   reconcileIntervalMs?: number;
   ambientDebounceMs?: number;
-  /** Product name in replies to the room; upstream's unless white-labelled. */
-  brandName?: string;
+  /** Current product name for replies to the room (runtime branding); upstream's when unset. */
+  brandName?: () => Promise<string>;
 }
 
 type TargetBot = {
@@ -140,8 +140,8 @@ export class TeamChatBridge {
     return this.deps.providerId;
   }
 
-  private get brandName(): string {
-    return this.deps.brandName ?? UPSTREAM_BRAND.name;
+  private async brandName(): Promise<string> {
+    return (await this.deps.brandName?.()) ?? UPSTREAM_BRAND.name;
   }
 
   /** Mark a deferred row as having an in-process routine wake until clearRoutineWake. */
@@ -715,7 +715,7 @@ export class TeamChatBridge {
       const blocks = Array.isArray(response?.blocks) ? (response.blocks as MessageBlock[]) : [];
       const content =
         run.status === "failed"
-          ? `${target.name} could not complete the delegated request. Open ${this.brandName} for details.`
+          ? `${target.name} could not complete the delegated request. Open ${await this.brandName()} for details.`
           : teamChatResponseText(blocks, target.name, true);
       if (content) {
         await this.deps.send({
@@ -1163,7 +1163,7 @@ export class TeamChatBridge {
     await this.sendOnce(message.id, {
       conversationId: message.externalConversation.conversationId,
       replyThreadId: message.replyThreadId,
-      content: `${this.target?.name ?? "The agent"} could not complete that request. Open ${this.brandName} for details.`,
+      content: `${this.target?.name ?? "The agent"} could not complete that request. Open ${await this.brandName()} for details.`,
       idempotencyKey: `external-message:${message.id}:failure`,
     });
   }

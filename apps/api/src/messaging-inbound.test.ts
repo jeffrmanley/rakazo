@@ -1519,7 +1519,7 @@ describe("teamChatSenderCanWakeMessageRoutines", () => {
 describe("createMessagingInboundHandler white-label copy", () => {
   it("names the configured product in the group intro and invite", async () => {
     const deps = createDeps();
-    deps.brandName = "withJZ Crew";
+    deps.brandName = async () => "withJZ Crew";
     const handle = createMessagingInboundHandler(deps);
     await handle(groupEvent);
 

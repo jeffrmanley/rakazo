@@ -114,6 +114,7 @@ async function main() {
         "packages/testkit/src/teams-team-chat.test.ts",
         "packages/db/src/billing.postgres.test.ts",
         "packages/db/src/ext-audit.postgres.test.ts",
+        "packages/db/src/brand-settings.postgres.test.ts",
         "packages/testkit/src/ext-audit-log.postgres.test.ts",
         "packages/db/src/ext-emergency-stop.postgres.test.ts",
         "packages/testkit/src/ext-emergency-stop.postgres.test.ts",

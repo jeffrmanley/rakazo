@@ -5,6 +5,7 @@ import { App } from "./App";
 import { DesktopUpdatesProvider } from "./components/DesktopUpdates";
 import { I18nBootstrap } from "./components/I18nBootstrap";
 import { applyUiDirection } from "./lib/apply-ui-direction";
+import { refreshBrand } from "./lib/brand";
 import { markAfterPaint, markOnce } from "./lib/performance";
 import { installPreloadRecovery } from "./lib/preload-recovery";
 import { applyUiAppearance, watchSystemAppearance } from "./lib/ui-appearance";
@@ -15,6 +16,9 @@ markOnce("rk:renderer:module-evaluated");
 installPreloadRecovery();
 applyUiDirection(resolveUiLocale());
 applyUiAppearance();
+// The server embeds the brand in index.html; this picks up later changes and covers
+// hosts that serve the static build without that embed.
+void refreshBrand();
 
 function PerformanceProbe() {
   useLayoutEffect(() => {

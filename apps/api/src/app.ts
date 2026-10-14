@@ -109,6 +109,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createBillingService } from "./billing.js";
 import { mountBillingRoutes } from "./billing-webhook.js";
+import { createBrandService, mountBrandRoutes } from "./brand.js";
 import type { AppEnv } from "./env.js";
 import { loadEnv } from "./env.js";
 import {
@@ -326,11 +327,15 @@ export async function createApp(
       dataDir: env.dataDir,
       prisma,
     });
+  // Runtime branding: the owner's stored values, then PUBLIC_BRAND_*, then upstream.
+  const brand = createBrandService({ prisma, env: env.brandEnv, assets: env.brandAssets });
+  const brandName = () => brand.reader.name();
   const mcpOAuth = new McpOAuthBroker(
     prisma,
     secrets,
     remoteConnectors,
     env.mcpAllowPrivateEndpoint,
+    brandName,
   );
   const memoryProviders = new SpaceMemoryProviderResolver(prisma, secrets);
   const oauthLogins = new PiOAuthLogins();
@@ -418,6 +423,7 @@ export async function createApp(
       ? new ScriptedAgentRuntime()
       : new PiAgentRuntime({
           sessionRoot: env.piSessionRecording ? piSessionsRoot(env.dataDir) : undefined,
+          brandName,
         }));
   const notifications = new ExpoPushProvider(env.dataDir, (sessionId) =>
     pushSessionExpiresAt(prisma, sessionId),
@@ -430,7 +436,8 @@ export async function createApp(
     webOrigin: env.webOrigin,
     signupsEnabled: env.signupsEnabled,
     signupAllowlist: env.signupAllowlist,
-    brandName: env.brandName,
+    appName: env.brandName,
+    brandName,
     email,
     onEmailError: (error) => getLogger().error("transactional email delivery failed", error),
     extraOrigins: MOBILE_AUTH_ORIGINS,
@@ -585,6 +592,7 @@ export async function createApp(
     artifacts,
     dataDir: env.dataDir,
     billing,
+    brand,
     messaging: {
       enabled: Boolean(messaging),
       providers: messaging?.platforms().map((platform) => platform.provider) ?? [],
@@ -599,7 +607,6 @@ export async function createApp(
       teamChatJudgeModel: env.teamChatJudgeModel,
       deploymentModelConfigured: env.deploymentModelConfigured,
       deploymentModelHostCredentials: env.deploymentModelHostCredentials,
-      brandName: env.brandName,
       webOrigin: env.webOrigin,
       privacyPolicyUrl: env.privacyPolicyUrl,
       screenProxySecret: env.screenProxySecret,
@@ -652,6 +659,7 @@ export async function createApp(
         }),
     );
   }
+  mountBrandRoutes(app, brand);
   mountApiRequestBodyLimits(app);
   mountScreenTarget(app, prisma, env.screenProxySecret);
   app.on(["GET", "POST"], "/api/auth/*", async (c) => {
@@ -749,7 +757,7 @@ export async function createApp(
         signupsEnabled: env.signupsEnabled,
         signupAllowlist: env.signupAllowlist,
       },
-      brandName: env.brandName,
+      brandName,
       typing: (threadId) => {
         // Keep conversation addresses out of trace ids — those reach logs
         // and telemetry, a different trust boundary than the database.
@@ -907,7 +915,7 @@ export async function createApp(
           providerId,
           botId: env.teamChatBotId,
           judge,
-          brandName: env.brandName,
+          brandName,
         });
         teamChatBridgeInstances.push(bridge);
         try {

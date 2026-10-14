@@ -33,6 +33,8 @@ export interface UpdaterProxyConfig {
   /** Current `RAKAZO_IMAGE_TAG` when known; selects compose pull vs rebuild commands. */
   imageTag?: string | null;
   disabled?: boolean;
+  /** Product name in owner-facing notes (runtime branding); upstream's when unset. */
+  productName?: string;
   /** Override for tests; defaults to process.cwd(). */
   checkoutRoot?: string;
   fetch?: typeof fetch;
@@ -129,7 +131,7 @@ export async function readServerUpdateStatus(
     },
     officialRepoUrl: OFFICIAL_REPO_URL,
     restartSupervisor: supervisor.kind,
-    restartAdvice: restartSupervisorAdvice(supervisor),
+    restartAdvice: restartSupervisorAdvice(supervisor, config.productName),
     running: false,
     lastRun: null,
   };

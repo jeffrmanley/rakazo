@@ -230,6 +230,8 @@ import {
 } from "./artifacts.js";
 import type { BillingService } from "./billing.js";
 import { botProfileLabelsChanged, commitBotUpdate } from "./bot-update.js";
+import type { BrandService } from "./brand.js";
+import { brandRpc, createBrandService } from "./brand.js";
 import {
   executionBlocksUserTakeover,
   resolveBusyBotName,
@@ -583,6 +585,8 @@ export interface RouterDeps {
   messaging?: { enabled: boolean; providers: string[]; openSignup: boolean };
   /** Present only when the deployment bills; self-hosted installs leave it unset. */
   billing?: BillingService;
+  /** Runtime branding; defaults to one over `prisma` with no PUBLIC_BRAND_* values. */
+  brand?: BrandService;
   env: {
     ticketBoardEnabled?: boolean;
     agentRuntime: string;
@@ -592,8 +596,6 @@ export interface RouterDeps {
     defaultModel: string;
     deploymentModelConfigured?: boolean;
     deploymentModelHostCredentials?: boolean;
-    /** Product name in copy the API hands the client; upstream's unless white-labelled. */
-    brandName?: string;
     webOrigin: string;
     privacyPolicyUrl?: string;
     screenProxySecret: string;
@@ -781,6 +783,7 @@ export function createRouter(deps: RouterDeps) {
     dataDir: deps.dataDir,
   });
   const agentSkills = createAgentSkillsService(deps.prisma);
+  const brand = deps.brand ?? createBrandService({ prisma: deps.prisma, env: {} });
 
   const authed = os.use(async ({ context, next }) => {
     if (!context.actor) throw new ORPCError("UNAUTHORIZED");
@@ -1088,10 +1091,28 @@ export function createRouter(deps: RouterDeps) {
         return deploymentDto(deps.prisma, deps.env.sandboxProvider);
       }),
     },
+    // Owner-only, enforced in the brand service; a missing session reaches it so the denial is logged.
+    brand: {
+      settings: os.brand.settings.handler(({ context }) =>
+        brandRpc(() => brand.settings(context.actor)),
+      ),
+      update: os.brand.update.handler(({ context, input }) =>
+        brandRpc(() => brand.updateText(context.actor, input)),
+      ),
+      uploadLogo: os.brand.uploadLogo.handler(({ context, input }) =>
+        brandRpc(() => brand.uploadLogo(context.actor, input)),
+      ),
+      removeLogo: os.brand.removeLogo.handler(({ context }) =>
+        brandRpc(() => brand.removeLogo(context.actor)),
+      ),
+    },
     updater: {
       status: authed.updater.status.handler(async ({ context }) => {
         if (!context.actor.isDeploymentOwner) throw new ORPCError("FORBIDDEN");
-        return readServerUpdateStatus(updaterConfig(deps));
+        return readServerUpdateStatus({
+          ...updaterConfig(deps),
+          productName: await brand.reader.name(),
+        });
       }),
       check: authed.updater.check.handler(async ({ context, input }) => {
         if (!context.actor.isDeploymentOwner) throw new ORPCError("FORBIDDEN");
@@ -1117,7 +1138,11 @@ export function createRouter(deps: RouterDeps) {
           deps.secrets,
           context.actor,
         );
-        const available = listAvailablePiCatalog(auth.byProvider, auth.byModel, deps.env.brandName);
+        const available = listAvailablePiCatalog(
+          auth.byProvider,
+          auth.byModel,
+          await brand.reader.name(),
+        );
         const live = await codexLiveCatalogsForSpace(
           deps.prisma,
           deps.secrets,
@@ -1194,7 +1219,7 @@ export function createRouter(deps: RouterDeps) {
           const available = listAvailablePiCatalog(
             auth.byProvider,
             auth.byModel,
-            deps.env.brandName,
+            await brand.reader.name(),
           );
           const live = await codexLiveCatalogsForSpace(
             deps.prisma,

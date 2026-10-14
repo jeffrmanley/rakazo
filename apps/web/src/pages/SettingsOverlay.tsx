@@ -8,6 +8,7 @@ import {
   CreditCard,
   Gauge,
   Monitor,
+  Palette,
   Settings,
   Volume2,
   Wallet,
@@ -25,6 +26,7 @@ import {
   UsageSettingsPanel,
 } from "./AccountSettingsOverlay";
 import { BillingSettingsPanel } from "./BillingSettingsPanel";
+import { BrandingSettingsPanel } from "./BrandingSettingsPanel";
 import { BudgetSettingsPanel } from "./BudgetSettingsPanel";
 import { MemorySettingsOverlay } from "./MemorySettingsOverlay";
 import { ModelSettingsOverlay } from "./ModelSettingsOverlay";
@@ -39,6 +41,7 @@ export type SettingsSection =
   | "computer"
   | "billing"
   | "budget"
+  | "branding"
   | "updates";
 
 type NavItem = {
@@ -141,6 +144,10 @@ export function SettingsOverlay({
   }, []);
 
   useEffect(() => {
+    if (!isDeploymentOwner && section === "branding") setSection("general");
+  }, [isDeploymentOwner, section]);
+
+  useEffect(() => {
     if (section !== "computer") releaseComputerRecovery();
   }, [section, releaseComputerRecovery]);
   useEffect(() => () => window.clearTimeout(recoveryHoldTimer.current), []);
@@ -161,6 +168,7 @@ export function SettingsOverlay({
     ...(showComputer ? [{ id: "computer" as const, label: t`Computer`, icon: Monitor }] : []),
     ...(billingEnabled ? [{ id: "billing" as const, label: t`Billing`, icon: CreditCard }] : []),
     ...(budget ? [{ id: "budget" as const, label: t`Budget`, icon: Wallet }] : []),
+    ...(isDeploymentOwner ? [{ id: "branding" as const, label: t`Branding`, icon: Palette }] : []),
     { id: "updates", label: t`Updates`, icon: CloudDownload },
   ];
 
@@ -297,6 +305,7 @@ export function SettingsOverlay({
               ) : null}
               {section === "billing" && billingEnabled ? <BillingSettingsPanel /> : null}
               {section === "budget" && budget ? <BudgetSettingsPanel initial={budget} /> : null}
+              {section === "branding" && isDeploymentOwner ? <BrandingSettingsPanel /> : null}
               {section === "updates" ? (
                 <UpdatesSettingsPanel isDeploymentOwner={isDeploymentOwner} />
               ) : null}

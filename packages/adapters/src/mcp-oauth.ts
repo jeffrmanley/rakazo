@@ -15,7 +15,7 @@ import type {
 import type { SecretStore } from "@rakazo/adapter-kit";
 import { SecretStoreUnavailableError } from "@rakazo/adapter-kit";
 import { isLocalMcpHost } from "@rakazo/contracts";
-import { readBoundedResponseBytes } from "@rakazo/core";
+import { readBoundedResponseBytes, UPSTREAM_BRAND } from "@rakazo/core";
 import type { PrismaClient } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { sanitizeConnectorError } from "./connector-safety.js";
@@ -180,6 +180,8 @@ export class McpReauthorizationRequiredError extends Error {
 
 type ProviderOptions = {
   redirectUri?: string;
+  /** Client name the MCP server shows on its consent screen: the runtime product name. */
+  clientName?: string;
   state?: string;
   onAuthorization?: (url: URL) => void;
   onPersisted?: (record: { id: string; ref: string; material: OAuthMaterial }) => void;
@@ -219,7 +221,7 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
     const applicationType = hostname === "localhost" || hostname === "127.0.0.1" ? "native" : "web";
     return {
       redirect_uris: [redirectUri],
-      client_name: "Rakazo",
+      client_name: this.options.clientName ?? UPSTREAM_BRAND.name,
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
       token_endpoint_auth_method: "none",
@@ -531,6 +533,8 @@ export class McpOAuthBroker {
     private readonly secrets: SecretStore,
     private readonly network: RemoteTransportDependencies = {},
     private readonly allowPrivateEndpoint = false,
+    /** Current product name for client registration (runtime branding); upstream's when unset. */
+    private readonly brandName: () => Promise<string> = async () => UPSTREAM_BRAND.name,
   ) {}
 
   async statusFor(
@@ -602,6 +606,7 @@ export class McpOAuthBroker {
     let authorizationUrl: URL | undefined;
     const provider = this.createProvider(server, context, loaded, {
       redirectUri: input.redirectUri,
+      clientName: await this.brandName(),
       state: sessionId,
       onAuthorization: (url) => {
         authorizationUrl = url;

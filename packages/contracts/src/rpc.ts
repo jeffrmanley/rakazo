@@ -22,6 +22,7 @@ import {
   UpdateTicketInput,
 } from "./board.js";
 import { BotSecretMetadata, BotSecretPutInput, StoredBotSecretName } from "./bot-secrets.js";
+import { BrandLogoUploadSchema, BrandSettingsSchema, BrandTextUpdateSchema } from "./brand.js";
 import {
   ActionApprovalRuleSchema,
   ActionAutoReviewSettingsSchema,
@@ -216,6 +217,16 @@ export const appContract = {
         }),
       )
       .output(DeploymentSettingsSchema),
+  },
+  /**
+   * Runtime white-label branding, deployment owner only. Reading the public
+   * brand and logo is plain HTTP under /api/v1/brand and needs no session.
+   */
+  brand: {
+    settings: oc.output(BrandSettingsSchema),
+    update: oc.input(BrandTextUpdateSchema).output(BrandSettingsSchema),
+    uploadLogo: oc.input(BrandLogoUploadSchema).output(BrandSettingsSchema),
+    removeLogo: oc.output(BrandSettingsSchema),
   },
   /**
    * Deployment-owner product updates. When the Compose updater sidecar is reachable, these proxy

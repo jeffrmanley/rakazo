@@ -783,6 +783,10 @@ msgstr ""
 msgid "Brain label"
 msgstr "Libellé du cerveau"
 
+#: src/pages/SettingsOverlay.tsx
+msgid "Branding"
+msgstr "Image de marque"
+
 #: src/pages/PluginsOverlay.tsx
 msgid "Browse MCP servers"
 msgstr "Parcourir les serveurs MCP"
@@ -1477,6 +1481,10 @@ msgstr ""
 msgid "Could not load bots. Reload to try again."
 msgstr "Impossible de charger les bots. Rechargez pour réessayer."
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Could not load branding"
+msgstr "Impossible de charger l’image de marque"
+
 #: src/components/computer/TerminalApp.tsx
 msgid "Could not load commands"
 msgstr ""
@@ -1621,6 +1629,10 @@ msgstr "Impossible d'enregistrer la révision automatique"
 #: src/pages/ModelBackupsSettings.tsx
 msgid "Could not save backup models"
 msgstr "Impossible d’enregistrer les modèles de secours."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Could not save branding"
+msgstr "Impossible d’enregistrer l’image de marque"
 
 #: src/pages/GroupPanel.tsx
 msgid "Could not save group"
@@ -2696,6 +2708,10 @@ msgstr "Paramètres du serveur local"
 msgid "Log out"
 msgstr "Se déconnecter"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Logo"
+msgstr "Logo"
+
 #: src/lib/ticket-priority.ts
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
@@ -2980,6 +2996,7 @@ msgstr "Couper le micro"
 
 #: src/components/teach/SkillDraftCard.tsx
 #: src/pages/Auth.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/RoutineEditor.tsx
 #: src/pages/shell/bot-credentials.tsx
@@ -3642,6 +3659,10 @@ msgstr ""
 msgid "Remove Git event"
 msgstr "Retirer l'événement Git"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Remove logo"
+msgstr "Supprimer le logo"
+
 #. placeholder {0}: mention.name
 #: src/pages/Shell.tsx
 msgid "Remove mention {0}"
@@ -3878,6 +3899,7 @@ msgstr "S'exécute lorsque ce bot reçoit un message vérifié de ce fournisseur
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
 #: src/pages/Board.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -3910,6 +3932,7 @@ msgstr "Enregistrer l’espace de travail et installer les logiciels actuels."
 
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Saved"
 msgstr "Enregistré"
@@ -3936,6 +3959,7 @@ msgstr "Enregistrement..."
 
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/ModelBackupsSettings.tsx
 #: src/pages/ModelSettingsOverlay.tsx
@@ -4109,6 +4133,10 @@ msgstr "Compétences partagées"
 #: src/components/computer/TerminalApp.tsx
 msgid "Shell"
 msgstr "Shell"
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Short name"
+msgstr "Nom court"
 
 #: src/pages/Shell.tsx
 msgid "Show bots"
@@ -4362,6 +4390,10 @@ msgstr "Basculement en cours…"
 msgid "System"
 msgstr "Système"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Tagline"
+msgstr "Slogan"
+
 #: src/pages/Shell.tsx
 msgid "Take control"
 msgstr "Prendre le contrôle"
@@ -4477,6 +4509,10 @@ msgstr "Cela supprime toutes les {0} versions de cet artefact. Cette action est 
 #: src/components/ArtifactFileCard.tsx
 msgid "This file is not valid UTF-8 text."
 msgstr "Ce fichier n'est pas un texte UTF-8 valide."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "This image could not be read."
+msgstr "Impossible de lire cette image."
 
 #: src/pages/HostComputerPrompt.tsx
 msgid "this Mac"
@@ -4714,6 +4750,10 @@ msgstr "Mise à jour en cours…"
 msgid "Upload"
 msgstr "Télécharger"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Upload logo"
+msgstr "Importer un logo"
+
 #: src/lib/ticket-priority.ts
 msgid "Urgent"
 msgstr ""
@@ -4733,6 +4773,30 @@ msgstr "Utiliser {hostLabel}"
 msgid "Use a found model"
 msgstr "Utiliser un modèle trouvé"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use a PNG, JPEG or WebP image."
+msgstr "Utilisez une image PNG, JPEG ou WebP."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use an image between 64 and 4096 pixels on each side."
+msgstr "Utilisez une image de 64 à 4096 pixels de côté."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use an image of 1 MB or less."
+msgstr "Utilisez une image de 1 Mo maximum."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use at most 140 characters for the tagline."
+msgstr "Le slogan ne peut pas dépasser 140 caractères."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use at most 60 characters for the name."
+msgstr "Le nom ne peut pas dépasser 60 caractères."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use at most 60 characters for the short name."
+msgstr "Le nom court ne peut pas dépasser 60 caractères."
+
 #: src/lib/model-connection-preflight.ts
 msgid "Use Connect to verify the key."
 msgstr "Utilisez Connecter pour vérifier la clé."
@@ -4740,6 +4804,10 @@ msgstr "Utilisez Connecter pour vérifier la clé."
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Use default guidance"
 msgstr "Utiliser les instructions par défaut"
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use plain text without line breaks."
+msgstr "Utilisez du texte brut sans retour à la ligne."
 
 #: src/components/teach/TeachRecordingChrome.tsx
 msgid "Use Protected input for passwords."
