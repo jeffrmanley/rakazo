@@ -1,4 +1,4 @@
-import type { MessagingInboundMessage } from "@rakazo/adapter-kit";
+import type { MessagingCommand, MessagingInboundMessage } from "@rakazo/adapter-kit";
 import type { ActiveStop, EmergencyStopReader, PrismaClient } from "@rakazo/db";
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -481,5 +481,77 @@ describe("chat control", () => {
       chat.intercept(event({ isDirect: false, content: "lunch?", kind: "ambient" })),
     ).resolves.toBe(true);
     expect(sent).toHaveLength(1);
+  });
+
+  describe("Slack slash commands", () => {
+    function command(overrides: Partial<MessagingCommand> = {}) {
+      const replies: string[] = [];
+      const value: MessagingCommand = {
+        provider: "slack",
+        command: "/stop",
+        text: "",
+        from: "U-owner",
+        threadId: "slack:C1",
+        handle: "trigger-1",
+        respond: vi.fn(async (body: string) => {
+          replies.push(body);
+        }),
+        ...overrides,
+      };
+      return { value, replies };
+    }
+
+    it("lets a linked owner stop a bot with /stop <bot> and replies only to them", async () => {
+      const { chat, sent, service, prisma } = setup();
+      const { value, replies } = command({ text: "alice" });
+      await chat.handleCommand(value);
+      expect(prisma.messagingIdentity.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { provider_address: { provider: "slack", address: "U-owner" } },
+        }),
+      );
+      expect(service.stop).toHaveBeenCalledWith(
+        { userId: "owner-a", spaceId: "space-a", isDeploymentOwner: false },
+        expect.objectContaining({ scope: "bot", botId: "bot-a1", reason: "/stop from slack" }),
+      );
+      expect(replies).toEqual(["Stopped Alice."]);
+      // Ephemeral reply only: nothing is posted into the channel.
+      expect(sent).toHaveLength(0);
+    });
+
+    it("resumes the space with a bare /resume", async () => {
+      const { chat, service } = setup();
+      const { value, replies } = command({ command: "/resume" });
+      await chat.handleCommand(value);
+      expect(service.resume).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ scope: "space" }),
+      );
+      expect(replies).toEqual(["Resumed this space."]);
+    });
+
+    it("refuses a plain member or an unlinked Slack user without changing anything", async () => {
+      const plain = setup({
+        identity: { userId: "member-a", spaceId: "space-a", botId: "bot-a1" },
+      });
+      const first = command();
+      await plain.chat.handleCommand(first.value);
+      expect(plain.service.stop).not.toHaveBeenCalled();
+      expect(first.replies).toEqual(["Only an owner of this space can do that."]);
+
+      const stranger = setup({ identity: null });
+      const second = command();
+      await stranger.chat.handleCommand(second.value);
+      expect(stranger.service.stop).not.toHaveBeenCalled();
+      expect(second.replies).toEqual(["Only an owner of this space can do that."]);
+    });
+
+    it("ignores commands it does not own", async () => {
+      const { chat, service } = setup();
+      const { value, replies } = command({ command: "/weather" });
+      await chat.handleCommand(value);
+      expect(service.stop).not.toHaveBeenCalled();
+      expect(replies).toEqual([]);
+    });
   });
 });
