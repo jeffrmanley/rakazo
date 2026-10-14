@@ -25,6 +25,7 @@ import {
   GraphileJobWorkerHost,
   InMemoryJobQueue,
   InstalledConnectorProvider,
+  installBudgetPolicy,
   isComposioEnabled,
   isMessagingSurfaceEnabled,
   isPipedreamEnabled,
@@ -88,7 +89,10 @@ async function main() {
     logger.warn("Secret storage degraded; encrypted credentials remain available");
   prisma = withSecretPersistence(prisma, secrets);
   // Fork extension: EXT_AUDIT_LOG=1 installs the fail-closed audit writer for this process.
-  installAuditWriter(loadExtEnv(process.env).auditLog ? createAuditWriter(prisma) : null);
+  const ext = loadExtEnv(process.env);
+  installAuditWriter(ext.auditLog ? createAuditWriter(prisma) : null);
+  // Fork extension: EXT_BUDGETS=1 enforces spend caps and run limits in this process.
+  installBudgetPolicy(ext.budgets ? ext : null);
   const events = createThreadEvents(prisma, realtime, {
     runSecretWriter: createRunSecretWriter(secrets),
   });

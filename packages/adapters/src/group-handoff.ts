@@ -11,6 +11,7 @@ import {
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import type { ExecutorDeps } from "./executor.js";
+import { recordDelegatedRun } from "./ext-budget-guard.js";
 
 export async function handoffToGroupBot(
   deps: Pick<ExecutorDeps, "prisma" | "events" | "jobs">,
@@ -154,6 +155,12 @@ export async function handoffToGroupBot(
         trigger: "follow_up",
         sourceMessageId: message.id,
       },
+    });
+    await recordDelegatedRun(tx, {
+      spaceId: run.spaceId,
+      parentRunId: run.id,
+      childRunId: nextRun.id,
+      tool: "handoff_to_bot",
     });
     const event = await appendEventInTransaction(tx, {
       spaceId: run.spaceId,

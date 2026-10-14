@@ -30,6 +30,7 @@ import {
   teamBrowserProfileName,
   withCleanupDeadline,
 } from "./computer-workspace.js";
+import { recordDelegatedRun } from "./ext-budget-guard.js";
 import { resolveAgentHomePath } from "./home.js";
 import { removePiBotSessions } from "./pi-session.js";
 
@@ -178,7 +179,7 @@ async function ensureSpawnRun(
           status: "queued",
         },
       });
-      return tx.run.create({
+      const run = await tx.run.create({
         data: {
           spaceId: input.spaceId,
           botId: input.botId,
@@ -190,6 +191,13 @@ async function ensureSpawnRun(
           clientNonce,
         },
       });
+      await recordDelegatedRun(tx, {
+        spaceId: input.spaceId,
+        parentRunId: input.sourceRunId,
+        childRunId: run.id,
+        tool: "spawn_bot",
+      });
+      return run;
     });
   } catch (error) {
     const winner = await prisma.run.findUnique({ where });

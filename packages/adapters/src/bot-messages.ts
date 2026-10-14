@@ -17,6 +17,7 @@ import {
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import type { ExecutorDeps } from "./executor.js";
+import { recordDelegatedRun } from "./ext-budget-guard.js";
 
 /**
  * The hop the current run sits at, read back from the message that woke this
@@ -262,6 +263,12 @@ export async function messageBot(
           select: { id: true },
         });
         await tx.message.update({ where: { id: inbound.id }, data: { runId: nextRun.id } });
+        await recordDelegatedRun(tx, {
+          spaceId: run.spaceId,
+          parentRunId: run.id,
+          childRunId: nextRun.id,
+          tool: "message_bot",
+        });
         const inboundEvent = await appendEventInTransaction(tx, {
           spaceId: run.spaceId,
           threadId: targetThreadId,
