@@ -8,12 +8,21 @@ import { randomUUID } from "node:crypto";
 import type {
   BotBudgetSettings,
   BotLimitSettings,
+  BotLimits,
   BudgetDefaults,
   BudgetLevel,
   BudgetNoticeKind,
   BudgetProfile,
+  SpawnCheck,
 } from "@rakazo/core";
-import { budgetLevel, dailyCapUsd, isBudgetProfile, utcDay, utcMonth } from "@rakazo/core";
+import {
+  budgetLevel,
+  checkSpawnLimits,
+  dailyCapUsd,
+  isBudgetProfile,
+  utcDay,
+  utcMonth,
+} from "@rakazo/core";
 import type { Prisma, PrismaClient } from "./client.js";
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -279,6 +288,41 @@ export async function recordRunSpawn(
   },
 ): Promise<void> {
   await db.extRunSpawn.createMany({ data: [{ id: randomUUID(), ...input }], skipDuplicates: true });
+}
+
+/**
+ * Admits one delegation of `parentRunId` against depth and fan-out. The check and, for
+ * delegations that create no run of their own (`record`), the counting row commit in one
+ * transaction under an advisory lock on the parent run, so parallel calls cannot overshoot.
+ */
+export async function admitRunSpawn(
+  prisma: PrismaClient,
+  input: {
+    spaceId: string;
+    parentRunId: string;
+    tool: string;
+    limits: Pick<BotLimits, "maxSpawnDepth" | "maxSpawnFanout">;
+    record: boolean;
+  },
+): Promise<SpawnCheck> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`ext-run-spawns:${input.parentRunId}`}, 0))`;
+    const [parentDepth, started] = await Promise.all([
+      runSpawnDepth(tx, input.parentRunId),
+      countRunSpawns(tx, input.parentRunId),
+    ]);
+    const check = checkSpawnLimits({ parentDepth, started }, input.limits);
+    if (check.ok && input.record) {
+      await recordRunSpawn(tx, {
+        spaceId: input.spaceId,
+        parentRunId: input.parentRunId,
+        childRunId: null,
+        tool: input.tool,
+        depth: check.depth,
+      });
+    }
+    return check;
+  });
 }
 
 /** Run states that hold one of a bot's concurrency slots. */

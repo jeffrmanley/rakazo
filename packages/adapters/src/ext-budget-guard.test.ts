@@ -6,7 +6,7 @@ import {
   budgetAfterModelCall,
   claimRunWithinBotLimit,
   DELEGATION_TOOLS,
-  delegationLimitedTools,
+  delegationLimiter,
   installBudgetPolicy,
   recordDelegatedRun,
   refuseRunOverBudget,
@@ -84,16 +84,19 @@ describe("budget guard with EXT_BUDGETS off", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("returns the tool function untouched", () => {
+  it("returns the tool function untouched", async () => {
     const execute = vi.fn();
-    expect(delegationLimitedTools(untouchable, run, execute)).toBe(execute);
+    expect(delegationLimiter(untouchable, run).wrap(execute)).toBe(execute);
+    await expect(delegationLimiter(untouchable, run).admit("run_subagent")).resolves.toBeNull();
   });
 });
 
 /** A small in-memory stand-in for the three tables the delegation check reads. */
 function fakeSpawnDb(input: { depth: number; started: number }) {
   const spawns: Array<{ parentRunId: string; tool: string; depth: number }> = [];
-  const db = {
+  const db: Record<string, unknown> = {
+    $executeRaw: vi.fn(async () => 0),
+    $transaction: vi.fn(async (work: (tx: unknown) => Promise<unknown>) => work(db)),
     extBotBudget: { findFirst: vi.fn(async () => null) },
     extRunSpawn: {
       findUnique: vi.fn(async () => (input.depth ? { depth: input.depth } : null)),
@@ -112,7 +115,7 @@ describe("delegation limits", () => {
     installBudgetPolicy(defaults);
     const { db } = fakeSpawnDb({ depth: 2, started: 0 });
     const execute = vi.fn(async () => ({ ok: true }));
-    const tools = delegationLimitedTools(db, run, execute);
+    const tools = delegationLimiter(db, run).wrap(execute);
     const result = (await tools("message_bot", { message: "hi" }, "e1")) as { error: string };
     expect(result.error).toMatch(/depth limit \(2\)/);
     expect(execute).not.toHaveBeenCalled();
@@ -122,7 +125,7 @@ describe("delegation limits", () => {
     installBudgetPolicy(defaults);
     const { db, spawns } = fakeSpawnDb({ depth: 0, started: 0 });
     const execute = vi.fn(async () => ({ ok: true }));
-    const tools = delegationLimitedTools(db, run, execute);
+    const tools = delegationLimiter(db, run).wrap(execute);
     const results = (await Promise.all([
       tools("run_subagent", {}, "e1"),
       tools("run_subagent", {}, "e2"),
@@ -141,7 +144,7 @@ describe("delegation limits", () => {
     const { db } = fakeSpawnDb({ depth: 0, started: 0 });
     const execute = vi.fn(async () => ({ ok: true }));
     let halted = false;
-    const tools = delegationLimitedTools(db, run, execute, () => halted);
+    const tools = delegationLimiter(db, run, () => halted).wrap(execute);
     await expect(tools("shell", { command: "ls" }, "e1")).resolves.toEqual({ ok: true });
     halted = true;
     await expect(tools("shell", { command: "ls" }, "e2")).resolves.toEqual({

@@ -241,11 +241,10 @@ import { formatCurrentTimeInstruction } from "./current-time.js";
 import { resolveDeploymentModel } from "./deployment-model.js";
 import { auditedToolExecution } from "./ext-audit-tools.js";
 import {
-  admitDelegation,
   BudgetStop,
   budgetAfterModelCall,
   claimRunWithinBotLimit,
-  delegationLimitedTools,
+  delegationLimiter,
   haltRunForBudget,
   refuseRunOverBudget,
   skipRoutineOverBudget,
@@ -4112,6 +4111,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
           budgetStop = new BudgetStop();
           runAbortController?.abort(budgetStop);
         };
+        const delegations = delegationLimiter(deps.prisma, run, () => budgetStop !== undefined);
         const executeToolUnaudited = async (
           name: string,
           args: Record<string, unknown>,
@@ -6392,12 +6392,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
             audit: getAuditWriter(),
             target: { spaceId: run.spaceId, botId: bot.id, runId },
             secrets: () => runSecrets,
-            execute: delegationLimitedTools(
-              deps.prisma,
-              run,
-              executeToolUnaudited,
-              () => budgetStop !== undefined,
-            ),
+            execute: delegations.wrap(executeToolUnaudited),
             onAuditFailure: (error) => {
               auditFailure ??= error;
               runAbortController?.abort(error);
@@ -6589,7 +6584,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
                 });
                 await checkBudgetAfterModelCall();
               },
-              admitDelegation: (tool) => admitDelegation(deps.prisma, run, tool),
+              admitDelegation: delegations.admit,
               prompt,
               contextStrategy,
               instructions: userTurnInstructions({

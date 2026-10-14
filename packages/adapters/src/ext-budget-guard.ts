@@ -5,7 +5,7 @@
  * - `claimRunWithinBotLimit` at run claim (concurrency: over the cap, the run stays queued);
  * - `refuseRunOverBudget` right after the claim (over a daily cap, the run is refused);
  * - `budgetAfterModelCall` after each priced model call (halt before the next one);
- * - `delegationLimitedTools` / `admitDelegation` at every delegation tool call.
+ * - `delegationLimiter` at every delegation tool call.
  *
  * Routines use `skipRoutineOverBudget` when they fire. With the policy not installed
  * (flag off) every hook is a pass-through that touches nothing.
@@ -19,7 +19,6 @@ import {
   BUDGET_SPACE_BLOCK_TEXT,
   BUDGET_STOP_TEXT,
   budgetNoticeKey,
-  checkSpawnLimits,
   formatUsd,
   isBackgroundRunTrigger,
   isPremiumModelId,
@@ -28,10 +27,10 @@ import {
 } from "@rakazo/core";
 import type { BudgetStatus, Prisma, PrismaClient, ThreadEvents } from "@rakazo/db";
 import {
+  admitRunSpawn,
   appendEventInTransaction,
   claimBotRunSlot,
   claimBudgetNotice,
-  countRunSpawns,
   createThreadMessageInTransaction,
   getAuditWriter,
   homeMessagingIdentity,
@@ -497,48 +496,54 @@ export async function admitDelegation(
 ): Promise<string | null> {
   const policy = installed;
   if (!policy || !DELEGATION_TOOLS.has(tool)) return null;
-  const [settings, parentDepth, started] = await Promise.all([
-    loadBotBudget(prisma, { spaceId: run.spaceId, botId: run.botId }),
-    runSpawnDepth(prisma, run.id),
-    countRunSpawns(prisma, run.id),
-  ]);
-  const check = checkSpawnLimits({ parentDepth, started }, resolveBotLimits(settings, policy));
-  if (!check.ok) return check.error;
-  if (IN_RUN_DELEGATIONS.has(tool)) {
-    await recordRunSpawn(prisma, {
-      spaceId: run.spaceId,
-      parentRunId: run.id,
-      childRunId: null,
-      tool,
-      depth: check.depth,
-    });
-  }
-  return null;
+  const settings = await loadBotBudget(prisma, { spaceId: run.spaceId, botId: run.botId });
+  const check = await admitRunSpawn(prisma, {
+    spaceId: run.spaceId,
+    parentRunId: run.id,
+    tool,
+    limits: resolveBotLimits(settings, policy),
+    record: IN_RUN_DELEGATIONS.has(tool),
+  });
+  return check.ok ? null : check.error;
 }
 
 /**
- * Wraps the executor's tool function: delegation tools pass `admitDelegation` first,
- * one at a time per run so parallel calls cannot overshoot the fan-out; after a budget
- * halt every tool is refused. A refusal is an ordinary tool error the model sees.
+ * One run's delegation gate. `wrap` guards the executor's tool function: delegation tools
+ * pass `admitDelegation` first, and after a budget halt every tool is refused. `admit` is
+ * the same check for delegations the runtime performs itself (run_subagent). Both share
+ * one queue, so a run's delegations are admitted one at a time and a check followed by
+ * the run it creates cannot interleave with another delegation. A refusal is an ordinary
+ * tool error the model sees.
  */
-export function delegationLimitedTools(
+export function delegationLimiter(
   prisma: PrismaClient,
   run: Pick<RunRef, "id" | "spaceId" | "botId">,
-  execute: ToolExecute,
   halted: () => boolean = () => false,
-): ToolExecute {
-  if (!installed) return execute;
+): {
+  wrap: (execute: ToolExecute) => ToolExecute;
+  admit: (tool: string) => Promise<string | null>;
+} {
   let queue: Promise<unknown> = Promise.resolve();
-  return async (name, args, executionId, route, observer) => {
-    if (halted()) return { error: BUDGET_STOP_TEXT };
-    if (!DELEGATION_TOOLS.has(name)) return execute(name, args, executionId, route, observer);
-    const turn = queue.then(async () => {
-      const refusal = await admitDelegation(prisma, run, name);
-      if (refusal) return { error: refusal };
-      return execute(name, args, executionId, route, observer);
-    });
+  const serialize = <T>(work: () => Promise<T>): Promise<T> => {
+    const turn = queue.then(work);
     queue = turn.catch(() => undefined);
     return turn;
+  };
+  return {
+    admit: (tool) =>
+      installed ? serialize(() => admitDelegation(prisma, run, tool)) : Promise.resolve(null),
+    wrap: (execute) => {
+      if (!installed) return execute;
+      return async (name, args, executionId, route, observer) => {
+        if (halted()) return { error: BUDGET_STOP_TEXT };
+        if (!DELEGATION_TOOLS.has(name)) return execute(name, args, executionId, route, observer);
+        return serialize(async () => {
+          const refusal = await admitDelegation(prisma, run, name);
+          if (refusal) return { error: refusal };
+          return execute(name, args, executionId, route, observer);
+        });
+      };
+    },
   };
 }
 

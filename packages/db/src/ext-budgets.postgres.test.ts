@@ -4,6 +4,7 @@ import type { PrismaClient } from "./client.js";
 import { createDb } from "./client.js";
 import {
   addBudgetTopUp,
+  admitRunSpawn,
   claimBotRunSlot,
   claimBudgetNotice,
   countRunSpawns,
@@ -322,6 +323,39 @@ describePostgres("ext budgets (PostgreSQL)", () => {
       async () => "claimed",
     );
     expect(result).toEqual({ queued: false, result: "claimed" });
+  });
+
+  it("admits exactly the fan-out when ten delegations race on one run across two clients", async () => {
+    const seed = await seedSpace("fanout-race");
+    const parent = await seedRun(seed.bot);
+    const results = await Promise.all(
+      Array.from({ length: 10 }, (_, index) =>
+        admitRunSpawn(index % 2 === 0 ? prisma : other, {
+          spaceId: seed.spaceId,
+          parentRunId: parent.id,
+          tool: "run_subagent",
+          limits: { maxSpawnDepth: 2, maxSpawnFanout: 5 },
+          record: true,
+        }),
+      ),
+    );
+    expect(results.filter((result) => result.ok)).toHaveLength(5);
+    expect(results.filter((result) => !result.ok)).toHaveLength(5);
+    expect(await countRunSpawns(prisma, parent.id)).toBe(5);
+  });
+
+  it("checks without counting when the delegation records its own run", async () => {
+    const seed = await seedSpace("fanout-check");
+    const parent = await seedRun(seed.bot);
+    const admitted = await admitRunSpawn(prisma, {
+      spaceId: seed.spaceId,
+      parentRunId: parent.id,
+      tool: "message_bot",
+      limits: { maxSpawnDepth: 2, maxSpawnFanout: 5 },
+      record: false,
+    });
+    expect(admitted).toEqual({ ok: true, depth: 1 });
+    expect(await countRunSpawns(prisma, parent.id)).toBe(0);
   });
 
   it("tracks delegation depth along the parent chain and fan-out per run", async () => {
