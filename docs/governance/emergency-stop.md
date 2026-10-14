@@ -31,7 +31,8 @@ seconds of the request:
   still persisted is not dispatched; it is checked again every 30 seconds and goes out after a
   resume if nothing cancelled it.
 - Outbound sends from a stopped bot are dropped, not queued: chat mirrors of its replies are not
-  written, pending outbox rows for its messages are marked failed, and team-chat replies are
+  written, pending outbox rows for its messages and its agent-connection invites are marked
+  failed, and team-chat replies are
   recorded with the handle `suppressed:emergency-stop` instead of being posted.
 
 The checks are deterministic code: at run start (before the run is leased), before the model
