@@ -18,6 +18,8 @@ upstream names, and the Apache-2.0 credit in Settings links back to the upstream
 - One agent linked from several chat apps, with a per-bot home identity for proactive messages.
 - The Messaging settings overlay shows the server's reason when a request is refused.
 - White-label branding through `PUBLIC_BRAND_*`, with this notice and the Settings credit.
+- Daily spend caps, run concurrency and delegation limits per bot and space (`EXT_BUDGETS`,
+  see `docs/governance/budgets.md`).
 
 ## Files
 
@@ -33,6 +35,8 @@ Relative to upstream commit `2d666c4`.
 - `apps/api/src/app.ts` (modified)
 - `apps/api/src/env.test.ts` (modified)
 - `apps/api/src/env.ts` (modified)
+- `apps/api/src/ext-budgets.test.ts` (added)
+- `apps/api/src/ext-budgets.ts` (added)
 - `apps/api/src/messaging-inbound.test.ts` (modified)
 - `apps/api/src/messaging-inbound.ts` (modified)
 - `apps/api/src/router-messaging.test.ts` (modified)
@@ -55,6 +59,8 @@ Relative to upstream commit `2d666c4`.
 - `apps/web/src/brand-plugin.test.ts` (added)
 - `apps/web/src/brand-plugin.ts` (added)
 - `apps/web/src/lib/brand.ts` (added)
+- `apps/web/src/lib/budgets.test.ts` (added)
+- `apps/web/src/lib/budgets.ts` (added)
 - `apps/web/src/lib/messaging.test.ts` (added)
 - `apps/web/src/lib/messaging.ts` (modified)
 - `apps/web/src/lib/rpc-errors.test.ts` (added)
@@ -71,12 +77,25 @@ Relative to upstream commit `2d666c4`.
 - `apps/web/src/locales/zh-CN/messages.po` (modified)
 - `apps/web/src/pages/AccountSettingsOverlay.tsx` (modified)
 - `apps/web/src/pages/Auth.tsx` (modified)
+- `apps/web/src/pages/BudgetSettingsPanel.tsx` (added)
 - `apps/web/src/pages/McpOAuthCallback.tsx` (modified)
 - `apps/web/src/pages/MessagingSettingsOverlay.tsx` (modified)
 - `apps/web/src/pages/ModelSettingsOverlay.tsx` (modified)
+- `apps/web/src/pages/SettingsOverlay.tsx` (modified)
 - `apps/web/src/pages/Welcome.tsx` (modified)
+- `apps/web/src/pages/shell/bot-budget.test.tsx` (added)
+- `apps/web/src/pages/shell/bot-budget.tsx` (added)
+- `apps/web/src/pages/shell/bot-panel.tsx` (modified)
 - `apps/web/src/vite-env.d.ts` (modified)
 - `apps/web/vite.config.ts` (modified)
+
+### `apps/worker`
+
+- `apps/worker/src/index.ts` (modified)
+
+### `docs/governance/budgets.md`
+
+- `docs/governance/budgets.md` (added)
 
 ### `docs/self-host.md`
 
@@ -95,7 +114,13 @@ Relative to upstream commit `2d666c4`.
 - `packages/adapters/package.json` (modified)
 - `packages/adapters/src/agent-connections.test.ts` (modified)
 - `packages/adapters/src/agent-connections.ts` (modified)
+- `packages/adapters/src/bot-messages.ts` (modified)
 - `packages/adapters/src/chat-sdk-surface.ts` (modified)
+- `packages/adapters/src/child-bots.ts` (modified)
+- `packages/adapters/src/executor.ts` (modified)
+- `packages/adapters/src/ext-budget-guard.test.ts` (added)
+- `packages/adapters/src/ext-budget-guard.ts` (added)
+- `packages/adapters/src/group-handoff.ts` (modified)
 - `packages/adapters/src/index.ts` (modified)
 - `packages/adapters/src/messaging-context.ts` (modified)
 - `packages/adapters/src/messaging-delivery.test.ts` (modified)
@@ -109,6 +134,7 @@ Relative to upstream commit `2d666c4`.
 - `packages/adapters/src/pi-models.test.ts` (modified)
 - `packages/adapters/src/pi-models.ts` (modified)
 - `packages/adapters/src/pi-oauth.ts` (modified)
+- `packages/adapters/src/pi-runtime.ts` (modified)
 - `packages/adapters/src/team-chat-messaging.test.ts` (modified)
 - `packages/adapters/src/team-chat-messaging.ts` (modified)
 - `packages/adapters/src/teams-emulator.ts` (added)
@@ -131,13 +157,20 @@ Relative to upstream commit `2d666c4`.
 
 - `packages/core/src/brand.test.ts` (added)
 - `packages/core/src/brand.ts` (added)
+- `packages/core/src/ext-budget.test.ts` (added)
+- `packages/core/src/ext-budget.ts` (added)
+- `packages/core/src/ext-env.ts` (added)
 - `packages/core/src/index.ts` (modified)
 
 ### `packages/db`
 
 - `packages/db/prisma/migrations/20261011120000_messaging_multi_identity/migration.sql` (added)
+- `packages/db/prisma/migrations/20261015120000_ext_budgets/migration.sql` (added)
 - `packages/db/prisma/schema.prisma` (modified)
 - `packages/db/src/events.ts` (modified)
+- `packages/db/src/ext-budgets.postgres.test.ts` (added)
+- `packages/db/src/ext-budgets.ts` (added)
+- `packages/db/src/index.ts` (modified)
 - `packages/db/src/messaging-migration.test.ts` (modified)
 - `packages/db/src/messaging.test.ts` (modified)
 - `packages/db/src/messaging.ts` (modified)
@@ -146,5 +179,6 @@ Relative to upstream commit `2d666c4`.
 
 - `packages/testkit/src/cli/evals.ts` (modified)
 - `packages/testkit/src/cli/harness.ts` (modified)
+- `packages/testkit/src/ext-budgets.postgres.test.ts` (added)
 - `packages/testkit/src/messaging-multi-identity.test.ts` (added)
 - `packages/testkit/src/teams-team-chat.test.ts` (added)
