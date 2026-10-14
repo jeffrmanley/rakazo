@@ -297,6 +297,16 @@ model DeploymentSettings {
   defaultModelId                  String?
   deploymentModelCredentialCipher String?
   computerHost                    String?
+  /// Runtime white-label branding (fork extension); null falls back to PUBLIC_BRAND_* then upstream.
+  brandName                       String?
+  brandShortName                  String?
+  brandTagline                    String?
+  brandLogo                       Bytes?
+  brandLogoMime                   String?
+  brandLogoSha256                 String?
+  brandUpdatedAt                  DateTime?
+  /// User id of the deployment owner who last changed the brand.
+  brandUpdatedBy                  String?
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt
 

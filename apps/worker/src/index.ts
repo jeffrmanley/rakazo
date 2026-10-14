@@ -52,6 +52,7 @@ import { loadExtEnv, resolveEncryptionKey, resolveSupervisorToken } from "@rakaz
 import {
   createAuditWriter,
   createBoardEvents,
+  createBrandReader,
   createDb,
   createThreadEvents,
   installAuditWriter,
@@ -98,7 +99,11 @@ async function main() {
   const runtime =
     process.env.AGENT_RUNTIME === "scripted"
       ? new ScriptedAgentRuntime()
-      : new PiAgentRuntime({ sessionRoot: resolvePiSessionRoot(dataDir) });
+      : new PiAgentRuntime({
+          sessionRoot: resolvePiSessionRoot(dataDir),
+          // Runtime branding for persona prompts: the owner's setting, then PUBLIC_BRAND_*.
+          brandName: createBrandReader(prisma, process.env).name,
+        });
   // Same resolver the API uses, so both processes agree on provider, model and key.
   const { key: deploymentModelKey, configured: deploymentModelConfigured } =
     resolveDeploymentModel();

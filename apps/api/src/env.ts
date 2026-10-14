@@ -5,7 +5,7 @@ import {
   secretStoreOptionsFromEnv,
 } from "@rakazo/adapters";
 import type { OidcConfig } from "@rakazo/auth";
-import type { ExtEnv } from "@rakazo/core";
+import type { BrandEnv, ExtEnv } from "@rakazo/core";
 import {
   loadExtEnv,
   resolveAuthSecret,
@@ -92,8 +92,12 @@ export interface AppEnv {
   teamsAppTenantId: string | undefined;
   /** Unknown chat senders auto-provision their own accounts when true. */
   messagingOpenSignup: boolean;
-  /** Product name in emails and chat replies (PUBLIC_BRAND_NAME, upstream by default). */
+  /** Product name from PUBLIC_BRAND_NAME (upstream by default), before any runtime branding. */
   brandName: string;
+  /** PUBLIC_BRAND_* values; the owner's runtime branding takes precedence per field. */
+  brandEnv: BrandEnv;
+  /** PUBLIC_BRAND_ASSETS_DIR is set: the web app serves the brand's own icons. */
+  brandAssets: boolean;
   /** Bot that owns team/external chat rooms on the messaging surface. */
   teamChatBotId: string | undefined;
   /** Optional model override for ambient engagement judging. */
@@ -238,6 +242,12 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     teamsAppTenantId: optional(source.TEAMS_APP_TENANT_ID),
     messagingOpenSignup: source.MESSAGING_OPEN_SIGNUP === "true",
     brandName: resolveBrand(source).name,
+    brandEnv: {
+      PUBLIC_BRAND_NAME: source.PUBLIC_BRAND_NAME,
+      PUBLIC_BRAND_SHORT_NAME: source.PUBLIC_BRAND_SHORT_NAME,
+      PUBLIC_BRAND_TAGLINE: source.PUBLIC_BRAND_TAGLINE,
+    },
+    brandAssets: Boolean(source.PUBLIC_BRAND_ASSETS_DIR?.trim()),
     teamChatBotId: optional(source.TEAM_CHAT_BOT_ID) ?? optional(source.SLACK_RAKAZO_BOT_ID),
     teamChatJudgeProvider: optional(source.TEAM_CHAT_JUDGE_PROVIDER),
     teamChatJudgeModel: optional(source.TEAM_CHAT_JUDGE_MODEL),

@@ -48,8 +48,8 @@ export interface MessagingInboundDeps {
    * Cosmetic only — callers must catch failures; groups never get it.
    */
   typing?: (threadId: string) => Promise<void>;
-  /** Product name in replies to chat users; upstream's unless white-labelled. */
-  brandName?: string;
+  /** Current product name for replies to chat users (runtime branding); upstream's when unset. */
+  brandName?: () => Promise<string>;
 }
 
 type IdentityRow = {
@@ -568,7 +568,7 @@ async function handleChannelEvent(
           idempotencyKey: `intro:${channel.id}`,
           kind: "intro",
           threadId: channel.threadId,
-          body: `Hi. This line hosts ${brandNameOf(deps)} personal agents. Some people in this group haven't messaged it yet; send any message to this line first if you want your own agent here.`,
+          body: `Hi. This line hosts ${await brandNameOf(deps)} personal agents. Some people in this group haven't messaged it yet; send any message to this line first if you want your own agent here.`,
         },
       ],
       skipDuplicates: true,
@@ -660,7 +660,7 @@ async function inviteMember(
         idempotencyKey: `invite:${channel.id}:${identity.id}`,
         kind: "dm",
         identityId: identity.id,
-        body: `"${name}" was linked to your ${brandNameOf(deps)} agent. Reply YES to let your agent join the conversation there, or NO to stay out.`,
+        body: `"${name}" was linked to your ${await brandNameOf(deps)} agent. Reply YES to let your agent join the conversation there, or NO to stay out.`,
       },
     ],
     skipDuplicates: true,
@@ -684,8 +684,8 @@ async function inviteMember(
   });
 }
 
-function brandNameOf(deps: Pick<MessagingInboundDeps, "brandName">): string {
-  return deps.brandName ?? UPSTREAM_BRAND.name;
+async function brandNameOf(deps: Pick<MessagingInboundDeps, "brandName">): Promise<string> {
+  return (await deps.brandName?.()) ?? UPSTREAM_BRAND.name;
 }
 
 async function ownerFirstName(

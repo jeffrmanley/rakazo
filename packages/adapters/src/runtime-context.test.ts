@@ -284,7 +284,7 @@ describe("runtime context policy", () => {
     expect(prepared.messages[0]!.content).toBe(first.messages[0]!.content);
     expect(prepared.messages).toHaveLength(first.messages.length + 1);
   });
-  it("preserves an existing rolling summary when it fits", () => {
+  it("preserves an existing rolling summary, including one written before branding, when it fits", () => {
     const { request, context } = fixture();
     const summary =
       "Rakazo-owned compacted context through message sequence 10.\n<compacted_thread_summary>Durable approval constraint</compacted_thread_summary>";
@@ -305,7 +305,7 @@ describe("runtime context policy", () => {
     const { request, context } = fixture();
     const system = { role: "system", content: "System guidance", timestamp: 0 } as Message;
     const summary =
-      "Rakazo-owned compacted context through message sequence 10.\n<compacted_thread_summary>Durable approval constraint</compacted_thread_summary>";
+      "System-owned compacted context through message sequence 10.\n<compacted_thread_summary>Durable approval constraint</compacted_thread_summary>";
     request.history.unshift({ role: "user", content: summary });
     context.messages.unshift({
       role: "user",

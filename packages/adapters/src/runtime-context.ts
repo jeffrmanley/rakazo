@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Api, Context, Message, Model } from "@earendil-works/pi-ai";
 import type { AdapterContext, AgentRunRequest, AgentUsage } from "@rakazo/adapter-kit";
 import { DEFAULT_CONTEXT_STRATEGY } from "@rakazo/adapter-kit";
+import { isCompactedContextText } from "./compacted-context.js";
 import type { CacheRequest, ContextBudget } from "./context-selection.js";
 import {
   ContextCacheTracker,
@@ -313,7 +314,7 @@ export function createRuntimeContextPolicy(
         (message) =>
           (message as Message & OriginalMetadata).rakazoHistory &&
           !(message as Message & OriginalMetadata).rakazoMessageId &&
-          (text(message).startsWith("Rakazo-owned compacted context through message sequence ") ||
+          (isCompactedContextText(text(message)) ||
             text(message).startsWith(
               "Memory recalled from earlier conversations that fell outside the visible history.",
             )),

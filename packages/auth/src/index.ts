@@ -41,8 +41,10 @@ export interface AuthEnv {
   signupsEnabled: string | undefined;
   signupAllowlist: string | undefined;
   extraOrigins?: string[];
-  /** Product name in emails and the auth app name; upstream's unless white-labelled. */
-  brandName?: string;
+  /** Auth library app name (not shown to users); upstream's unless PUBLIC_BRAND_NAME is set. */
+  appName?: string;
+  /** Current product name for emails, read per email so runtime branding applies; upstream's when unset. */
+  brandName?: () => Promise<string>;
   email?: TransactionalEmailProvider;
   onEmailError?: (error: unknown) => void;
   beforeDeleteUser?: (userId: string) => Promise<void>;
@@ -253,7 +255,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
     throw new Error("Password auth requires OIDC when disabled");
   const discovery = env.oidc ? oidcDiscovery(env.oidc) : undefined;
   const auth = betterAuth({
-    appName: env.brandName ?? UPSTREAM_BRAND.name,
+    appName: env.appName ?? UPSTREAM_BRAND.name,
     secret: env.secret,
     baseURL: env.baseURL,
     trustedOrigins: [...buildTrustedOrigins(env), "rakazo://"],
@@ -273,8 +275,8 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
         ? async ({ user, url }) => {
             // Keep the response timing generic. Production providers track and retry the promise,
             // while the composition root drains accepted delivery during graceful shutdown.
-            void env.email
-              ?.send(passwordResetEmail(user, url, env.brandName))
+            void currentBrandName(env)
+              .then((brandName) => env.email?.send(passwordResetEmail(user, url, brandName)))
               .catch((error) => env.onEmailError?.(error));
           }
         : undefined,
@@ -290,7 +292,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
               new URL("/sign-in", env.webOrigin).href,
             );
             await env.email!.send(
-              verificationEmail(user.email, verificationUrl.href, env.brandName),
+              verificationEmail(user.email, verificationUrl.href, await currentBrandName(env)),
             );
           }
         : undefined,
@@ -365,12 +367,8 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
     plugins: [
       bearer(),
       expo(),
-      accountSecurity(
-        env.email,
-        env.oidc?.name,
-        env.oidc?.issuer,
-        env.passwordAuth !== false,
-        env.brandName,
+      accountSecurity(env.email, env.oidc?.name, env.oidc?.issuer, env.passwordAuth !== false, () =>
+        currentBrandName(env),
       ),
       ...(discovery ? [discovery.plugin] : []),
       organization({
@@ -565,6 +563,10 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
     ssoAvailability: () => discovery?.availability(),
     disposeOidcDiscovery: () => discovery?.dispose(),
   });
+}
+
+async function currentBrandName(env: Pick<AuthEnv, "brandName">): Promise<string> {
+  return (await env.brandName?.()) ?? UPSTREAM_BRAND.name;
 }
 
 export function verificationEmail(

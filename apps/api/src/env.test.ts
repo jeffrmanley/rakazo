@@ -292,6 +292,19 @@ describe("white-label branding", () => {
     expect(loadEnv({ ...base, PUBLIC_BRAND_NAME: "  " }).brandName).toBe("Rakazo");
     expect(loadEnv({ ...base, PUBLIC_BRAND_NAME: " withJZ Crew " }).brandName).toBe("withJZ Crew");
   });
+
+  it("passes PUBLIC_BRAND_* through for runtime resolution", () => {
+    expect(loadEnv(base).brandEnv).toEqual({
+      PUBLIC_BRAND_NAME: undefined,
+      PUBLIC_BRAND_SHORT_NAME: undefined,
+      PUBLIC_BRAND_TAGLINE: undefined,
+    });
+    expect(
+      loadEnv({ ...base, PUBLIC_BRAND_SHORT_NAME: "Crew", PUBLIC_BRAND_TAGLINE: "Hi." }).brandEnv,
+    ).toMatchObject({ PUBLIC_BRAND_SHORT_NAME: "Crew", PUBLIC_BRAND_TAGLINE: "Hi." });
+    expect(loadEnv(base).brandAssets).toBe(false);
+    expect(loadEnv({ ...base, PUBLIC_BRAND_ASSETS_DIR: "/brand" }).brandAssets).toBe(true);
+  });
 });
 
 describe("loadEnv fork extensions", () => {

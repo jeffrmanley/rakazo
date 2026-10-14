@@ -21,7 +21,7 @@ export function accountSecurity(
   ssoName?: string,
   ssoIssuer?: string,
   passwordChangeEnabled = true,
-  brandName: string = UPSTREAM_BRAND.name,
+  brandName: () => Promise<string> = async () => UPSTREAM_BRAND.name,
 ): BetterAuthPlugin {
   return {
     id: "account-security",
@@ -73,11 +73,12 @@ export function accountSecurity(
             value: user.id,
             expiresAt: new Date(Date.now() + 10 * 60_000),
           });
+          const product = await brandName();
           await email.send({
             to: user.email,
-            subject: `Confirm ${brandName} account deletion`,
-            text: `Enter this code in ${brandName} to delete your account:\n\n${token}\n\nThis code expires in ten minutes. If you did not request deletion, ignore this email.`,
-            html: `<p>Enter this code in ${escapeHtml(brandName)} to delete your account:</p><p>${token}</p><p>This code expires in ten minutes. If you did not request deletion, ignore this email.</p>`,
+            subject: `Confirm ${product} account deletion`,
+            text: `Enter this code in ${product} to delete your account:\n\n${token}\n\nThis code expires in ten minutes. If you did not request deletion, ignore this email.`,
+            html: `<p>Enter this code in ${escapeHtml(product)} to delete your account:</p><p>${token}</p><p>This code expires in ten minutes. If you did not request deletion, ignore this email.</p>`,
           });
           return ctx.json({ success: true });
         },
