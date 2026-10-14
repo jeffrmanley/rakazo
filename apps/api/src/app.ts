@@ -46,6 +46,7 @@ import {
   InMemoryRealtimeFanout,
   InstalledConnectorProvider,
   IntegrationProviderSettings,
+  installBudgetPolicy,
   isComposioEnabled,
   isMessagingSurfaceEnabled,
   isPipedreamEnabled,
@@ -112,6 +113,7 @@ import {
   reportAuditFailureToChat,
   startAuditSealer,
 } from "./ext-audit.js";
+import { mountBudgetRoutes } from "./ext-budgets.js";
 import { healthRoutes } from "./health.js";
 import { mountLocalSettings } from "./local-settings.js";
 import {
@@ -221,6 +223,8 @@ export async function createApp(
   prisma = withSecretPersistence(prisma, secrets);
   // Fork extension: EXT_AUDIT_LOG=1 installs the fail-closed audit writer for this process.
   installAuditWriter(env.ext.auditLog ? createAuditWriter(prisma) : null);
+  // Fork extension: EXT_BUDGETS=1 enforces spend caps and run limits in this process.
+  installBudgetPolicy(env.ext.budgets ? env.ext : null);
   const auditSealer = env.ext.auditLog
     ? startAuditSealer({ prisma, exportDir: env.ext.auditExportDir })
     : undefined;
@@ -687,6 +691,9 @@ export async function createApp(
   });
   mountWebhookHttpRoutes(app, { prisma, secrets, events, jobs });
   if (env.ext.auditLog) mountAuditRoutes(app, { prisma, authenticate: sessionActor });
+  if (env.ext.budgets) {
+    mountBudgetRoutes(app, { prisma, defaults: env.ext, authenticate: sessionActor });
+  }
   if (billing && billingProvider) {
     mountBillingRoutes(app, {
       billing,
@@ -1031,6 +1038,7 @@ export async function createApp(
       shutdown.abort();
       auditSealer?.stop();
       installAuditWriter(null);
+      installBudgetPolicy(null);
       oauthLogins.abortAll();
       messagingStopped = true;
       clearMessagingRetryDelay?.();
