@@ -838,6 +838,25 @@ describeBudgets("fork extension: premium models", () => {
     return { app, cookie, me, handles, model, requests, newBot, send, makePremium, stop };
   }
 
+  it("refuses a premium model a non-premium bot asks for as a sub-agent model", async () => {
+    const env = await startPremiumApp("offline-fixture");
+    try {
+      const botId = await env.newBot(true);
+      await env.send(botId, "Use a premium helper.");
+      const resolveModel = env.requests[0]?.resolveModel;
+      expect(resolveModel).toBeDefined();
+      await expect(resolveModel!("openai-compatible", "claude-fable-fixture")).rejects.toThrow(
+        PREMIUM_MODEL_REFUSAL,
+      );
+      // The bot's own, non-premium model still resolves for a sub-agent.
+      await expect(resolveModel!("openai-compatible", "offline-fixture")).resolves.toMatchObject({
+        id: "offline-fixture",
+      });
+    } finally {
+      await env.stop();
+    }
+  });
+
   it("refuses a run whose selected model is a premium space default, until the bot is premium", async () => {
     const env = await startPremiumApp("claude-fable-fixture");
     try {

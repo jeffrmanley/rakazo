@@ -80,6 +80,7 @@ import {
   messagingDmSurfaceNote,
   nextCronDateAcross,
   nextFence,
+  PREMIUM_MODEL_REFUSAL,
   planActionGate,
   promptInvokesSkill,
   redactSecrets,
@@ -3754,7 +3755,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
           return;
         }
         // Fork extension (EXT_BUDGETS): Fable/Mythos-class models only on premium bots, judged
-        // on the model actually selected; backups are held to it too.
+        // on the model actually selected; backups and sub-agent models are held to it too.
         const premiumGate = await premiumModelGate(deps.prisma, run);
         if (!premiumGate.allows(runModelId)) {
           await refuseRunForModel(deps, {
@@ -6700,10 +6701,12 @@ export function createRunExecutor(deps: ExecutorDeps) {
               executeTool: scripted ? undefined : applyTool,
               resolveModel: scripted
                 ? undefined
-                : (provider, modelId) =>
-                    resolveConnectedModel(run, provider, modelId, (values) =>
+                : async (provider, modelId) => {
+                    if (!premiumGate.allows(modelId)) throw new Error(PREMIUM_MODEL_REFUSAL);
+                    return resolveConnectedModel(run, provider, modelId, (values) =>
                       runSecrets.push(...values),
-                    ),
+                    );
+                  },
               onToolCompleted: (completion) =>
                 appendToolCompletionAudit(
                   deps,
