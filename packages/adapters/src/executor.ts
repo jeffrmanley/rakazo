@@ -108,6 +108,7 @@ import {
   findDefaultModelCredential,
   findModelCredential,
   getAuditWriter,
+  getEmergencyStop,
   InvalidSpaceNameError,
   isTooManyDatabaseConnections,
   loadRunHistoryMessages,
@@ -239,6 +240,14 @@ import { redactConnectorPayload, sanitizeConnectorError } from "./connector-safe
 import { formatCurrentTimeInstruction } from "./current-time.js";
 import { resolveDeploymentModel } from "./deployment-model.js";
 import { auditedToolExecution } from "./ext-audit-tools.js";
+import type { RunStopGuard } from "./ext-emergency-stop.js";
+import {
+  cancelStoppedRun,
+  createRunStopGuard,
+  EmergencyStopError,
+  haltRunIfStopped,
+  holdRoutineIfStopped,
+} from "./ext-emergency-stop.js";
 import { handoffToGroupBot, loadGroupContext } from "./group-handoff.js";
 import {
   COMPACTION_BATCH_SIZE,
@@ -3098,6 +3107,8 @@ export function createRunExecutor(deps: ExecutorDeps) {
       });
       if (!routine?.active || routine.nextRunAt?.getTime() !== scheduledAt.getTime()) return;
       if (await deferFutureRoutine(deps.jobs, routineId, scheduledAt)) return;
+      // Fork extension: a stopped bot's scheduled routine does not start.
+      if (await holdRoutineIfStopped(deps, routine, scheduledAt)) return;
       const bot = await deps.prisma.bot.findUnique({
         where: { id: routine.botId },
         include: { thread: true },
@@ -3247,6 +3258,8 @@ export function createRunExecutor(deps: ExecutorDeps) {
       const run = await deps.prisma.run.findUnique({ where: { id: runId } });
       if (!run) return;
       if (isTerminal(run.status as RunStatus)) return;
+      // Fork extension: a stopped bot's run is cancelled before it is leased.
+      if (await haltRunIfStopped(deps, run)) return;
       let { resumeCheckpoint, heldForTakeover, resumeHeldLease, takeoverResume } =
         takeoverContinuePlan(run);
 
@@ -3333,6 +3346,9 @@ export function createRunExecutor(deps: ExecutorDeps) {
       let screenRelease: { computer: ComputerRef; context: AdapterContext } | undefined;
       let runAbortController: AbortController | null = null;
       let detachShutdown: (() => void) | undefined;
+      // Fork extension: emergency stop watch for this run (no-op when the module is off).
+      let stopGuard: RunStopGuard | undefined;
+      let stopHalt: Promise<void> | undefined;
       const heartbeat = setInterval(() => {
         void Promise.all([
           renewRunLease(deps, runId, workerId, fence),
@@ -3458,6 +3474,17 @@ export function createRunExecutor(deps: ExecutorDeps) {
         const onShutdown = () => runAbortController?.abort(deps.shutdownSignal?.reason);
         deps.shutdownSignal?.addEventListener("abort", onShutdown);
         detachShutdown = () => deps.shutdownSignal?.removeEventListener("abort", onShutdown);
+        stopGuard = createRunStopGuard({
+          reader: getEmergencyStop(),
+          target: { spaceId: run.spaceId, botId: run.botId },
+          onStop: (stop) => {
+            stopHalt = cancelStoppedRun(deps, {
+              id: runId,
+              computerId: leaseTarget.computerId,
+            }).catch((error) => getLogger().error("emergency stop run cancel failed", error));
+            runAbortController?.abort(new EmergencyStopError(stop));
+          },
+        });
         const composioRows = storedConnections.filter(
           (connection) => connection.connectorId === "composio",
         );
@@ -6325,16 +6352,18 @@ export function createRunExecutor(deps: ExecutorDeps) {
           return finish({ error: `unknown tool ${name}` });
         };
 
-        const applyTool = auditedToolExecution({
-          audit: getAuditWriter(),
-          target: { spaceId: run.spaceId, botId: bot.id, runId },
-          secrets: () => runSecrets,
-          execute: executeToolUnaudited,
-          onAuditFailure: (error) => {
-            auditFailure ??= error;
-            runAbortController?.abort(error);
-          },
-        });
+        const applyTool = stopGuard.wrapTool(
+          auditedToolExecution({
+            audit: getAuditWriter(),
+            target: { spaceId: run.spaceId, botId: bot.id, runId },
+            secrets: () => runSecrets,
+            execute: executeToolUnaudited,
+            onAuditFailure: (error) => {
+              auditFailure ??= error;
+              runAbortController?.abort(error);
+            },
+          }),
+        );
         const pluginLine =
           connectedPlugins.length > 0
             ? `Connected plugins: ${connectedPlugins.map((row) => `${row.displayName} (${row.connectorId}:${row.provider})`).join(", ")}. Prefer those plugin tools over the computer browser or web search when reading app data (repos, releases, mail, calendar, and similar).`
@@ -6475,7 +6504,8 @@ export function createRunExecutor(deps: ExecutorDeps) {
             workerId,
             fence,
             !leaseValid || Boolean(runAbortController?.signal.aborted),
-          )
+          ) ||
+          (await stopGuard.check())
         ) {
           return;
         }
@@ -7036,6 +7066,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
           }
 
           if (auditFailure) throw auditFailure;
+          if (stopGuard.stopped) throw new EmergencyStopError(stopGuard.stopped);
           if (approvalPausePending || !leaseValid) return;
           approvedEffectReplays.assertDrained();
           pendingProgress += progressRedactor.finish();
@@ -7202,6 +7233,14 @@ export function createRunExecutor(deps: ExecutorDeps) {
             getLogger().error("history.compact enqueue failed", error);
           }
         } catch (caught) {
+          // Fork extension: a run halted by an emergency stop ends cancelled, not failed.
+          if (stopGuard?.stopped && !auditFailure) {
+            if (!terminalCheckpointComplete) {
+              await workspaceCheckpoint.flush().catch(() => undefined);
+            }
+            await stopHalt;
+            return;
+          }
           // A run halted by an audit failure reports that failure, not the abort it caused.
           const error = auditFailure ?? caught;
           if (!terminalCheckpointComplete) {
@@ -7298,6 +7337,8 @@ export function createRunExecutor(deps: ExecutorDeps) {
         }
       } finally {
         detachShutdown?.();
+        stopGuard?.dispose();
+        await stopHalt;
         clearInterval(heartbeat);
         if (!retainComputerLease) {
           if (screenRelease) {

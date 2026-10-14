@@ -53,8 +53,10 @@ import {
   createAuditWriter,
   createBoardEvents,
   createDb,
+  createEmergencyStopReader,
   createThreadEvents,
   installAuditWriter,
+  installEmergencyStop,
   isTooManyDatabaseConnections,
   parsePositiveInteger,
   pushSessionExpiresAt,
@@ -88,7 +90,10 @@ async function main() {
     logger.warn("Secret storage degraded; encrypted credentials remain available");
   prisma = withSecretPersistence(prisma, secrets);
   // Fork extension: EXT_AUDIT_LOG=1 installs the fail-closed audit writer for this process.
-  installAuditWriter(loadExtEnv(process.env).auditLog ? createAuditWriter(prisma) : null);
+  const ext = loadExtEnv(process.env);
+  installAuditWriter(ext.auditLog ? createAuditWriter(prisma) : null);
+  // Fork extension: EXT_EMERGENCY_STOP=1 makes runs, routines and outbound sends honor stops.
+  installEmergencyStop(ext.emergencyStop ? createEmergencyStopReader(prisma) : null);
   const events = createThreadEvents(prisma, realtime, {
     runSecretWriter: createRunSecretWriter(secrets),
   });

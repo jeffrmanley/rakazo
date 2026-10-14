@@ -11,9 +11,11 @@ import type { PrismaClient, ThreadEvents } from "@rakazo/db";
 import {
   appendEventInTransaction,
   createThreadMessageInTransaction,
+  getEmergencyStop,
   replyMessagingIdentity,
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
+import { isBotStopped } from "./ext-emergency-stop.js";
 
 /**
  * Margin under vendor consecutive-outbound caps (sendblue enforces one hard):
@@ -77,6 +79,8 @@ async function mirrorRun(deps: MessagingDeliveryDeps, runId: string): Promise<vo
     include: { sourceMessage: true },
   });
   if (!run) return;
+  // Fork extension: a stopped bot's replies are dropped, not queued for after a resume.
+  if (await isBotStopped({ spaceId: run.spaceId, botId: run.botId })) return;
 
   if (run.trigger === "messaging") {
     const sourceBlocks = (run.sourceMessage?.blocks ?? []) as MessageBlock[];
@@ -348,6 +352,14 @@ async function drain(deps: MessagingDeliveryDeps, context: AdapterContext): Prom
     });
     if (claim.count === 0) continue;
     try {
+      // Fork extension: a bot message from a stopped bot is not sent.
+      if (await outboundBotIsStopped(deps, row.sourceMessageId)) {
+        await deps.prisma.messagingOutbound.updateMany({
+          where: { id: row.id },
+          data: { status: "failed" },
+        });
+        continue;
+      }
       if (row.kind === "group" || row.kind === "intro") {
         if (!row.threadId) {
           await deps.prisma.messagingOutbound.update({
@@ -442,6 +454,21 @@ async function drain(deps: MessagingDeliveryDeps, context: AdapterContext): Prom
       }
     }
   }
+}
+
+async function outboundBotIsStopped(
+  deps: MessagingDeliveryDeps,
+  sourceMessageId: string | null,
+): Promise<boolean> {
+  // Off (no reader installed): no lookup at all.
+  if (!sourceMessageId || !getEmergencyStop()) return false;
+  const source = await deps.prisma.message.findUnique({
+    where: { id: sourceMessageId },
+    select: { botId: true, thread: { select: { spaceId: true, botId: true } } },
+  });
+  const botId = source?.botId ?? source?.thread.botId;
+  if (!source || !botId) return false;
+  return isBotStopped({ spaceId: source.thread.spaceId, botId });
 }
 
 /**

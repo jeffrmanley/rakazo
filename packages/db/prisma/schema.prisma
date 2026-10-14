@@ -1538,3 +1538,24 @@ model ExtAuditSegment {
   @@index([spaceId, sealedAt])
   @@map("ext_audit_segments")
 }
+
+/// Fork extension: emergency stop (EXT_EMERGENCY_STOP). One row per stop; a
+/// resume stamps resumedAt/resumedBy and keeps the row as history. A row with
+/// resumedAt null is active. `spaceId` is null only for a global stop and
+/// `botId` is set only for a bot stop. No foreign keys, like the audit log.
+model ExtControlStop {
+  id        String    @id
+  /// "bot" | "space" | "global"
+  scope     String
+  spaceId   String?
+  botId     String?
+  reason    String
+  stoppedBy String
+  stoppedAt DateTime
+  resumedBy String?
+  resumedAt DateTime?
+
+  @@index([spaceId, resumedAt])
+  @@index([scope, resumedAt])
+  @@map("ext_control_stops")
+}
