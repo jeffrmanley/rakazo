@@ -123,6 +123,37 @@ describe("Pi computer tool dispatch", () => {
     expect(fakeAgentState.systemPrompt).toBe("Follow the user's instructions.");
   });
 
+  it("names the runtime brand in the default persona prompt", async () => {
+    const run = async (runtime: PiAgentRuntime) => {
+      for await (const _event of runtime.run(
+        {
+          botId: "bot",
+          threadId: "thread",
+          runId: "run",
+          prompt: "look at the screen",
+          history: [],
+          tools: [computerObserve],
+          model: { provider: "test", id: "computer-test-model" },
+          executeTool: async () => ({ kind: "agent_tool_result", content: [] }),
+        },
+        {
+          operationId: "computer-test",
+          traceId: "computer-test",
+          spaceId: "workspace",
+          userId: "user",
+          signal: new AbortController().signal,
+        },
+      )) {
+        // Exhaust the runtime.
+      }
+      return fakeAgentState.systemPrompt;
+    };
+    expect(await run(new PiAgentRuntime())).toMatch(/^You are a Rakazo bot with a real computer/);
+    const branded = await run(new PiAgentRuntime({ brandName: async () => "Acme Crew" }));
+    expect(branded).toMatch(/^You are a Acme Crew bot with a real computer/);
+    expect(branded).not.toContain("Rakazo");
+  });
+
   it("keeps the run alive when a graphical tool returns an error object", async () => {
     const runtime = new PiAgentRuntime();
     const events: Array<{ type: string; text?: string }> = [];
