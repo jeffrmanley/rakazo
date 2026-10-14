@@ -169,6 +169,11 @@ msgstr ""
 msgid "{size} B"
 msgstr "{size} B"
 
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "{spent} of {cap} today"
+msgstr "आज {cap} में से {spent}"
+
 #: src/components/ToolActivityDisclosure.tsx
 msgid "{stepCount, plural, one {Done · # tool} other {Done · # tools}}"
 msgstr ""
@@ -597,6 +602,10 @@ msgstr "बाहरी ईमेल भेजने से पहले पू�
 msgid "Ask the server owner to configure this provider."
 msgstr ""
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Assistant ({amount})"
+msgstr "सहायक ({amount})"
+
 #. placeholder {0}: preset.time
 #: src/pages/RoutineSchedule.tsx
 msgid "at {0}"
@@ -781,6 +790,10 @@ msgstr ""
 #: src/components/computer/ComputerWorkspace.tsx
 msgid "Browser"
 msgstr ""
+
+#: src/pages/SettingsOverlay.tsx
+msgid "Budget"
+msgstr "बजट"
 
 #: src/pages/KnowledgeSection.tsx
 msgid "Built-in"
@@ -1594,6 +1607,7 @@ msgstr "कनेक्शन रद्द नहीं किया जा स�
 msgid "Could not run routine"
 msgstr ""
 
+#: src/lib/budgets.ts
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/shell/bot-panel.tsx
@@ -1802,6 +1816,10 @@ msgstr "Cron एक्सप्रेशन"
 msgid "Current password"
 msgstr "वर्तमान पासवर्ड"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Custom"
+msgstr "कस्टम"
+
 #: src/pages/shell/bot-credentials.tsx
 msgid "Custom header"
 msgstr ""
@@ -1813,6 +1831,18 @@ msgstr ""
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Customize bot avatar"
 msgstr "बॉट अवतार अनुकूलित करें"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Daily budget"
+msgstr "दैनिक बजट"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Daily budget in USD"
+msgstr "USD में दैनिक बजट"
+
+#: src/pages/BudgetSettingsPanel.tsx
+msgid "Daily cap (USD)"
+msgstr "दैनिक सीमा (USD)"
 
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Dark"
@@ -1858,6 +1888,14 @@ msgstr "डिफ़ॉल्ट ({0})"
 #: src/pages/MemorySettingsOverlay.tsx
 msgid "Default scope"
 msgstr "डिफ़ॉल्ट स्कोप"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Delegation depth"
+msgstr "डेलिगेशन गहराई"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Delegations per run"
+msgstr "प्रति रन डेलिगेशन"
 
 #: src/pages/Artifacts.tsx
 #: src/pages/BotContextMenu.tsx
@@ -2552,6 +2590,10 @@ msgstr ""
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Light"
 msgstr "लाइट"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Limits"
+msgstr "सीमाएँ"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Linear issue"
@@ -3396,6 +3438,10 @@ msgstr "प्लगइन"
 msgid "POST to"
 msgstr ""
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Premium models"
+msgstr "प्रीमियम मॉडल"
+
 #. placeholder {0}: props.name
 #: src/components/ArtifactFileCard.tsx
 msgid "Preview {0}"
@@ -3820,6 +3866,10 @@ msgstr "चल रहा है · रोकें"
 #: src/pages/RoutineEditor.tsx
 msgid "Running…"
 msgstr "चल रहा है…"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Runs at once"
+msgstr "एक साथ रन"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Runs when this bot receives a verified message from this provider."
@@ -4296,6 +4346,10 @@ msgstr "छवियों का समर्थन"
 msgid "Supports thinking"
 msgstr "सोचने की क्षमता का समर्थन करता है"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Swarm ({amount})"
+msgstr "स्वार्म ({amount})"
+
 #: src/pages/shell/command-palette.tsx
 msgid "Switch bot"
 msgstr ""
@@ -4514,6 +4568,16 @@ msgstr "टूल स्रोत"
 #: src/pages/PluginsOverlay.tsx
 msgid "Tools"
 msgstr ""
+
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "Top up today"
+msgstr "आज टॉप अप करें"
+
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "Top-up amount in USD"
+msgstr "USD में टॉप-अप राशि"
 
 #: src/components/call/CallCard.tsx
 msgid "Transcript"
@@ -4813,6 +4877,10 @@ msgstr "बॉट कहां चलने चाहिए?"
 #: src/lib/ticket-status.ts
 msgid "Won't do"
 msgstr ""
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Worker ({amount})"
+msgstr "वर्कर ({amount})"
 
 #: src/lib/roster-status.ts
 #: src/pages/Auth.tsx

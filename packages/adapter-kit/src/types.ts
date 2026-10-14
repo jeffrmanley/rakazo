@@ -488,6 +488,11 @@ export interface AgentRunRequest {
     route?: ConnectorRoute,
     observer?: AgentToolExecutionObserver,
   ) => Promise<unknown>;
+  /**
+   * Asked before a delegation the runtime performs itself (run_subagent). A string is a
+   * refusal the model sees as the tool's error; nothing is started.
+   */
+  admitDelegation?: (tool: string) => Promise<string | null>;
   /** Called after a tool returns; implementations must not persist raw result contents. */
   onToolCompleted?: (completion: AgentToolCompletion) => Promise<void> | void;
   /** Atomically claim durable user steering at the runtime's next safe turn boundary. */

@@ -1247,6 +1247,13 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
             };
           }
           if (tool.name === "run_subagent") {
+            const refusal = await host.request.admitDelegation?.(tool.name);
+            if (refusal) {
+              return {
+                content: [{ type: "text", text: refusal }],
+                details: { error: refusal },
+              };
+            }
             const result = await executeSubagent(host, executionId, args);
             return {
               content: [{ type: "text", text: result }],

@@ -169,6 +169,11 @@ msgstr ""
 msgid "{size} B"
 msgstr "{size} B"
 
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "{spent} of {cap} today"
+msgstr "오늘 {cap} 중 {spent}"
+
 #: src/components/ToolActivityDisclosure.tsx
 msgid "{stepCount, plural, one {Done · # tool} other {Done · # tools}}"
 msgstr ""
@@ -597,6 +602,10 @@ msgstr "외부 이메일을 보내기 전에 확인"
 msgid "Ask the server owner to configure this provider."
 msgstr ""
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Assistant ({amount})"
+msgstr "어시스턴트 ({amount})"
+
 #. placeholder {0}: preset.time
 #: src/pages/RoutineSchedule.tsx
 msgid "at {0}"
@@ -781,6 +790,10 @@ msgstr ""
 #: src/components/computer/ComputerWorkspace.tsx
 msgid "Browser"
 msgstr ""
+
+#: src/pages/SettingsOverlay.tsx
+msgid "Budget"
+msgstr "예산"
 
 #: src/pages/KnowledgeSection.tsx
 msgid "Built-in"
@@ -1594,6 +1607,7 @@ msgstr "연결을 해제하지 못했습니다."
 msgid "Could not run routine"
 msgstr "루틴을 실행할 수 없습니다"
 
+#: src/lib/budgets.ts
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/shell/bot-panel.tsx
@@ -1802,6 +1816,10 @@ msgstr "Cron 표현식"
 msgid "Current password"
 msgstr "현재 비밀번호"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Custom"
+msgstr "사용자 지정"
+
 #: src/pages/shell/bot-credentials.tsx
 msgid "Custom header"
 msgstr ""
@@ -1813,6 +1831,18 @@ msgstr "고객 지원"
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Customize bot avatar"
 msgstr "봇 아바타 맞춤설정"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Daily budget"
+msgstr "일일 예산"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Daily budget in USD"
+msgstr "일일 예산(USD)"
+
+#: src/pages/BudgetSettingsPanel.tsx
+msgid "Daily cap (USD)"
+msgstr "일일 한도(USD)"
 
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Dark"
@@ -1858,6 +1888,14 @@ msgstr "기본값 ({0})"
 #: src/pages/MemorySettingsOverlay.tsx
 msgid "Default scope"
 msgstr "기본 기억 범위"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Delegation depth"
+msgstr "위임 깊이"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Delegations per run"
+msgstr "실행당 위임 수"
 
 #: src/pages/Artifacts.tsx
 #: src/pages/BotContextMenu.tsx
@@ -2552,6 +2590,10 @@ msgstr "나가기"
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Light"
 msgstr "라이트"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Limits"
+msgstr "한도"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Linear issue"
@@ -3396,6 +3438,10 @@ msgstr "플러그인"
 msgid "POST to"
 msgstr "POST 대상"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Premium models"
+msgstr "프리미엄 모델"
+
 #. placeholder {0}: props.name
 #: src/components/ArtifactFileCard.tsx
 msgid "Preview {0}"
@@ -3820,6 +3866,10 @@ msgstr "실행 중 · 중지"
 #: src/pages/RoutineEditor.tsx
 msgid "Running…"
 msgstr "실행 중…"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Runs at once"
+msgstr "동시 실행"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Runs when this bot receives a verified message from this provider."
@@ -4296,6 +4346,10 @@ msgstr "이미지 지원"
 msgid "Supports thinking"
 msgstr "사고 모드 지원"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Swarm ({amount})"
+msgstr "스웜 ({amount})"
+
 #: src/pages/shell/command-palette.tsx
 msgid "Switch bot"
 msgstr ""
@@ -4514,6 +4568,16 @@ msgstr "도구 소스"
 #: src/pages/PluginsOverlay.tsx
 msgid "Tools"
 msgstr ""
+
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "Top up today"
+msgstr "오늘 충전"
+
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "Top-up amount in USD"
+msgstr "충전 금액(USD)"
 
 #: src/components/call/CallCard.tsx
 msgid "Transcript"
@@ -4813,6 +4877,10 @@ msgstr "Bot을 어디에서 실행할까요?"
 #: src/lib/ticket-status.ts
 msgid "Won't do"
 msgstr ""
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Worker ({amount})"
+msgstr "워커 ({amount})"
 
 #: src/lib/roster-status.ts
 #: src/pages/Auth.tsx

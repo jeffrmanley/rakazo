@@ -169,6 +169,11 @@ msgstr ""
 msgid "{size} B"
 msgstr "{size} B"
 
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "{spent} of {cap} today"
+msgstr "Bugün {cap} içinden {spent}"
+
 #: src/components/ToolActivityDisclosure.tsx
 msgid "{stepCount, plural, one {Done · # tool} other {Done · # tools}}"
 msgstr ""
@@ -597,6 +602,10 @@ msgstr "Dışarıya e-posta göndermeden önce sor"
 msgid "Ask the server owner to configure this provider."
 msgstr ""
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Assistant ({amount})"
+msgstr "Asistan ({amount})"
+
 #. placeholder {0}: preset.time
 #: src/pages/RoutineSchedule.tsx
 msgid "at {0}"
@@ -781,6 +790,10 @@ msgstr ""
 #: src/components/computer/ComputerWorkspace.tsx
 msgid "Browser"
 msgstr ""
+
+#: src/pages/SettingsOverlay.tsx
+msgid "Budget"
+msgstr "Bütçe"
 
 #: src/pages/KnowledgeSection.tsx
 msgid "Built-in"
@@ -1594,6 +1607,7 @@ msgstr "Bağlantı iptal edilemedi"
 msgid "Could not run routine"
 msgstr ""
 
+#: src/lib/budgets.ts
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/shell/bot-panel.tsx
@@ -1802,6 +1816,10 @@ msgstr "Cron ifadesi"
 msgid "Current password"
 msgstr "Mevcut parola"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Custom"
+msgstr "Özel"
+
 #: src/pages/shell/bot-credentials.tsx
 msgid "Custom header"
 msgstr ""
@@ -1813,6 +1831,18 @@ msgstr ""
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Customize bot avatar"
 msgstr "Bot avatarını özelleştir"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Daily budget"
+msgstr "Günlük bütçe"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Daily budget in USD"
+msgstr "USD cinsinden günlük bütçe"
+
+#: src/pages/BudgetSettingsPanel.tsx
+msgid "Daily cap (USD)"
+msgstr "Günlük sınır (USD)"
 
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Dark"
@@ -1858,6 +1888,14 @@ msgstr "Varsayılan ({0})"
 #: src/pages/MemorySettingsOverlay.tsx
 msgid "Default scope"
 msgstr "Varsayılan kapsam"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Delegation depth"
+msgstr "Devretme derinliği"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Delegations per run"
+msgstr "Çalıştırma başına devretme"
 
 #: src/pages/Artifacts.tsx
 #: src/pages/BotContextMenu.tsx
@@ -2552,6 +2590,10 @@ msgstr ""
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Light"
 msgstr "Açık"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Limits"
+msgstr "Sınırlar"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Linear issue"
@@ -3396,6 +3438,10 @@ msgstr "Eklenti"
 msgid "POST to"
 msgstr ""
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Premium models"
+msgstr "Premium modeller"
+
 #. placeholder {0}: props.name
 #: src/components/ArtifactFileCard.tsx
 msgid "Preview {0}"
@@ -3820,6 +3866,10 @@ msgstr "Çalışıyor · Durdur"
 #: src/pages/RoutineEditor.tsx
 msgid "Running…"
 msgstr "Çalışıyor…"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Runs at once"
+msgstr "Aynı anda çalıştırma"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Runs when this bot receives a verified message from this provider."
@@ -4296,6 +4346,10 @@ msgstr "Görüntüleri destekler"
 msgid "Supports thinking"
 msgstr "Düşünmeyi destekler"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Swarm ({amount})"
+msgstr "Sürü ({amount})"
+
 #: src/pages/shell/command-palette.tsx
 msgid "Switch bot"
 msgstr ""
@@ -4514,6 +4568,16 @@ msgstr "Araç kaynakları"
 #: src/pages/PluginsOverlay.tsx
 msgid "Tools"
 msgstr ""
+
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "Top up today"
+msgstr "Bugün için artır"
+
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "Top-up amount in USD"
+msgstr "USD cinsinden artırma tutarı"
 
 #: src/components/call/CallCard.tsx
 msgid "Transcript"
@@ -4813,6 +4877,10 @@ msgstr "Botlar nerede çalışsın?"
 #: src/lib/ticket-status.ts
 msgid "Won't do"
 msgstr ""
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Worker ({amount})"
+msgstr "Çalışan ({amount})"
 
 #: src/lib/roster-status.ts
 #: src/pages/Auth.tsx

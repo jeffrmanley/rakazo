@@ -8,7 +8,7 @@ export interface ExtEnv {
   auditLog: boolean;
   /** Emergency stop/resume controls (docs/governance/emergency-stop.md). */
   emergencyStop: boolean;
-  /** Spend and concurrency caps. Parsed here; enforced by a later module. */
+  /** Spend, concurrency and delegation caps (docs/governance/budgets.md). */
   budgets: boolean;
   budgetDefaultDailyUsd: number;
   budgetSpaceDailyUsd: number;

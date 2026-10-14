@@ -10,11 +10,14 @@ import {
   Monitor,
   Settings,
   Volume2,
+  Wallet,
   XIcon,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { computersAreUnavailable } from "../components/ComputersUnavailableHint";
+import type { SpaceBudgetView } from "../lib/budgets";
+import { fetchSpaceBudget } from "../lib/budgets";
 import {
   ComputerSettingsPanel,
   GeneralSettingsPanels,
@@ -22,6 +25,7 @@ import {
   UsageSettingsPanel,
 } from "./AccountSettingsOverlay";
 import { BillingSettingsPanel } from "./BillingSettingsPanel";
+import { BudgetSettingsPanel } from "./BudgetSettingsPanel";
 import { MemorySettingsOverlay } from "./MemorySettingsOverlay";
 import { ModelSettingsOverlay } from "./ModelSettingsOverlay";
 import { VoiceSettingsOverlay } from "./VoiceSettingsOverlay";
@@ -34,6 +38,7 @@ export type SettingsSection =
   | "usage"
   | "computer"
   | "billing"
+  | "budget"
   | "updates";
 
 type NavItem = {
@@ -121,6 +126,20 @@ export function SettingsOverlay({
     if (!billingEnabled && section === "billing") setSection("general");
   }, [billingEnabled, section]);
 
+  // Budgets are an optional server module; the section exists only when it answers.
+  const [budget, setBudget] = useState<SpaceBudgetView | null>(null);
+  useEffect(() => {
+    let live = true;
+    fetchSpaceBudget()
+      .then((view) => {
+        if (live) setBudget(view);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (section !== "computer") releaseComputerRecovery();
   }, [section, releaseComputerRecovery]);
@@ -141,6 +160,7 @@ export function SettingsOverlay({
     { id: "usage", label: t`Usage`, icon: Gauge },
     ...(showComputer ? [{ id: "computer" as const, label: t`Computer`, icon: Monitor }] : []),
     ...(billingEnabled ? [{ id: "billing" as const, label: t`Billing`, icon: CreditCard }] : []),
+    ...(budget ? [{ id: "budget" as const, label: t`Budget`, icon: Wallet }] : []),
     { id: "updates", label: t`Updates`, icon: CloudDownload },
   ];
 
@@ -276,6 +296,7 @@ export function SettingsOverlay({
                 />
               ) : null}
               {section === "billing" && billingEnabled ? <BillingSettingsPanel /> : null}
+              {section === "budget" && budget ? <BudgetSettingsPanel initial={budget} /> : null}
               {section === "updates" ? (
                 <UpdatesSettingsPanel isDeploymentOwner={isDeploymentOwner} />
               ) : null}

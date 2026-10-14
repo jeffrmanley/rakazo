@@ -169,6 +169,11 @@ msgstr ""
 msgid "{size} B"
 msgstr "{size} o"
 
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "{spent} of {cap} today"
+msgstr "{spent} sur {cap} aujourd'hui"
+
 #: src/components/ToolActivityDisclosure.tsx
 msgid "{stepCount, plural, one {Done · # tool} other {Done · # tools}}"
 msgstr ""
@@ -597,6 +602,10 @@ msgstr "Demander avant d'envoyer un e-mail externe"
 msgid "Ask the server owner to configure this provider."
 msgstr "Demandez au propriétaire du serveur de configurer ce fournisseur."
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Assistant ({amount})"
+msgstr "Assistant ({amount})"
+
 #. placeholder {0}: preset.time
 #: src/pages/RoutineSchedule.tsx
 msgid "at {0}"
@@ -781,6 +790,10 @@ msgstr "Parcourir les serveurs MCP"
 #: src/components/computer/ComputerWorkspace.tsx
 msgid "Browser"
 msgstr ""
+
+#: src/pages/SettingsOverlay.tsx
+msgid "Budget"
+msgstr "Budget"
 
 #: src/pages/KnowledgeSection.tsx
 msgid "Built-in"
@@ -1594,6 +1607,7 @@ msgstr "Impossible de révoquer la connexion"
 msgid "Could not run routine"
 msgstr "Impossible d'exécuter la routine"
 
+#: src/lib/budgets.ts
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/shell/bot-panel.tsx
@@ -1802,6 +1816,10 @@ msgstr "Expression Cron"
 msgid "Current password"
 msgstr "Mot de passe actuel"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Custom"
+msgstr "Personnalisé"
+
 #: src/pages/shell/bot-credentials.tsx
 msgid "Custom header"
 msgstr ""
@@ -1813,6 +1831,18 @@ msgstr "Support client"
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Customize bot avatar"
 msgstr "Personnaliser l'avatar du bot"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Daily budget"
+msgstr "Budget quotidien"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Daily budget in USD"
+msgstr "Budget quotidien en USD"
+
+#: src/pages/BudgetSettingsPanel.tsx
+msgid "Daily cap (USD)"
+msgstr "Plafond quotidien (USD)"
 
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Dark"
@@ -1858,6 +1888,14 @@ msgstr "Par défaut ({0})"
 #: src/pages/MemorySettingsOverlay.tsx
 msgid "Default scope"
 msgstr "Portée par défaut"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Delegation depth"
+msgstr "Profondeur de délégation"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Delegations per run"
+msgstr "Délégations par exécution"
 
 #: src/pages/Artifacts.tsx
 #: src/pages/BotContextMenu.tsx
@@ -2552,6 +2590,10 @@ msgstr "Quitter"
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Light"
 msgstr "Clair"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Limits"
+msgstr "Limites"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Linear issue"
@@ -3396,6 +3438,10 @@ msgstr "Plugin"
 msgid "POST to"
 msgstr "POST vers"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Premium models"
+msgstr "Modèles premium"
+
 #. placeholder {0}: props.name
 #: src/components/ArtifactFileCard.tsx
 msgid "Preview {0}"
@@ -3820,6 +3866,10 @@ msgstr "En cours · Arrêter"
 #: src/pages/RoutineEditor.tsx
 msgid "Running…"
 msgstr "Exécution en cours…"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Runs at once"
+msgstr "Exécutions simultanées"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Runs when this bot receives a verified message from this provider."
@@ -4296,6 +4346,10 @@ msgstr "Prend en charge les images"
 msgid "Supports thinking"
 msgstr "Prend en charge la réflexion"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Swarm ({amount})"
+msgstr "Essaim ({amount})"
+
 #: src/pages/shell/command-palette.tsx
 msgid "Switch bot"
 msgstr "Changer de bot"
@@ -4514,6 +4568,16 @@ msgstr "Sources d'outils"
 #: src/pages/PluginsOverlay.tsx
 msgid "Tools"
 msgstr "Outils"
+
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "Top up today"
+msgstr "Recharger aujourd'hui"
+
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "Top-up amount in USD"
+msgstr "Montant de recharge en USD"
 
 #: src/components/call/CallCard.tsx
 msgid "Transcript"
@@ -4813,6 +4877,10 @@ msgstr "Où les bots doivent-ils s'exécuter ?"
 #: src/lib/ticket-status.ts
 msgid "Won't do"
 msgstr ""
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Worker ({amount})"
+msgstr "Travailleur ({amount})"
 
 #: src/lib/roster-status.ts
 #: src/pages/Auth.tsx

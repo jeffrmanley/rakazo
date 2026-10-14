@@ -25,6 +25,7 @@ import {
   GraphileJobWorkerHost,
   InMemoryJobQueue,
   InstalledConnectorProvider,
+  installBudgetPolicy,
   isComposioEnabled,
   isMessagingSurfaceEnabled,
   isPipedreamEnabled,
@@ -94,6 +95,8 @@ async function main() {
   installAuditWriter(ext.auditLog ? createAuditWriter(prisma) : null);
   // Fork extension: EXT_EMERGENCY_STOP=1 makes runs, routines and outbound sends honor stops.
   installEmergencyStop(ext.emergencyStop ? createEmergencyStopReader(prisma) : null);
+  // Fork extension: EXT_BUDGETS=1 enforces spend caps and run limits in this process.
+  installBudgetPolicy(ext.budgets ? ext : null);
   const events = createThreadEvents(prisma, realtime, {
     runSecretWriter: createRunSecretWriter(secrets),
   });
