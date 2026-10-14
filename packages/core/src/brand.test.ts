@@ -106,6 +106,27 @@ describe("validateBrandText", () => {
     expect(validateBrandText({ name: "😀".repeat(60) }).ok).toBe(true);
   });
 
+  it("rejects invisible format characters and line or paragraph separators", () => {
+    for (const bad of [
+      "Acme\u202eemcA", // right-to-left override
+      "Ac\u200bme", // zero-width space
+      "Ac\u200dme", // zero-width joiner
+      "Ac\u2066me", // left-to-right isolate
+      "Ac\ufeffme", // byte order mark
+      "Ac\u2028me", // line separator
+      "Ac\u2029me", // paragraph separator
+    ]) {
+      for (const field of ["name", "shortName", "tagline"] as const) {
+        expect(validateBrandText({ [field]: bad }), JSON.stringify(bad)).toEqual({
+          ok: false,
+          field,
+          reason: "control_characters",
+        });
+      }
+    }
+    expect(validateBrandText({ name: "Café Crew 🚀" }).ok).toBe(true);
+  });
+
   it("limits the tagline to 140 characters", () => {
     expect(validateBrandText({ tagline: "t".repeat(140) }).ok).toBe(true);
     expect(validateBrandText({ tagline: "t".repeat(141) })).toEqual({
