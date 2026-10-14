@@ -774,6 +774,10 @@ msgstr ""
 msgid "Brain label"
 msgstr ""
 
+#: src/pages/SettingsOverlay.tsx
+msgid "Branding"
+msgstr "Marka"
+
 #: src/pages/PluginsOverlay.tsx
 msgid "Browse MCP servers"
 msgstr ""
@@ -1464,6 +1468,10 @@ msgstr ""
 msgid "Could not load bots. Reload to try again."
 msgstr ""
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Could not load branding"
+msgstr "Marka yüklenemedi"
+
 #: src/components/computer/TerminalApp.tsx
 msgid "Could not load commands"
 msgstr ""
@@ -1607,6 +1615,10 @@ msgstr ""
 #: src/pages/ModelBackupsSettings.tsx
 msgid "Could not save backup models"
 msgstr "Yedek modeller kaydedilemedi."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Could not save branding"
+msgstr "Marka kaydedilemedi"
 
 #: src/pages/GroupPanel.tsx
 msgid "Could not save group"
@@ -2654,6 +2666,10 @@ msgstr ""
 msgid "Log out"
 msgstr "Çıkış yap"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Logo"
+msgstr "Logo"
+
 #: src/lib/ticket-priority.ts
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
@@ -2938,6 +2954,7 @@ msgstr "Sesi kapat"
 
 #: src/components/teach/SkillDraftCard.tsx
 #: src/pages/Auth.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/RoutineEditor.tsx
 #: src/pages/shell/bot-credentials.tsx
@@ -3595,6 +3612,10 @@ msgstr ""
 msgid "Remove Git event"
 msgstr ""
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Remove logo"
+msgstr "Logoyu kaldır"
+
 #. placeholder {0}: mention.name
 #: src/pages/Shell.tsx
 msgid "Remove mention {0}"
@@ -3822,6 +3843,7 @@ msgstr ""
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
 #: src/pages/Board.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -3854,6 +3876,7 @@ msgstr "Çalışma alanını kaydedin ve güncel yazılımı yükleyin."
 
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Saved"
 msgstr "Kaydedildi"
@@ -3880,6 +3903,7 @@ msgstr ""
 
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/ModelBackupsSettings.tsx
 #: src/pages/ModelSettingsOverlay.tsx
@@ -4053,6 +4077,10 @@ msgstr "Paylaşılan beceriler"
 #: src/components/computer/TerminalApp.tsx
 msgid "Shell"
 msgstr "Kabuk"
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Short name"
+msgstr "Kısa ad"
 
 #: src/pages/Shell.tsx
 msgid "Show bots"
@@ -4297,6 +4325,10 @@ msgstr "Geçiliyor…"
 msgid "System"
 msgstr "Sistem"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Tagline"
+msgstr "Slogan"
+
 #: src/pages/Shell.tsx
 msgid "Take control"
 msgstr "Kontrolü al"
@@ -4412,6 +4444,10 @@ msgstr ""
 #: src/components/ArtifactFileCard.tsx
 msgid "This file is not valid UTF-8 text."
 msgstr ""
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "This image could not be read."
+msgstr "Bu görsel okunamadı."
 
 #: src/pages/HostComputerPrompt.tsx
 msgid "this Mac"
@@ -4639,6 +4675,10 @@ msgstr ""
 msgid "Upload"
 msgstr "Yükle"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Upload logo"
+msgstr "Logo yükle"
+
 #: src/lib/ticket-priority.ts
 msgid "Urgent"
 msgstr ""
@@ -4658,6 +4698,30 @@ msgstr "{hostLabel} kullan"
 msgid "Use a found model"
 msgstr "Bulunan bir modeli kullan"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use a PNG, JPEG or WebP image."
+msgstr "PNG, JPEG veya WebP görsel kullan."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use an image between 64 and 4096 pixels on each side."
+msgstr "Her kenarı 64 ile 4096 piksel arasında olan bir görsel kullan."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use an image of 1 MB or less."
+msgstr "1 MB veya daha küçük bir görsel kullan."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use at most 140 characters for the tagline."
+msgstr "Slogan en fazla 140 karakter olabilir."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use at most 60 characters for the name."
+msgstr "Ad en fazla 60 karakter olabilir."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use at most 60 characters for the short name."
+msgstr "Kısa ad en fazla 60 karakter olabilir."
+
 #: src/lib/model-connection-preflight.ts
 msgid "Use Connect to verify the key."
 msgstr "Anahtarı doğrulamak için Bağlan'ı kullan."
@@ -4665,6 +4729,10 @@ msgstr "Anahtarı doğrulamak için Bağlan'ı kullan."
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Use default guidance"
 msgstr ""
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use plain text without line breaks."
+msgstr "Satır sonu olmadan düz metin kullan."
 
 #: src/components/teach/TeachRecordingChrome.tsx
 msgid "Use Protected input for passwords."

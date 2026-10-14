@@ -8,6 +8,7 @@ import {
   CreditCard,
   Gauge,
   Monitor,
+  Palette,
   Settings,
   Volume2,
   XIcon,
@@ -22,6 +23,7 @@ import {
   UsageSettingsPanel,
 } from "./AccountSettingsOverlay";
 import { BillingSettingsPanel } from "./BillingSettingsPanel";
+import { BrandingSettingsPanel } from "./BrandingSettingsPanel";
 import { MemorySettingsOverlay } from "./MemorySettingsOverlay";
 import { ModelSettingsOverlay } from "./ModelSettingsOverlay";
 import { VoiceSettingsOverlay } from "./VoiceSettingsOverlay";
@@ -34,6 +36,7 @@ export type SettingsSection =
   | "usage"
   | "computer"
   | "billing"
+  | "branding"
   | "updates";
 
 type NavItem = {
@@ -122,6 +125,10 @@ export function SettingsOverlay({
   }, [billingEnabled, section]);
 
   useEffect(() => {
+    if (!isDeploymentOwner && section === "branding") setSection("general");
+  }, [isDeploymentOwner, section]);
+
+  useEffect(() => {
     if (section !== "computer") releaseComputerRecovery();
   }, [section, releaseComputerRecovery]);
   useEffect(() => () => window.clearTimeout(recoveryHoldTimer.current), []);
@@ -141,6 +148,7 @@ export function SettingsOverlay({
     { id: "usage", label: t`Usage`, icon: Gauge },
     ...(showComputer ? [{ id: "computer" as const, label: t`Computer`, icon: Monitor }] : []),
     ...(billingEnabled ? [{ id: "billing" as const, label: t`Billing`, icon: CreditCard }] : []),
+    ...(isDeploymentOwner ? [{ id: "branding" as const, label: t`Branding`, icon: Palette }] : []),
     { id: "updates", label: t`Updates`, icon: CloudDownload },
   ];
 
@@ -276,6 +284,7 @@ export function SettingsOverlay({
                 />
               ) : null}
               {section === "billing" && billingEnabled ? <BillingSettingsPanel /> : null}
+              {section === "branding" && isDeploymentOwner ? <BrandingSettingsPanel /> : null}
               {section === "updates" ? (
                 <UpdatesSettingsPanel isDeploymentOwner={isDeploymentOwner} />
               ) : null}

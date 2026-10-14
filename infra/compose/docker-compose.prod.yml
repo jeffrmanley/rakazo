@@ -197,6 +197,10 @@ services:
       API_PROXY_TARGET: http://api:3100
       RAKAZO_HOST: ${RAKAZO_HOST:-app.example.com}
       SCREEN_PROXY_SECRET: ${SCREEN_PROXY_SECRET:?Set SCREEN_PROXY_SECRET in .env}
+      # Fallback brand while the API cannot answer; the owner's runtime brand comes from the API.
+      PUBLIC_BRAND_NAME: ${PUBLIC_BRAND_NAME:-}
+      PUBLIC_BRAND_SHORT_NAME: ${PUBLIC_BRAND_SHORT_NAME:-}
+      PUBLIC_BRAND_TAGLINE: ${PUBLIC_BRAND_TAGLINE:-}
     expose:
       - "5173"
     networks:

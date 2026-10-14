@@ -774,6 +774,10 @@ msgstr ""
 msgid "Brain label"
 msgstr ""
 
+#: src/pages/SettingsOverlay.tsx
+msgid "Branding"
+msgstr "브랜딩"
+
 #: src/pages/PluginsOverlay.tsx
 msgid "Browse MCP servers"
 msgstr ""
@@ -1464,6 +1468,10 @@ msgstr ""
 msgid "Could not load bots. Reload to try again."
 msgstr ""
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Could not load branding"
+msgstr "브랜딩을 불러오지 못했습니다"
+
 #: src/components/computer/TerminalApp.tsx
 msgid "Could not load commands"
 msgstr ""
@@ -1607,6 +1615,10 @@ msgstr "자동 검토를 저장할 수 없습니다"
 #: src/pages/ModelBackupsSettings.tsx
 msgid "Could not save backup models"
 msgstr "백업 모델을 저장하지 못했습니다."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Could not save branding"
+msgstr "브랜딩을 저장하지 못했습니다"
 
 #: src/pages/GroupPanel.tsx
 msgid "Could not save group"
@@ -2654,6 +2666,10 @@ msgstr ""
 msgid "Log out"
 msgstr "로그아웃"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Logo"
+msgstr "로고"
+
 #: src/lib/ticket-priority.ts
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
@@ -2938,6 +2954,7 @@ msgstr "음소거"
 
 #: src/components/teach/SkillDraftCard.tsx
 #: src/pages/Auth.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/RoutineEditor.tsx
 #: src/pages/shell/bot-credentials.tsx
@@ -3595,6 +3612,10 @@ msgstr ""
 msgid "Remove Git event"
 msgstr ""
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Remove logo"
+msgstr "로고 제거"
+
 #. placeholder {0}: mention.name
 #: src/pages/Shell.tsx
 msgid "Remove mention {0}"
@@ -3822,6 +3843,7 @@ msgstr ""
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
 #: src/pages/Board.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -3854,6 +3876,7 @@ msgstr "작업 공간을 저장하고 최신 소프트웨어를 설치합니다.
 
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Saved"
 msgstr "저장됨"
@@ -3880,6 +3903,7 @@ msgstr ""
 
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/ModelBackupsSettings.tsx
 #: src/pages/ModelSettingsOverlay.tsx
@@ -4053,6 +4077,10 @@ msgstr "공유 스킬"
 #: src/components/computer/TerminalApp.tsx
 msgid "Shell"
 msgstr "셸"
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Short name"
+msgstr "짧은 이름"
 
 #: src/pages/Shell.tsx
 msgid "Show bots"
@@ -4297,6 +4325,10 @@ msgstr "전환 중…"
 msgid "System"
 msgstr "시스템"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Tagline"
+msgstr "태그라인"
+
 #: src/pages/Shell.tsx
 msgid "Take control"
 msgstr "제어권 가져오기"
@@ -4412,6 +4444,10 @@ msgstr ""
 #: src/components/ArtifactFileCard.tsx
 msgid "This file is not valid UTF-8 text."
 msgstr ""
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "This image could not be read."
+msgstr "이 이미지를 읽을 수 없습니다."
 
 #: src/pages/HostComputerPrompt.tsx
 msgid "this Mac"
@@ -4639,6 +4675,10 @@ msgstr "업데이트 중…"
 msgid "Upload"
 msgstr "업로드"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Upload logo"
+msgstr "로고 업로드"
+
 #: src/lib/ticket-priority.ts
 msgid "Urgent"
 msgstr ""
@@ -4658,6 +4698,30 @@ msgstr "{hostLabel} 사용"
 msgid "Use a found model"
 msgstr "찾은 모델 중에서 선택"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use a PNG, JPEG or WebP image."
+msgstr "PNG, JPEG 또는 WebP 이미지를 사용하세요."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use an image between 64 and 4096 pixels on each side."
+msgstr "각 변이 64~4096픽셀인 이미지를 사용하세요."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use an image of 1 MB or less."
+msgstr "1MB 이하의 이미지를 사용하세요."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use at most 140 characters for the tagline."
+msgstr "태그라인은 최대 140자까지 입력할 수 있습니다."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use at most 60 characters for the name."
+msgstr "이름은 최대 60자까지 입력할 수 있습니다."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use at most 60 characters for the short name."
+msgstr "짧은 이름은 최대 60자까지 입력할 수 있습니다."
+
 #: src/lib/model-connection-preflight.ts
 msgid "Use Connect to verify the key."
 msgstr "키를 확인하려면 연결을 사용하세요."
@@ -4665,6 +4729,10 @@ msgstr "키를 확인하려면 연결을 사용하세요."
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Use default guidance"
 msgstr ""
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use plain text without line breaks."
+msgstr "줄 바꿈 없는 일반 텍스트를 사용하세요."
 
 #: src/components/teach/TeachRecordingChrome.tsx
 msgid "Use Protected input for passwords."

@@ -166,6 +166,10 @@ services:
       API_PROXY_TARGET: http://api:3100
       SCREEN_PROXY_SECRET: ${SCREEN_PROXY_SECRET:?Set SCREEN_PROXY_SECRET in .env}
       RAKAZO_HOST: ${RAKAZO_HOST:-localhost}
+      # Fallback brand while the API cannot answer; the owner's runtime brand comes from the API.
+      PUBLIC_BRAND_NAME: ${PUBLIC_BRAND_NAME:-}
+      PUBLIC_BRAND_SHORT_NAME: ${PUBLIC_BRAND_SHORT_NAME:-}
+      PUBLIC_BRAND_TAGLINE: ${PUBLIC_BRAND_TAGLINE:-}
     ports:
       - "127.0.0.1:5173:5173"
     depends_on:

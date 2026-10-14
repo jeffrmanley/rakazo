@@ -20,8 +20,6 @@ export const UPSTREAM_BRAND: Brand = {
   tagline: "Your team of always-on agents.",
 };
 
-export const UPSTREAM_REPOSITORY_URL = "https://github.com/elie222/rakazo";
-
 export interface BrandEnv {
   PUBLIC_BRAND_NAME?: string | undefined;
   PUBLIC_BRAND_SHORT_NAME?: string | undefined;

@@ -774,6 +774,10 @@ msgstr ""
 msgid "Brain label"
 msgstr ""
 
+#: src/pages/SettingsOverlay.tsx
+msgid "Branding"
+msgstr "ब्रांडिंग"
+
 #: src/pages/PluginsOverlay.tsx
 msgid "Browse MCP servers"
 msgstr ""
@@ -1464,6 +1468,10 @@ msgstr ""
 msgid "Could not load bots. Reload to try again."
 msgstr ""
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Could not load branding"
+msgstr "ब्रांडिंग लोड नहीं हो सकी"
+
 #: src/components/computer/TerminalApp.tsx
 msgid "Could not load commands"
 msgstr ""
@@ -1607,6 +1615,10 @@ msgstr ""
 #: src/pages/ModelBackupsSettings.tsx
 msgid "Could not save backup models"
 msgstr "बैकअप मॉडल सहेजे नहीं जा सके।"
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Could not save branding"
+msgstr "ब्रांडिंग सहेजी नहीं जा सकी"
 
 #: src/pages/GroupPanel.tsx
 msgid "Could not save group"
@@ -2654,6 +2666,10 @@ msgstr ""
 msgid "Log out"
 msgstr "लॉग आउट"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Logo"
+msgstr "लोगो"
+
 #: src/lib/ticket-priority.ts
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
@@ -2938,6 +2954,7 @@ msgstr "म्यूट करें"
 
 #: src/components/teach/SkillDraftCard.tsx
 #: src/pages/Auth.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/RoutineEditor.tsx
 #: src/pages/shell/bot-credentials.tsx
@@ -3595,6 +3612,10 @@ msgstr ""
 msgid "Remove Git event"
 msgstr ""
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Remove logo"
+msgstr "लोगो हटाएँ"
+
 #. placeholder {0}: mention.name
 #: src/pages/Shell.tsx
 msgid "Remove mention {0}"
@@ -3822,6 +3843,7 @@ msgstr ""
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
 #: src/pages/Board.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -3854,6 +3876,7 @@ msgstr "कार्यक्षेत्र सहेजें और नवी
 
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Saved"
 msgstr "सहेजा गया"
@@ -3880,6 +3903,7 @@ msgstr ""
 
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/ModelBackupsSettings.tsx
 #: src/pages/ModelSettingsOverlay.tsx
@@ -4053,6 +4077,10 @@ msgstr "साझा स्किल्स"
 #: src/components/computer/TerminalApp.tsx
 msgid "Shell"
 msgstr "शेल"
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Short name"
+msgstr "छोटा नाम"
 
 #: src/pages/Shell.tsx
 msgid "Show bots"
@@ -4297,6 +4325,10 @@ msgstr "बदला जा रहा है…"
 msgid "System"
 msgstr "सिस्टम"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Tagline"
+msgstr "टैगलाइन"
+
 #: src/pages/Shell.tsx
 msgid "Take control"
 msgstr "नियंत्रण लें"
@@ -4412,6 +4444,10 @@ msgstr ""
 #: src/components/ArtifactFileCard.tsx
 msgid "This file is not valid UTF-8 text."
 msgstr ""
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "This image could not be read."
+msgstr "यह छवि पढ़ी नहीं जा सकी।"
 
 #: src/pages/HostComputerPrompt.tsx
 msgid "this Mac"
@@ -4639,6 +4675,10 @@ msgstr "अपडेट हो रहा है…"
 msgid "Upload"
 msgstr "अपलोड"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Upload logo"
+msgstr "लोगो अपलोड करें"
+
 #: src/lib/ticket-priority.ts
 msgid "Urgent"
 msgstr ""
@@ -4658,6 +4698,30 @@ msgstr "{hostLabel} का उपयोग करें"
 msgid "Use a found model"
 msgstr "मिला हुआ मॉडल उपयोग करें"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use a PNG, JPEG or WebP image."
+msgstr "PNG, JPEG या WebP छवि का उपयोग करें।"
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use an image between 64 and 4096 pixels on each side."
+msgstr "हर ओर 64 से 4096 पिक्सेल वाली छवि का उपयोग करें।"
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use an image of 1 MB or less."
+msgstr "1 MB या उससे छोटी छवि का उपयोग करें।"
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use at most 140 characters for the tagline."
+msgstr "टैगलाइन में अधिकतम 140 अक्षर रखें।"
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use at most 60 characters for the name."
+msgstr "नाम में अधिकतम 60 अक्षर रखें।"
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use at most 60 characters for the short name."
+msgstr "छोटे नाम में अधिकतम 60 अक्षर रखें।"
+
 #: src/lib/model-connection-preflight.ts
 msgid "Use Connect to verify the key."
 msgstr "कुंजी जाँचने के लिए कनेक्ट करें का उपयोग करें।"
@@ -4665,6 +4729,10 @@ msgstr "कुंजी जाँचने के लिए कनेक्ट �
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Use default guidance"
 msgstr ""
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use plain text without line breaks."
+msgstr "बिना लाइन ब्रेक वाला सादा टेक्स्ट उपयोग करें।"
 
 #: src/components/teach/TeachRecordingChrome.tsx
 msgid "Use Protected input for passwords."

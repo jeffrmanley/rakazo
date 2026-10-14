@@ -258,6 +258,10 @@ services:
       RAKAZO_DESKTOP_STACK_TOKEN: ${RAKAZO_DESKTOP_STACK_TOKEN:-}
       RAKAZO_IMAGE_TAG: ${RAKAZO_IMAGE_TAG:-edge}
       SCREEN_PROXY_SECRET: ${SCREEN_PROXY_SECRET:?Set SCREEN_PROXY_SECRET in .env}
+      # Fallback brand while the API cannot answer; the owner's runtime brand comes from the API.
+      PUBLIC_BRAND_NAME: ${PUBLIC_BRAND_NAME:-}
+      PUBLIC_BRAND_SHORT_NAME: ${PUBLIC_BRAND_SHORT_NAME:-}
+      PUBLIC_BRAND_TAGLINE: ${PUBLIC_BRAND_TAGLINE:-}
     ports:
       - "127.0.0.1:${RAKAZO_WEB_PORT:-5173}:5173"
     networks:

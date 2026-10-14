@@ -2,12 +2,10 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Button } from "@rakazo/ui-web";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { brand } from "../lib/brand";
+import { useBrand } from "../lib/brand";
 import { MCP_OAUTH_CHANNEL } from "../lib/mcp-connect";
 import { rpc } from "../lib/rpc";
 import { errorText } from "../lib/user-error";
-
-const brandName = brand.name;
 
 // The window.open name set by the OAuth popup flow. Providers whose login
 // pages send COOP sever window.opener mid-flow, but the window name survives,
@@ -16,6 +14,7 @@ const POPUP_NAME = MCP_OAUTH_CHANNEL;
 
 export function McpOAuthCallbackPage() {
   const { t } = useLingui();
+  const brandName = useBrand().name;
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [error, setError] = useState<string | null>(null);

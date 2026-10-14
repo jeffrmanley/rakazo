@@ -774,6 +774,10 @@ msgstr ""
 msgid "Brain label"
 msgstr ""
 
+#: src/pages/SettingsOverlay.tsx
+msgid "Branding"
+msgstr "Branding"
+
 #: src/pages/PluginsOverlay.tsx
 msgid "Browse MCP servers"
 msgstr ""
@@ -1464,6 +1468,10 @@ msgstr ""
 msgid "Could not load bots. Reload to try again."
 msgstr ""
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Could not load branding"
+msgstr "Branding konnte nicht geladen werden"
+
 #: src/components/computer/TerminalApp.tsx
 msgid "Could not load commands"
 msgstr "Befehle konnten nicht geladen werden"
@@ -1607,6 +1615,10 @@ msgstr ""
 #: src/pages/ModelBackupsSettings.tsx
 msgid "Could not save backup models"
 msgstr "Backup-Modelle konnten nicht gespeichert werden."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Could not save branding"
+msgstr "Branding konnte nicht gespeichert werden"
 
 #: src/pages/GroupPanel.tsx
 msgid "Could not save group"
@@ -2654,6 +2666,10 @@ msgstr ""
 msgid "Log out"
 msgstr "Abmelden"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Logo"
+msgstr "Logo"
+
 #: src/lib/ticket-priority.ts
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
@@ -2938,6 +2954,7 @@ msgstr "Stummschalten"
 
 #: src/components/teach/SkillDraftCard.tsx
 #: src/pages/Auth.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/RoutineEditor.tsx
 #: src/pages/shell/bot-credentials.tsx
@@ -3595,6 +3612,10 @@ msgstr ""
 msgid "Remove Git event"
 msgstr ""
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Remove logo"
+msgstr "Logo entfernen"
+
 #. placeholder {0}: mention.name
 #: src/pages/Shell.tsx
 msgid "Remove mention {0}"
@@ -3822,6 +3843,7 @@ msgstr ""
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
 #: src/pages/Board.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -3854,6 +3876,7 @@ msgstr "Den Arbeitsbereich speichern und aktuelle Software installieren."
 
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Saved"
 msgstr "Gespeichert"
@@ -3880,6 +3903,7 @@ msgstr ""
 
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
+#: src/pages/BrandingSettingsPanel.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/ModelBackupsSettings.tsx
 #: src/pages/ModelSettingsOverlay.tsx
@@ -4053,6 +4077,10 @@ msgstr "Geteilte Skills"
 #: src/components/computer/TerminalApp.tsx
 msgid "Shell"
 msgstr "Shell"
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Short name"
+msgstr "Kurzname"
 
 #: src/pages/Shell.tsx
 msgid "Show bots"
@@ -4297,6 +4325,10 @@ msgstr "Wird gewechselt…"
 msgid "System"
 msgstr "System"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Tagline"
+msgstr "Slogan"
+
 #: src/pages/Shell.tsx
 msgid "Take control"
 msgstr "Kontrolle übernehmen"
@@ -4412,6 +4444,10 @@ msgstr ""
 #: src/components/ArtifactFileCard.tsx
 msgid "This file is not valid UTF-8 text."
 msgstr ""
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "This image could not be read."
+msgstr "Dieses Bild konnte nicht gelesen werden."
 
 #: src/pages/HostComputerPrompt.tsx
 msgid "this Mac"
@@ -4639,6 +4675,10 @@ msgstr ""
 msgid "Upload"
 msgstr "Hochladen"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Upload logo"
+msgstr "Logo hochladen"
+
 #: src/lib/ticket-priority.ts
 msgid "Urgent"
 msgstr ""
@@ -4658,6 +4698,30 @@ msgstr "{hostLabel} verwenden"
 msgid "Use a found model"
 msgstr "Gefundenes Modell verwenden"
 
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use a PNG, JPEG or WebP image."
+msgstr "Verwende ein PNG-, JPEG- oder WebP-Bild."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use an image between 64 and 4096 pixels on each side."
+msgstr "Verwende ein Bild mit 64 bis 4096 Pixeln pro Seite."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use an image of 1 MB or less."
+msgstr "Verwende ein Bild mit höchstens 1 MB."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use at most 140 characters for the tagline."
+msgstr "Der Slogan darf höchstens 140 Zeichen lang sein."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use at most 60 characters for the name."
+msgstr "Der Name darf höchstens 60 Zeichen lang sein."
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use at most 60 characters for the short name."
+msgstr "Der Kurzname darf höchstens 60 Zeichen lang sein."
+
 #: src/lib/model-connection-preflight.ts
 msgid "Use Connect to verify the key."
 msgstr "Nutze Verbinden, um den Schlüssel zu prüfen."
@@ -4665,6 +4729,10 @@ msgstr "Nutze Verbinden, um den Schlüssel zu prüfen."
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Use default guidance"
 msgstr ""
+
+#: src/pages/BrandingSettingsPanel.tsx
+msgid "Use plain text without line breaks."
+msgstr "Verwende einfachen Text ohne Zeilenumbrüche."
 
 #: src/components/teach/TeachRecordingChrome.tsx
 msgid "Use Protected input for passwords."

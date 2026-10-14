@@ -430,7 +430,7 @@ export default defineConfig(({ mode }) => {
       babel({ plugins: ["@lingui/babel-plugin-lingui-macro"] }),
       lingui(),
       tailwindcss(),
-      brandPlugin(brand, brandAssetsDir),
+      brandPlugin(brand, brandAssetsDir, api),
       {
         name: "rakazo-desktop-stack-probe",
         configureServer: (server) => attachDesktopStackProbe(server, desktopStackToken, imageTag),

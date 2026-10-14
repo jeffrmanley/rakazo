@@ -103,7 +103,7 @@ describe("inspectBrandLogo", () => {
       reason: "corrupt",
     });
     const flipped = png(128, 128);
-    flipped[19] ^= 0x01; // width byte changes, CRC no longer matches
+    flipped[19] = (flipped[19] ?? 0) ^ 0x01; // width byte changes, CRC no longer matches
     expect(inspectBrandLogo(flipped)).toEqual({ ok: false, reason: "corrupt" });
   });
 
