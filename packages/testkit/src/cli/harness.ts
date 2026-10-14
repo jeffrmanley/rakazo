@@ -113,6 +113,8 @@ async function main() {
         "packages/testkit/src/messaging-multi-identity.test.ts",
         "packages/testkit/src/teams-team-chat.test.ts",
         "packages/db/src/billing.postgres.test.ts",
+        "packages/db/src/ext-audit.postgres.test.ts",
+        "packages/testkit/src/ext-audit-log.postgres.test.ts",
         "apps/api/src/billing.postgres.test.ts",
         "packages/memory/src/commit.postgres.test.ts",
         "packages/adapters/src/wakeup.postgres.test.ts",

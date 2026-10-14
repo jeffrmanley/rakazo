@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Prisma, PrismaClient } from "./client.js";
+import { AuditWriteError, installAuditWriter } from "./ext-audit.js";
 import {
   createThreadMessage,
   createThreadMessageInTransaction,
@@ -89,5 +90,126 @@ describe("createThreadMessage", () => {
       }),
     ).rejects.toThrow("unique constraint");
     expect(run).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("createThreadMessageInTransaction audit log", () => {
+  afterEach(() => {
+    installAuditWriter(null);
+  });
+
+  function auditedTransaction() {
+    const tx = transaction();
+    tx.thread.update.mockResolvedValue({
+      nextMessageSeq: 4,
+      spaceId: "space-from-thread",
+      userId: "owner-1",
+      botId: "bot-1",
+    });
+    const recordInTransaction = vi.fn(async (_tx: unknown, _event: Record<string, unknown>) => ({
+      id: "audit-1",
+    }));
+    installAuditWriter({ recordInTransaction, record: vi.fn() } as never);
+    return { tx, recordInTransaction };
+  }
+
+  it("changes nothing while no writer is installed", async () => {
+    const tx = transaction();
+    await createThreadMessageInTransaction(tx as unknown as Prisma.TransactionClient, {
+      threadId: "thread-1",
+      role: "user",
+      blocks: [{ kind: "text", text: "hi" }],
+    });
+    expect(tx.message.create).toHaveBeenCalledOnce();
+  });
+
+  it("records an inbound message with the space taken from the thread, not the caller", async () => {
+    const { tx, recordInTransaction } = auditedTransaction();
+    await createThreadMessageInTransaction(tx as unknown as Prisma.TransactionClient, {
+      threadId: "thread-1",
+      role: "user",
+      userId: "sender-1",
+      blocks: [{ kind: "text", text: "my password is hunter2" }],
+      runId: "run-1",
+      // A caller cannot pick the space: the field does not exist on the input.
+      ...({ spaceId: "spoofed-space" } as object),
+    });
+    expect(recordInTransaction).toHaveBeenCalledOnce();
+    const [client, event] = recordInTransaction.mock.calls[0]!;
+    expect(client).toBe(tx);
+    expect(event).toMatchObject({
+      spaceId: "space-from-thread",
+      botId: "bot-1",
+      runId: "run-1",
+      actor: { type: "human", id: "sender-1" },
+      kind: "message.in",
+      detail: { threadId: "thread-1", seq: 3, role: "user", blocks: ["text"] },
+    });
+    expect(JSON.stringify(event)).not.toContain("hunter2");
+    expect(JSON.stringify(event)).not.toContain("spoofed");
+  });
+
+  it("records an outbound bot message as the bot and falls back to the thread owner for people", async () => {
+    const { tx, recordInTransaction } = auditedTransaction();
+    await createThreadMessageInTransaction(tx as unknown as Prisma.TransactionClient, {
+      threadId: "thread-1",
+      role: "bot",
+      botId: "bot-2",
+      blocks: [{ kind: "text", text: "done" }],
+    });
+    await createThreadMessageInTransaction(tx as unknown as Prisma.TransactionClient, {
+      threadId: "thread-1",
+      role: "user",
+      blocks: [{ kind: "text", text: "thanks" }],
+    });
+    expect(recordInTransaction.mock.calls[0]?.[1]).toMatchObject({
+      kind: "message.out",
+      botId: "bot-2",
+      actor: { type: "bot", id: "bot-2" },
+    });
+    expect(recordInTransaction.mock.calls[1]?.[1]).toMatchObject({
+      kind: "message.in",
+      actor: { type: "human", id: "owner-1" },
+    });
+  });
+
+  it("attributes a delivered bot-to-bot message to the sending bot", async () => {
+    const { tx, recordInTransaction } = auditedTransaction();
+    await createThreadMessageInTransaction(tx as unknown as Prisma.TransactionClient, {
+      threadId: "thread-1",
+      role: "user",
+      blocks: [
+        { kind: "bot_message_received", fromBotId: "bot-9", fromBotName: "Nine", text: "ping" },
+      ],
+    });
+    expect(recordInTransaction.mock.calls[0]?.[1]).toMatchObject({
+      kind: "message.in",
+      actor: { type: "bot", id: "bot-9" },
+    });
+  });
+
+  it("does not audit system notes", async () => {
+    const { tx, recordInTransaction } = auditedTransaction();
+    await createThreadMessageInTransaction(tx as unknown as Prisma.TransactionClient, {
+      threadId: "thread-1",
+      role: "system",
+      blocks: [{ kind: "meta", text: "You were added to a group." }],
+    });
+    expect(recordInTransaction).not.toHaveBeenCalled();
+    expect(tx.message.create).toHaveBeenCalledOnce();
+  });
+
+  it("fails closed: a failed audit write stops the message before it is written", async () => {
+    const { tx, recordInTransaction } = auditedTransaction();
+    const failure = new AuditWriteError(new Error("db down"));
+    recordInTransaction.mockRejectedValueOnce(failure);
+    await expect(
+      createThreadMessageInTransaction(tx as unknown as Prisma.TransactionClient, {
+        threadId: "thread-1",
+        role: "user",
+        blocks: [{ kind: "text", text: "hi" }],
+      }),
+    ).rejects.toBe(failure);
+    expect(tx.message.create).not.toHaveBeenCalled();
   });
 });

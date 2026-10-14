@@ -59,6 +59,7 @@ export * from "./elevenlabs-voice.js";
 export * from "./email-emulator.js";
 export * from "./executor.js";
 export * from "./expo-push.js";
+export * from "./ext-audit-tools.js";
 export * from "./fake-browser.js";
 export * from "./fake-sandbox.js";
 export * from "./fake-web.js";

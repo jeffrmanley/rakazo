@@ -1,5 +1,7 @@
 import type { MessageBlock } from "@rakazo/contracts";
 import type { Prisma, PrismaClient } from "./client.js";
+import type { AuditActor } from "./ext-audit.js";
+import { getAuditWriter } from "./ext-audit.js";
 import { withTransactionRetry } from "./transaction-retry.js";
 
 /** Group turns use channel inputs and their own outputs, never private thread history. */
@@ -47,6 +49,8 @@ export interface CreateThreadMessageInput {
   role: "user" | "bot" | "system";
   blocks: MessageBlock[];
   botId?: string;
+  /** Author of a user-role message, for the audit log; defaults to the thread owner. */
+  userId?: string;
   replyToMessageId?: string;
   replyQuote?: string;
   runId?: string;
@@ -74,13 +78,35 @@ export async function createThreadMessageInTransaction(
       nextMessageSeq: { increment: 1 },
       unread: (input.markUnread ?? input.role === "bot") ? true : undefined,
     },
-    select: { nextMessageSeq: true },
+    select: { nextMessageSeq: true, spaceId: true, userId: true, botId: true },
   });
   await assertRunCanWriteHistory(tx, input.runId, { allowCancelled: input.allowCancelledRun });
+  const seq = thread.nextMessageSeq - 1;
+  // Fork extension: chat messages are audited in the same transaction, before the
+  // row exists, so a failed audit write rolls the message back (fail closed).
+  const audit = getAuditWriter();
+  if (audit && input.role !== "system") {
+    const kinds = input.blocks.map((block) => block.kind);
+    const actor = messageAuditActor(input, thread);
+    await audit.recordInTransaction(tx, {
+      spaceId: thread.spaceId,
+      botId: input.botId ?? thread.botId ?? null,
+      runId: input.runId ?? null,
+      actor,
+      kind: input.role === "bot" ? "message.out" : "message.in",
+      summary:
+        input.role === "bot"
+          ? "Outbound bot message"
+          : actor.type === "bot"
+            ? "Inbound message from another bot"
+            : "Inbound user message",
+      detail: { threadId: input.threadId, seq, role: input.role, blocks: kinds },
+    });
+  }
   return tx.message.create({
     data: {
       threadId: input.threadId,
-      seq: thread.nextMessageSeq - 1,
+      seq,
       role: input.role,
       blocks: input.blocks as Prisma.InputJsonValue,
       botId: input.botId,
@@ -90,6 +116,17 @@ export async function createThreadMessageInTransaction(
       clientNonce: input.clientNonce,
     },
   });
+}
+
+function messageAuditActor(
+  input: CreateThreadMessageInput,
+  thread: { userId: string; botId: string | null },
+): AuditActor {
+  if (input.role === "bot") return { type: "bot", id: input.botId ?? thread.botId ?? "" };
+  for (const block of input.blocks) {
+    if (block.kind === "bot_message_received") return { type: "bot", id: block.fromBotId };
+  }
+  return { type: "human", id: input.userId ?? thread.userId };
 }
 
 export class RunHistoryWriteError extends Error {

@@ -1481,3 +1481,60 @@ model TicketComment {
   @@index([ticketId, createdAt])
   @@map("ticket_comments")
 }
+
+/// Fork extension: tamper-evident audit log (EXT_AUDIT_LOG). Append-only by a
+/// database trigger; rows carry no lifecycle foreign keys so no cascade can
+/// erase them. `hash` chains to `prevHash` within a space, in `seq` order.
+model ExtAuditEvent {
+  id        String   @id
+  spaceId   String
+  /// Position in the space's chain; assigned under the chain-head lock.
+  seq       Int
+  botId     String?
+  runId     String?
+  at        DateTime
+  actorType String
+  actorId   String
+  kind      String
+  /// Human-readable, secrets redacted.
+  summary   String
+  /// Structured, secrets redacted (names only, never values).
+  detail    Json
+  model     Json?
+  prevHash  String
+  hash      String
+
+  @@unique([spaceId, seq])
+  @@index([spaceId, at])
+  @@index([spaceId, botId, seq])
+  @@index([spaceId, runId, seq])
+  @@map("ext_audit_events")
+}
+
+/// One row per space: the chain tip and the last sealed position. Mutable by
+/// design (it is a lock and a cursor); integrity comes from the events.
+model ExtAuditChainHead {
+  spaceId          String   @id
+  lastSeq          Int
+  lastHash         String
+  sealedThroughSeq Int      @default(-1)
+  updatedAt        DateTime @updatedAt
+
+  @@map("ext_audit_chain_heads")
+}
+
+/// A sealed segment records the chain tip at seal time. Append-only.
+model ExtAuditSegment {
+  id       String   @id
+  spaceId  String
+  fromSeq  Int
+  toSeq    Int
+  lastHash String
+  sealedAt DateTime
+  /// Where the off-box copy was written, when EXT_AUDIT_EXPORT_DIR is set.
+  exportPath String?
+
+  @@unique([spaceId, fromSeq])
+  @@index([spaceId, sealedAt])
+  @@map("ext_audit_segments")
+}

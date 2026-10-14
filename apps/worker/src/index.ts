@@ -48,11 +48,13 @@ import {
   sandboxProviderOptionsFromEnv,
   withSecretPersistence,
 } from "@rakazo/adapters";
-import { resolveEncryptionKey, resolveSupervisorToken } from "@rakazo/core";
+import { loadExtEnv, resolveEncryptionKey, resolveSupervisorToken } from "@rakazo/core";
 import {
+  createAuditWriter,
   createBoardEvents,
   createDb,
   createThreadEvents,
+  installAuditWriter,
   isTooManyDatabaseConnections,
   parsePositiveInteger,
   pushSessionExpiresAt,
@@ -85,6 +87,8 @@ async function main() {
   if (secrets.describe().capabilities.degraded)
     logger.warn("Secret storage degraded; encrypted credentials remain available");
   prisma = withSecretPersistence(prisma, secrets);
+  // Fork extension: EXT_AUDIT_LOG=1 installs the fail-closed audit writer for this process.
+  installAuditWriter(loadExtEnv(process.env).auditLog ? createAuditWriter(prisma) : null);
   const events = createThreadEvents(prisma, realtime, {
     runSecretWriter: createRunSecretWriter(secrets),
   });
