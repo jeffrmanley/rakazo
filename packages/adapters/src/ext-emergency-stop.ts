@@ -6,9 +6,20 @@ import type {
   TeamChatSendResult,
 } from "@rakazo/adapter-kit";
 import { cloudAgentPollJob, computerSleepJob, routineWakeupJob } from "@rakazo/adapter-kit";
-import { ACTIVE_RUN_STATUSES, isOneShotRoutineCrons, nextCronDateAcross } from "@rakazo/core";
+import type { MessageBlock } from "@rakazo/contracts";
+import {
+  ACTIVE_RUN_STATUSES,
+  formatPausedReply,
+  isOneShotRoutineCrons,
+  nextCronDateAcross,
+} from "@rakazo/core";
 import type { ActiveStop, EmergencyStopReader, PrismaClient, ThreadEvents } from "@rakazo/db";
-import { cancelRunsForStop, getEmergencyStop } from "@rakazo/db";
+import {
+  appendEventInTransaction,
+  cancelRunsForStop,
+  createThreadMessageInTransaction,
+  getEmergencyStop,
+} from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { cancelComputerRunWork } from "./computer-idle.js";
 import { toComputerRef } from "./computer-support.js";
@@ -150,17 +161,59 @@ export async function cancelStoppedRun(
   }
 }
 
-/** Run start: a run of a stopped bot is cancelled before it is leased. Returns true when halted. */
+/**
+ * Run start: a run of a stopped bot is cancelled before it is leased. A
+ * message someone sent from the app or the API also gets the paused notice in
+ * its thread, as a chat sender gets the paused reply. Returns true when halted.
+ */
 export async function haltRunIfStopped(
   deps: { prisma: PrismaClient; events: Pick<ThreadEvents, "notify"> },
-  run: { id: string; spaceId: string; botId: string },
+  run: { id: string; spaceId: string; botId: string; threadId: string; trigger: string },
 ): Promise<boolean> {
   const reader = getEmergencyStop();
   if (!reader) return false;
   const stop = await reader.check({ spaceId: run.spaceId, botId: run.botId });
   if (!stop) return false;
   await cancelStoppedRun(deps, run);
+  if (run.trigger === "user") {
+    await postPausedNotice(deps, run, stop).catch((error) =>
+      getLogger().error("emergency stop paused notice failed", error),
+    );
+  }
   return true;
+}
+
+async function postPausedNotice(
+  deps: { prisma: PrismaClient; events: Pick<ThreadEvents, "notify"> },
+  run: { id: string; spaceId: string; botId: string; threadId: string },
+  stop: ActiveStop,
+): Promise<void> {
+  const user = await deps.prisma.user.findUnique({
+    where: { id: stop.stoppedBy },
+    select: { name: true },
+  });
+  const blocks: MessageBlock[] = [
+    { kind: "meta", text: formatPausedReply({ name: user?.name ?? "", at: stop.stoppedAt }) },
+  ];
+  const event = await deps.prisma.$transaction(async (tx) => {
+    const message = await createThreadMessageInTransaction(tx, {
+      threadId: run.threadId,
+      role: "system",
+      blocks,
+      botId: run.botId,
+      // One notice per halted run, even if the halt is retried.
+      clientNonce: `ext-stop-paused:${run.id}`,
+      markUnread: true,
+    });
+    return appendEventInTransaction(tx, {
+      spaceId: run.spaceId,
+      threadId: run.threadId,
+      botId: run.botId,
+      type: "thread.message.created",
+      payload: { messageId: message.id, role: "system", blocks },
+    });
+  });
+  await notifyStoppedThreads(deps.events, [{ threadId: run.threadId, seq: event.seq }]);
 }
 
 /**

@@ -78,6 +78,12 @@ function fakePrisma() {
     user: {
       findUnique: vi.fn(async () => ({ name: "Dana Owner" })),
     },
+    messagingChannelMember: {
+      findFirst: vi.fn(async () => null as unknown),
+    },
+    agentConnection: {
+      findFirst: vi.fn(async () => null as unknown),
+    },
   };
 }
 
@@ -470,12 +476,26 @@ describe("chat control", () => {
     ]);
   });
 
-  it("lets ordinary messages and owner YES/NO replies through to a running bot", async () => {
+  it("lets ordinary messages through to a running bot, and YES/NO that answer something", async () => {
     const running = setup();
     await expect(running.chat.intercept(event({ content: "hello there" }))).resolves.toBe(false);
-    const paused = setup({ stop: stopped });
-    await expect(paused.chat.intercept(event({ content: "YES" }))).resolves.toBe(false);
-    expect(paused.sent).toHaveLength(0);
+    const invited = setup({ stop: stopped });
+    invited.prisma.messagingChannelMember.findFirst.mockResolvedValue({ id: "cm-1" });
+    await expect(invited.chat.intercept(event({ content: "YES" }))).resolves.toBe(false);
+    const connection = setup({ stop: stopped });
+    connection.prisma.agentConnection.findFirst.mockResolvedValue({ id: "ac-1" });
+    await expect(connection.chat.intercept(event({ content: "no" }))).resolves.toBe(false);
+    expect([...invited.sent, ...connection.sent]).toHaveLength(0);
+  });
+
+  it("answers YES/NO/LEAVE with nothing pending to a stopped bot with the paused reply", async () => {
+    for (const content of ["YES", "NO", "LEAVE"]) {
+      const { chat, sent } = setup({ stop: stopped });
+      await expect(chat.intercept(event({ content }))).resolves.toBe(true);
+      expect(sent).toEqual([
+        { threadId: "slack:C1:1", body: "Paused by Dana Owner at 2026-10-15 09:05 UTC" },
+      ]);
+    }
   });
 
   it("covers the team-chat bot: replies to mentions, stays silent on ambient talk", async () => {

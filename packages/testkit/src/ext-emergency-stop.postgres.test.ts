@@ -260,6 +260,20 @@ describeStop("fork extension: emergency stop through the API", () => {
     });
     await expect.poll(() => runStatus(prisma, sent.runId), { timeout: 5_000 }).toBe("cancelled");
     expect(await prisma.message.count({ where: { runId: sent.runId, role: "bot" } })).toBe(0);
+    // The sender sees why in the thread, like a chat sender gets the paused reply.
+    const notice = await prisma.message.findFirstOrThrow({
+      where: {
+        threadId: aliceThread.id,
+        role: "system",
+        clientNonce: `ext-stop-paused:${sent.runId}`,
+      },
+    });
+    expect(notice.blocks).toEqual([
+      {
+        kind: "meta",
+        text: expect.stringMatching(/^Paused by Ada Owner at \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/),
+      },
+    ]);
 
     // A due routine does not start; its next occurrence is scheduled instead.
     const thread = await prisma.thread.findUniqueOrThrow({ where: { botId: alice } });

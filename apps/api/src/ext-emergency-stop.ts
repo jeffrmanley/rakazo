@@ -102,6 +102,8 @@ type ControlPrisma = Pick<
   | "user"
   | "run"
   | "messagingIdentity"
+  | "messagingChannelMember"
+  | "agentConnection"
   | "deploymentSettings"
 >;
 
@@ -463,8 +465,34 @@ export function createChatControl(deps: {
   const linkedIdentity = (sender: { provider: string; from: string }) =>
     prisma.messagingIdentity.findUnique({
       where: { provider_address: { provider: sender.provider, address: sender.from } },
-      select: { userId: true, spaceId: true, botId: true },
+      select: { id: true, userId: true, spaceId: true, botId: true },
     });
+
+  /** Mirrors messaging-inbound's owner commands: is there an invite or connection to answer? */
+  const ownerCommandPending = async (
+    identity: { id: string; botId: string },
+    command: NonNullable<ReturnType<typeof parseMessagingCommand>>,
+  ): Promise<boolean> => {
+    if (command === "leave") {
+      return Boolean(
+        await prisma.messagingChannelMember.findFirst({
+          where: { identityId: identity.id, status: "approved" },
+          select: { id: true },
+        }),
+      );
+    }
+    const [invite, connection] = await Promise.all([
+      prisma.messagingChannelMember.findFirst({
+        where: { identityId: identity.id, status: "invited" },
+        select: { id: true },
+      }),
+      prisma.agentConnection.findFirst({
+        where: { targetBotId: identity.botId, status: "pending" },
+        select: { id: true },
+      }),
+    ]);
+    return Boolean(invite || connection);
+  };
 
   const replyPaused = async (event: MessagingInboundMessage, stop: ActiveStop) => {
     const user = await prisma.user.findUnique({
@@ -570,12 +598,13 @@ export function createChatControl(deps: {
     }
     // Personal-line groups fan out per member; stopped bots sit out there (messaging-inbound).
     if (!event.isDirect) return false;
-    // Owner YES/NO/LEAVE answers are not messages to the bot and never start a run.
-    if (parseMessagingCommand(event.content)) return false;
     const identity = await linkedIdentity(event);
     if (!identity) return false;
     const stop = await reader.check({ spaceId: identity.spaceId, botId: identity.botId });
     if (!stop) return false;
+    // An owner YES/NO/LEAVE that answers something pending is not a message to the bot.
+    const ownerCommand = parseMessagingCommand(event.content);
+    if (ownerCommand && (await ownerCommandPending(identity, ownerCommand))) return false;
     await replyPaused(event, stop);
     return true;
   };
