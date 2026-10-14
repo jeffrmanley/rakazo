@@ -578,7 +578,8 @@ export function createChatControl(deps: {
     async intercept(event) {
       const command = parseControlCommand(event.content);
       if (command) {
-        if (event.senderIsBot) return false;
+        // Bots cannot run commands; their message is handled like any other (paused or routed).
+        if (event.senderIsBot) return interceptPaused(event);
         await runCommand(event, command, (body) => reply(event, body));
         return true;
       }

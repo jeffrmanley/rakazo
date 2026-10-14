@@ -453,6 +453,14 @@ describe("chat control", () => {
     expect(service.stop).not.toHaveBeenCalled();
   });
 
+  it("swallows a bot's command-shaped message to a stopped bot like any other message", async () => {
+    const { chat, service } = setup({ stop: stopped, teamChatBotId: "bot-a1" });
+    await expect(
+      chat.intercept(event({ senderIsBot: true, isDirect: false, kind: "mention" })),
+    ).resolves.toBe(true);
+    expect(service.stop).not.toHaveBeenCalled();
+  });
+
   it("answers a message to a stopped bot with the paused reply and no run", async () => {
     const { chat, sent, reader } = setup({ stop: stopped });
     await expect(chat.intercept(event({ content: "hello there" }))).resolves.toBe(true);
