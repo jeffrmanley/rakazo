@@ -24,6 +24,10 @@ seconds of the request:
 - New chat messages to a stopped bot get `Paused by <name> at <YYYY-MM-DD HH:MM> UTC` and start
   no run. In a team room the bot answers mentions and direct messages that way and ignores
   ambient talk; on the personal line a stopped bot sits out group conversations silently.
+- Cloud agents of the scope are asked to cancel: a running remote agent is cancelled, a launch
+  that was never dispatched is cancelled locally. A launch or follow-up of a stopped bot that is
+  still persisted is not dispatched; it is checked again every 30 seconds and goes out after a
+  resume if nothing cancelled it.
 - Outbound sends from a stopped bot are dropped, not queued: chat mirrors of its replies are not
   written, pending outbox rows for its messages are marked failed, and team-chat replies are
   recorded with the handle `suppressed:emergency-stop` instead of being posted.

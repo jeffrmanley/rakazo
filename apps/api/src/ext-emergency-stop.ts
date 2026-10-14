@@ -224,6 +224,8 @@ export function createControlService(deps: {
   events: Pick<ThreadEvents, "notify">;
   /** Best-effort: pause (not destroy) the scope's computers. */
   pauseComputers?: (target: StopTarget, runIds: string[]) => Promise<void>;
+  /** Best-effort: ask the scope's running cloud agents to cancel. */
+  cancelCloudAgents?: (target: StopTarget) => Promise<unknown>;
 }): ControlService {
   const { prisma, reader } = deps;
   const forget = (target: StopTarget) => reader.invalidate(target.spaceId ?? undefined);
@@ -290,6 +292,9 @@ export function createControlService(deps: {
           });
         }
       }
+      await deps
+        .cancelCloudAgents?.(target)
+        .catch((error) => getLogger().error("emergency stop could not cancel cloud agents", error));
       // Running runs pause their own computer once their in-flight tool call is done.
       await deps
         .pauseComputers?.(target, cancelledRunIds)

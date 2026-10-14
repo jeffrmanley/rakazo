@@ -12,6 +12,7 @@ import { getLogger } from "@rakazo/logging";
 import { cloudAgentsEnabled } from "./cloud-agent-factory.js";
 import { type CloudAgentDeps, cloudAgentBlock, enqueueCloudAgent } from "./cloud-agent-service.js";
 import { cloudAgentLaunchSchema, cloudAgentPromptSchema } from "./cloud-agent-tools.js";
+import { CLOUD_AGENT_STOP_RECHECK_MS, isBotStopped } from "./ext-emergency-stop.js";
 
 /** Reconcile one persisted intent. A fenced lease serializes remote mutations. */
 export async function pollCloudAgent(
@@ -66,6 +67,19 @@ export async function pollCloudAgent(
         { status: "cancelled", cancelRequested: false, launchRequest: {} },
         abandoned,
       );
+      return;
+    }
+    // Fork extension: a stopped bot's launch and follow-up stay persisted but are not
+    // dispatched until it is resumed (cancellation above and below still proceeds).
+    const pendingDispatch =
+      !agent.cancelRequested &&
+      (!agent.remoteId || Boolean(agent.followup && !agent.followupDispatching));
+    if (
+      pendingDispatch &&
+      !abandoned &&
+      (await isBotStopped({ spaceId: agent.spaceId, botId: agent.botId }))
+    ) {
+      await holdPoll(deps, agent);
       return;
     }
     if (!agent.remoteId) {
@@ -202,6 +216,16 @@ function snapshotData(snapshot: CloudAgentSnapshot): Prisma.CloudAgentUpdateMany
     prUrl: snapshot.prUrl ? (cloudAgentHttpsUrl(snapshot.prUrl) ?? "") : undefined,
     latestRunId: snapshot.latestRunId,
   };
+}
+
+/** Re-check later without counting an error (the bot is stopped, nothing failed). */
+async function holdPoll(deps: CloudAgentDeps, agent: CloudAgent) {
+  const nextPollAt = new Date(Date.now() + CLOUD_AGENT_STOP_RECHECK_MS);
+  const saved = await deps.prisma.cloudAgent.updateMany({
+    where: fence(agent),
+    data: { nextPollAt, leaseToken: null, leaseExpiresAt: null },
+  });
+  if (saved.count) await enqueueCloudAgent(deps, agent.id, nextPollAt);
 }
 
 async function retryPoll(deps: CloudAgentDeps, agent: CloudAgent) {

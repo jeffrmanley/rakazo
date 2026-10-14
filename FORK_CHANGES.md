@@ -128,6 +128,8 @@ Relative to upstream commit `2d666c4`.
 - `packages/adapters/src/agent-connections.ts` (modified)
 - `packages/adapters/src/bot-messages.ts` (modified)
 - `packages/adapters/src/chat-sdk-surface.ts` (modified)
+- `packages/adapters/src/cloud-agent-poll.ts` (modified)
+- `packages/adapters/src/cloud-agent.postgres.test.ts` (modified)
 - `packages/adapters/src/executor.ts` (modified)
 - `packages/adapters/src/ext-emergency-stop.test.ts` (added)
 - `packages/adapters/src/ext-emergency-stop.ts` (added)

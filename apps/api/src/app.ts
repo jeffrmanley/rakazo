@@ -66,6 +66,7 @@ import {
   reconcileCloudAgents,
   reconcileComputerUpdates,
   removePiUserSessions,
+  requestCloudAgentCancellation,
   ScriptedAgentRuntime,
   SmtpEmailProvider,
   SpaceMemoryProviderResolver,
@@ -710,6 +711,7 @@ export async function createApp(
         events,
         pauseComputers: (target, runIds) =>
           pauseStoppedComputers({ prisma, sandbox, jobs }, target, runIds),
+        cancelCloudAgents: (target) => requestCloudAgentCancellation({ prisma, jobs }, target),
       })
     : undefined;
   if (controlService)

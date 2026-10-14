@@ -5,7 +5,7 @@ import type {
   TeamChatSendRequest,
   TeamChatSendResult,
 } from "@rakazo/adapter-kit";
-import { computerSleepJob, routineWakeupJob } from "@rakazo/adapter-kit";
+import { cloudAgentPollJob, computerSleepJob, routineWakeupJob } from "@rakazo/adapter-kit";
 import { ACTIVE_RUN_STATUSES, isOneShotRoutineCrons, nextCronDateAcross } from "@rakazo/core";
 import type { ActiveStop, EmergencyStopReader, PrismaClient, ThreadEvents } from "@rakazo/db";
 import { cancelRunsForStop, getEmergencyStop } from "@rakazo/db";
@@ -327,4 +327,39 @@ export async function notifyStoppedThreads(
       }),
     ),
   );
+}
+
+/** How long a stopped bot's cloud-agent launch or follow-up waits before it is checked again. */
+export const CLOUD_AGENT_STOP_RECHECK_MS = 30_000;
+
+/**
+ * A stop cancels the scope's running cloud agents: each gets `cancelRequested`
+ * and a poll, which cancels the remote run (or, for a launch never
+ * dispatched, cancels it locally). Returns how many were asked.
+ */
+export async function requestCloudAgentCancellation(
+  deps: { prisma: PrismaClient; jobs: Pick<JobPublisher, "enqueue"> },
+  target: { scope: "bot" | "space" | "global"; spaceId: string | null; botId: string | null },
+): Promise<number> {
+  const scope = {
+    ...(target.scope !== "global" ? { spaceId: target.spaceId ?? "" } : {}),
+    ...(target.scope === "bot" ? { botId: target.botId ?? "" } : {}),
+  };
+  const agents = await deps.prisma.cloudAgent.findMany({
+    where: { ...scope, status: "running", cancelRequested: false },
+    select: { id: true },
+  });
+  if (agents.length === 0) return 0;
+  const ids = agents.map((agent) => agent.id);
+  await deps.prisma.cloudAgent.updateMany({
+    where: { id: { in: ids }, status: "running", cancelRequested: false },
+    data: { cancelRequested: true, version: { increment: 1 }, nextPollAt: new Date() },
+  });
+  for (const agentId of ids) {
+    // The row is the outbox: a failed enqueue is picked up by the reconciler.
+    await deps.jobs
+      .enqueue(cloudAgentPollJob({ agentId }))
+      .catch(() => getLogger().warn("cloud agent cancel scheduling deferred to reconciliation"));
+  }
+  return ids.length;
 }

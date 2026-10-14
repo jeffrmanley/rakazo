@@ -214,6 +214,21 @@ describeStop("fork extension: emergency stop through the API", () => {
 
   it("stops a bot: queued runs are cancelled, new runs never execute, routines hold, events are audited", async () => {
     const queued = await queueRun(prisma, alice);
+    const aliceThread = await prisma.thread.findUniqueOrThrow({ where: { botId: alice } });
+    const cloudAgent = await prisma.cloudAgent.create({
+      data: {
+        operationKey: `stop-cloud-${stamp}`,
+        providerKey: "emulator",
+        spaceId: users.ownerA.spaceId,
+        userId: users.ownerA.userId,
+        botId: alice,
+        threadId: aliceThread.id,
+        title: "Running cloud agent",
+        launchRequest: {},
+        remoteId: "remote-1",
+        nextPollAt: null,
+      },
+    });
     const res = await post(app, users.ownerA.cookie, STOP, {
       scope: "bot",
       botId: alice,
@@ -227,6 +242,11 @@ describeStop("fork extension: emergency stop through the API", () => {
     expect(body.stop).toMatchObject({ scope: "bot", botId: alice });
     expect(body.error_id).toBeUndefined();
     await expect(runStatus(prisma, queued)).resolves.toBe("cancelled");
+    // The bot's running cloud agent is asked to cancel (its poll job does the remote cancel).
+    expect(
+      await prisma.cloudAgent.findUniqueOrThrow({ where: { id: cloudAgent.id } }),
+    ).toMatchObject({ cancelRequested: true });
+    await prisma.cloudAgent.delete({ where: { id: cloudAgent.id } });
     expect(await prisma.event.count({ where: { runId: queued, type: "run.cancelled" } })).toBe(1);
     // Bob in space B keeps running.
     await expect(
