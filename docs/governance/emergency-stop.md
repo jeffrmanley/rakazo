@@ -14,7 +14,9 @@ seconds of the request:
 - A running run's in-flight model call is aborted and the run ends `cancelled`.
 - Queued tool calls are dropped. A tool call already executing is allowed to finish; its
   result is recorded (the audit log's `tool.result`), then the run halts before the next model
-  call. Nothing new starts.
+  call. Nothing new starts. Automatic review and owner approval come before the call: a stop
+  that lands while the reviewer is judging, or before the approval request goes out, keeps the
+  side effect from starting and sends no "needs approval" request.
 - Due routines do not start. A recurring routine skips the occurrence (the next one is
   scheduled); a one-shot routine stays due and fires once the bot is resumed.
 - The bot's computer is paused, not destroyed: background shell work left by the scope's runs is

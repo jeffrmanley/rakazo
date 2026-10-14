@@ -4562,10 +4562,17 @@ export function createRunExecutor(deps: ExecutorDeps) {
           const needsApproval = gateDecision === "ask";
           const bypassApproval = gateDecision === "allow" && requiresApprovalByDefault;
           let claimedEffect = false;
+          // Fork extension: review and approval are not the side effect. A stop that lands
+          // during them keeps the effect from starting and sends no approval request.
+          const haltIfStopped = async () => {
+            const stop = await stopGuard?.check();
+            if (stop) throw new EmergencyStopError(stop);
+          };
 
           const claimOrReturn = async (
             from: "approved" | "intended",
           ): Promise<unknown | undefined> => {
+            await haltIfStopped();
             const claim = from === "approved" ? claimApprovedEffect : claimIntendedEffect;
             if (await claim(deps.prisma, applied!.effect.id)) {
               claimedEffect = true;
@@ -4585,6 +4592,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
           };
 
           const requestApproval = async () => {
+            await haltIfStopped();
             if (!(await renewRunLease(deps, runId, workerId, fence))) {
               // Another worker owns the run now; exit without leaving a local pause card.
               return pauseForApproval();
@@ -4688,6 +4696,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
             const early = await claimOrReturn("intended");
             if (early !== undefined) return early;
           }
+          if (!claimedEffect) await haltIfStopped();
           const persistEffectResult = (result: unknown) =>
             applied
               ? completeEffect(
