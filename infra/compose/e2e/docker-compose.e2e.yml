@@ -1,0 +1,26 @@
+# Local end-to-end stack: the production compose file plus an offline echo model,
+# on ports that cannot collide with a deployment on the same host. Test-only.
+# Use through infra/compose/e2e/run.sh.
+name: ${E2E_PROJECT:-stack-e2e}
+services:
+  supervisor:
+    volumes: !override
+      - ${E2E_DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+      - ../../data:/data
+  api:
+    ports: !override
+      - "127.0.0.1:${E2E_API_PORT:-13100}:3100"
+  web:
+    env_file:
+      - ../../.env
+    ports: !override
+      - "127.0.0.1:${E2E_WEB_PORT:-15173}:5173"
+  echo-model:
+    image: ${E2E_PROJECT:-stack-e2e}-api
+    command: ["node", "/e2e/echo-model.mjs"]
+    environment:
+      ECHO_MODEL_COST_USD: ${ECHO_MODEL_COST_USD:-0.5}
+    volumes:
+      - ./e2e:/e2e:ro
+    ports:
+      - "127.0.0.1:${E2E_MODEL_PORT:-18080}:8080"
