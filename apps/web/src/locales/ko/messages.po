@@ -3363,6 +3363,7 @@ msgid "Paste your API key, then test again."
 msgstr "API 키를 붙여넣은 뒤 다시 테스트하세요."
 
 #: src/pages/RoutineEditor.tsx
+#: src/pages/Shell.tsx
 msgid "Paused"
 msgstr "일시 중지됨"
 
@@ -3729,6 +3730,11 @@ msgstr "마지막으로 저장된 작업 공간을 복원합니다. 컴퓨터에
 #: src/components/ComputerUpdateProgress.tsx
 msgid "Restoring your workspace"
 msgstr ""
+
+#: src/pages/BotContextMenu.tsx
+#: src/pages/Shell.tsx
+msgid "Resume"
+msgstr "재개"
 
 #: src/components/AccountAccess.tsx
 #: src/pages/Auth.tsx
@@ -4229,9 +4235,14 @@ msgstr ""
 msgid "Steps"
 msgstr "실행 단계"
 
+#: src/pages/BotContextMenu.tsx
 #: src/pages/Shell.tsx
 msgid "Stop"
 msgstr "중지"
+
+#: src/pages/Shell.tsx
+msgid "Stop all"
+msgstr "모두 중지"
 
 #: src/pages/Shell.tsx
 msgid "Stop speaking"

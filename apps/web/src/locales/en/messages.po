@@ -3363,6 +3363,7 @@ msgid "Paste your API key, then test again."
 msgstr "Paste your API key, then test again."
 
 #: src/pages/RoutineEditor.tsx
+#: src/pages/Shell.tsx
 msgid "Paused"
 msgstr "Paused"
 
@@ -3729,6 +3730,11 @@ msgstr "Restore the last saved workspace. Unsaved work on the computer is lost."
 #: src/components/ComputerUpdateProgress.tsx
 msgid "Restoring your workspace"
 msgstr "Restoring your workspace"
+
+#: src/pages/BotContextMenu.tsx
+#: src/pages/Shell.tsx
+msgid "Resume"
+msgstr "Resume"
 
 #: src/components/AccountAccess.tsx
 #: src/pages/Auth.tsx
@@ -4229,9 +4235,14 @@ msgstr "Status"
 msgid "Steps"
 msgstr "Steps"
 
+#: src/pages/BotContextMenu.tsx
 #: src/pages/Shell.tsx
 msgid "Stop"
 msgstr "Stop"
+
+#: src/pages/Shell.tsx
+msgid "Stop all"
+msgstr "Stop all"
 
 #: src/pages/Shell.tsx
 msgid "Stop speaking"

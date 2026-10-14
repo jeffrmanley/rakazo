@@ -6,7 +6,7 @@
 export interface ExtEnv {
   /** Tamper-evident audit log (ext_audit_events) and its API. */
   auditLog: boolean;
-  /** Emergency stop/resume controls. Parsed here; enforced by a later module. */
+  /** Emergency stop/resume controls (docs/governance/emergency-stop.md). */
   emergencyStop: boolean;
   /** Spend and concurrency caps. Parsed here; enforced by a later module. */
   budgets: boolean;

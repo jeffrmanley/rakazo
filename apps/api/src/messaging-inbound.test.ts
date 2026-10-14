@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { installEmergencyStop } from "@rakazo/db";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createMessagingInboundHandler,
   type MessagingInboundDeps,
@@ -1534,5 +1535,73 @@ describe("createMessagingInboundHandler white-label copy", () => {
     await handle(groupEvent);
     const bodies = deps.outboundRows.map((row) => String(row.body));
     expect(bodies.some((body) => body.includes("hosts Rakazo personal agents"))).toBe(true);
+  });
+});
+
+describe("createMessagingInboundHandler with the emergency stop on", () => {
+  afterEach(() => installEmergencyStop(null));
+
+  it("leaves a stopped member bot out of a group fan-out", async () => {
+    const members = [
+      {
+        id: "cm-1",
+        channelId: "ch-1",
+        address: "+15551111111",
+        identityId: "mi-1",
+        status: "approved",
+      },
+      {
+        id: "cm-2",
+        channelId: "ch-1",
+        address: "+15553333333",
+        identityId: "mi-2",
+        status: "approved",
+      },
+    ];
+    const deps = createDeps({ members });
+    const identities = {
+      "mi-1": {
+        id: "mi-1",
+        address: "+15551111111",
+        userId: "user-1",
+        spaceId: "ws-1",
+        botId: "bot-1",
+      },
+      "mi-2": {
+        id: "mi-2",
+        address: "+15553333333",
+        userId: "user-2",
+        spaceId: "ws-2",
+        botId: "bot-2",
+      },
+    };
+    deps.prisma.messagingIdentity.findUnique = vi.fn(
+      async ({ where }: { where: { provider_address?: { address: string }; id?: string } }) => {
+        const match = Object.values(identities).find(
+          (row) => row.id === where.id || row.address === where.provider_address?.address,
+        );
+        return match ? { ...match, provider: "sendblue", outboundSinceInbound: 0 } : null;
+      },
+    );
+    const check = vi.fn(async ({ botId }: { spaceId: string; botId?: string | null }) =>
+      botId === "bot-2"
+        ? {
+            id: "stop-1",
+            scope: "bot" as const,
+            spaceId: "ws-2",
+            botId: "bot-2",
+            reason: "r",
+            stoppedBy: "user-2",
+            stoppedAt: new Date(),
+          }
+        : null,
+    );
+    installEmergencyStop({ check, activeStops: vi.fn(), invalidate: vi.fn() });
+    await createMessagingInboundHandler(deps)(groupEvent);
+    const fanout = deps.sendUserMessage.mock.calls.map(([input]) => input as { botId: string });
+    expect(fanout.map((input) => input.botId)).toEqual(["bot-1"]);
+    expect(check).toHaveBeenCalledWith(
+      expect.objectContaining({ spaceId: "ws-2", botId: "bot-2" }),
+    );
   });
 });

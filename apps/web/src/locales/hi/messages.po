@@ -3363,8 +3363,9 @@ msgid "Paste your API key, then test again."
 msgstr "अपनी API कुंजी पेस्ट करें, फिर फिर से परीक्षण करें।"
 
 #: src/pages/RoutineEditor.tsx
+#: src/pages/Shell.tsx
 msgid "Paused"
-msgstr ""
+msgstr "रुका हुआ"
 
 #: src/pages/Shell.tsx
 #: src/pages/shell/chat-context.tsx
@@ -3729,6 +3730,11 @@ msgstr "अंतिम सहेजे गए वर्कस्पेस क�
 #: src/components/ComputerUpdateProgress.tsx
 msgid "Restoring your workspace"
 msgstr ""
+
+#: src/pages/BotContextMenu.tsx
+#: src/pages/Shell.tsx
+msgid "Resume"
+msgstr "फिर से शुरू करें"
 
 #: src/components/AccountAccess.tsx
 #: src/pages/Auth.tsx
@@ -4229,9 +4235,14 @@ msgstr ""
 msgid "Steps"
 msgstr "चरण"
 
+#: src/pages/BotContextMenu.tsx
 #: src/pages/Shell.tsx
 msgid "Stop"
 msgstr "रोकें"
+
+#: src/pages/Shell.tsx
+msgid "Stop all"
+msgstr "सभी रोकें"
 
 #: src/pages/Shell.tsx
 msgid "Stop speaking"

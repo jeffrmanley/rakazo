@@ -19,8 +19,10 @@ import {
   Eraser,
   Folder,
   FolderPlus,
+  Pause,
   Pencil,
   Pin,
+  Play,
   Trash2,
 } from "lucide-react";
 
@@ -41,6 +43,8 @@ export function BotContextMenu({
   onEdit,
   onDuplicate,
   onClear,
+  controlAction,
+  onControl,
   onArchive,
   onDelete,
 }: {
@@ -56,6 +60,9 @@ export function BotContextMenu({
   onEdit: () => void;
   onDuplicate: () => void;
   onClear: () => void;
+  /** Emergency stop for space owners when the module is on; null hides it. */
+  controlAction?: "stop" | "resume" | null;
+  onControl?: () => void;
   onArchive: () => void;
   onDelete: () => void;
 }) {
@@ -135,6 +142,12 @@ export function BotContextMenu({
           {t`Duplicate`}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
+        {controlAction && onControl ? (
+          <DropdownMenuItem onClick={onControl}>
+            {controlAction === "stop" ? <Pause /> : <Play />}
+            {controlAction === "stop" ? t`Stop` : t`Resume`}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem onClick={onClear}>
           <Eraser />
           {t`Clear conversation`}

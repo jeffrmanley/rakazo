@@ -42,6 +42,7 @@ import {
   ExpoPushProvider,
   endSessionPushToken,
   GraphileJobPublisher,
+  guardTeamChatSend,
   InMemoryJobQueue,
   InMemoryRealtimeFanout,
   InstalledConnectorProvider,
@@ -58,6 +59,7 @@ import {
   PiOAuthLogins,
   PipedreamConnector,
   PostgresRealtimeFanout,
+  pauseStoppedComputers,
   pipedreamConfigFromEnv,
   piSessionsRoot,
   reconcileCloudAgents,
@@ -81,10 +83,12 @@ import {
   createAuditWriter,
   createBoardEvents,
   createDb,
+  createEmergencyStopReader,
   createPool,
   createThreadEvents,
   IsolationError,
   installAuditWriter,
+  installEmergencyStop,
   parsePositiveInteger,
   provisionMessagingIdentity,
   pushSessionExpiresAt,
@@ -112,6 +116,11 @@ import {
   reportAuditFailureToChat,
   startAuditSealer,
 } from "./ext-audit.js";
+import {
+  createChatControl,
+  createControlService,
+  mountControlRoutes,
+} from "./ext-emergency-stop.js";
 import { healthRoutes } from "./health.js";
 import { mountLocalSettings } from "./local-settings.js";
 import {
@@ -224,6 +233,9 @@ export async function createApp(
   const auditSealer = env.ext.auditLog
     ? startAuditSealer({ prisma, exportDir: env.ext.auditExportDir })
     : undefined;
+  // Fork extension: EXT_EMERGENCY_STOP=1 installs the stop-state reader every run path consults.
+  const emergencyStop = env.ext.emergencyStop ? createEmergencyStopReader(prisma) : null;
+  installEmergencyStop(emergencyStop);
   const events = createThreadEvents(prisma, realtime, {
     runSecretWriter: createRunSecretWriter(secrets),
   });
@@ -687,6 +699,17 @@ export async function createApp(
   });
   mountWebhookHttpRoutes(app, { prisma, secrets, events, jobs });
   if (env.ext.auditLog) mountAuditRoutes(app, { prisma, authenticate: sessionActor });
+  const controlService = emergencyStop
+    ? createControlService({
+        prisma,
+        reader: emergencyStop,
+        events,
+        pauseComputers: (target, runIds) =>
+          pauseStoppedComputers({ prisma, sandbox, jobs }, target, runIds),
+      })
+    : undefined;
+  if (controlService)
+    mountControlRoutes(app, { service: controlService, authenticate: sessionActor });
   if (billing && billingProvider) {
     mountBillingRoutes(app, {
       billing,
@@ -830,6 +853,17 @@ export async function createApp(
         (event) => event.provider === bridge.providerId,
       );
     };
+    let teamChatBot: Promise<{ spaceId: string; botId: string } | null> | undefined;
+    const teamChatBotTarget = () => {
+      teamChatBot ??= prisma.bot
+        .findUnique({ where: { id: env.teamChatBotId ?? "" }, select: { id: true, spaceId: true } })
+        .then((bot) => (bot ? { spaceId: bot.spaceId, botId: bot.id } : null))
+        .catch((error) => {
+          teamChatBot = undefined;
+          throw error;
+        });
+      return teamChatBot;
+    };
     if (env.teamChatBotId) {
       const judge =
         env.teamChatJudgeProvider && env.teamChatJudgeModel
@@ -859,7 +893,10 @@ export async function createApp(
           prisma,
           events,
           jobs,
-          send: createMessagingTeamChatSender(messaging),
+          send: guardTeamChatSend(createMessagingTeamChatSender(messaging), {
+            reader: emergencyStop,
+            bot: teamChatBotTarget,
+          }),
           providerId,
           botId: env.teamChatBotId,
           judge,
@@ -912,11 +949,24 @@ export async function createApp(
         }
       }
     }
+    // Fork extension: chat /stop and /resume, and the paused reply, before any routing.
+    const chatControl =
+      emergencyStop && controlService
+        ? createChatControl({
+            prisma,
+            reader: emergencyStop,
+            service: controlService,
+            messaging,
+            teamChatBotFor: (event) =>
+              prefersTeamChatSurface(event, env.teamChatBotId) ? (env.teamChatBotId ?? null) : null,
+          })
+        : undefined;
     const inboundSink = async (event: MessagingInboundEvent) => {
       if (event.type !== "message") {
         await applyMessagingOutboundStatus(prisma, event);
         return;
       }
+      if (chatControl && (await chatControl.intercept(event))) return;
       if (prefersTeamChatSurface(event, env.teamChatBotId)) {
         const bridge = teamChatBridges.get(event.provider);
         if (bridge) {
@@ -1031,6 +1081,7 @@ export async function createApp(
       shutdown.abort();
       auditSealer?.stop();
       installAuditWriter(null);
+      installEmergencyStop(null);
       oauthLogins.abortAll();
       messagingStopped = true;
       clearMessagingRetryDelay?.();

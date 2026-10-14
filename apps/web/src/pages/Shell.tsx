@@ -106,7 +106,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Paperclip,
+  Pause,
   Pencil,
+  Play,
   Plus,
   Puzzle,
   Reply,
@@ -188,6 +190,7 @@ import {
 } from "../lib/computer-screen";
 import { publishComputerCommand } from "../lib/computer-workspace";
 import { desktopBridge } from "../lib/desktop";
+import { botPausedBy, botStopOf, spaceStopOf, useControlState } from "../lib/emergency-stop";
 import { scheduleFocusPrompt } from "../lib/focus-prompt";
 import { localTimezone } from "../lib/local-timezone";
 import { copyableMessageText } from "../lib/message-text";
@@ -826,6 +829,22 @@ export function ShellPage() {
     botMenu?.kind === "group" ? groups.find((group) => group.id === botMenu.id) : undefined;
   const contextChat = contextBot ?? contextGroup;
   const closeBotMenu = useCallback(() => setBotMenu(null), []);
+  // Fork extension: emergency stop state of the session space (absent when the module is off).
+  const emergencyStop = useControlState(bootstrapMe?.spaceId);
+  const contextBotControl =
+    contextBot && emergencyStop.state?.canControl
+      ? botStopOf(emergencyStop.state, contextBot.id)
+        ? ("resume" as const)
+        : botPausedBy(emergencyStop.state, contextBot.id)
+          ? null
+          : ("stop" as const)
+      : null;
+  const spaceMenuControl =
+    spaceMenu && spaceMenu.id === bootstrapMe?.spaceId && emergencyStop.state?.canControl
+      ? spaceStopOf(emergencyStop.state)
+        ? ("resume" as const)
+        : ("stop" as const)
+      : null;
   const updateBotUnread = useCallback((id: string, unread: boolean) => {
     setBots((current) => {
       const bot = current.find((candidate) => candidate.id === id);
@@ -3256,6 +3275,18 @@ export function ShellPage() {
                                     >
                                       {item.chat.name}
                                     </span>
+                                    {item.kind === "bot" &&
+                                    item.chat.spaceId === bootstrapMe?.spaceId &&
+                                    botPausedBy(emergencyStop.state, item.chat.id) ? (
+                                      <Pause
+                                        size={12}
+                                        strokeWidth={2.2}
+                                        role="img"
+                                        aria-label={t`Paused`}
+                                        data-roster-paused=""
+                                        className="shrink-0 text-muted-foreground"
+                                      />
+                                    ) : null}
                                     {item.chat.unread ? (
                                       <span className="sr-only">
                                         <Trans> (unread)</Trans>
@@ -4260,6 +4291,14 @@ export function ShellPage() {
               );
               setBotMenu(null);
             }}
+            controlAction={contextBotControl}
+            onControl={() => {
+              setBotMenu(null);
+              if (!contextBot || !contextBotControl) return;
+              void emergencyStop
+                .control(contextBotControl, { scope: "bot", botId: contextBot.id })
+                .catch(() => undefined);
+            }}
             onArchive={() => {
               setBotMenu(null);
               const request = contextBot
@@ -4309,6 +4348,19 @@ export function ShellPage() {
                 >
                   <Pencil />
                   {t`Rename space`}
+                </DropdownMenuItem>
+              ) : null}
+              {spaceMenuControl ? (
+                <DropdownMenuItem
+                  onClick={() => {
+                    setSpaceMenu(null);
+                    void emergencyStop
+                      .control(spaceMenuControl, { scope: "space" })
+                      .catch(() => undefined);
+                  }}
+                >
+                  {spaceMenuControl === "stop" ? <Pause /> : <Play />}
+                  {spaceMenuControl === "stop" ? t`Stop all` : t`Resume`}
                 </DropdownMenuItem>
               ) : null}
               {spaceMenuTarget?.canDelete ? (

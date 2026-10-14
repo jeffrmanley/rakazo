@@ -1,6 +1,7 @@
 import type { AdapterContext, MessagingSurface } from "@rakazo/adapter-kit";
 import type { PrismaClient } from "@rakazo/db";
-import { describe, expect, it, vi } from "vitest";
+import { installEmergencyStop } from "@rakazo/db";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyMessagingOutboundStatus,
   deliverMessagingOutbound,
@@ -1027,5 +1028,86 @@ describe("deliverMessagingOutbound with several linked chat apps", () => {
       { threadId: "slack:D1", body: "Hello from your bot" },
       context,
     );
+  });
+});
+
+describe("deliverMessagingOutbound with the emergency stop on", () => {
+  const stopped = {
+    id: "stop-1",
+    scope: "bot" as const,
+    spaceId: "ws-1",
+    botId: "bot-1",
+    reason: "r",
+    stoppedBy: "user-1",
+    stoppedAt: new Date("2026-10-15T10:00:00Z"),
+  };
+  const reader = (stop: typeof stopped | null) => ({
+    check: vi.fn(async () => stop),
+    activeStops: vi.fn(async () => (stop ? [stop] : [])),
+    invalidate: vi.fn(),
+  });
+
+  afterEach(() => installEmergencyStop(null));
+
+  it("does not mirror a stopped bot's replies", async () => {
+    const stop = reader(stopped);
+    installEmergencyStop(stop);
+    const deps = createDeps({ run: { ...messagingRun, spaceId: "ws-1" } });
+    await deliverMessagingOutbound(deps, { runId: "run-1" }, context);
+    expect(stop.check).toHaveBeenCalledWith({ spaceId: "ws-1", botId: "bot-1" });
+    expect(deps.rows).toHaveLength(0);
+    expect(deps.sendToThread).not.toHaveBeenCalled();
+  });
+
+  it("drops a pending bot message of a stopped bot and still sends system rows", async () => {
+    installEmergencyStop(reader(stopped));
+    const deps = createDeps({
+      outboundRows: [
+        {
+          id: "out-bot",
+          idempotencyKey: "msg:m-1",
+          kind: "dm",
+          identityId: "mi-1",
+          body: "bot reply",
+          status: "pending",
+          sourceMessageId: "m-1",
+        },
+        {
+          id: "out-invite",
+          idempotencyKey: "invite:c-1:mi-1",
+          kind: "dm",
+          identityId: "mi-1",
+          body: "invite",
+          status: "pending",
+          sourceMessageId: null,
+        },
+      ],
+    });
+    Object.assign(deps.prisma.message, {
+      findUnique: vi.fn(async () => ({
+        botId: "bot-1",
+        thread: { spaceId: "ws-1", botId: "bot-1" },
+      })),
+    });
+    await deliverMessagingOutbound(deps, {}, context);
+    expect(deps.rows.find((row) => row.id === "out-bot")?.status).toBe("failed");
+    expect(deps.sendToThread).toHaveBeenCalledTimes(1);
+    expect(deps.sendToThread).toHaveBeenCalledWith(
+      expect.objectContaining({ body: "invite" }),
+      context,
+    );
+  });
+
+  it("sends normally while the bot runs", async () => {
+    installEmergencyStop(reader(null));
+    const deps = createDeps({ run: { ...messagingRun, spaceId: "ws-1" } });
+    Object.assign(deps.prisma.message, {
+      findUnique: vi.fn(async () => ({
+        botId: "bot-1",
+        thread: { spaceId: "ws-1", botId: "bot-1" },
+      })),
+    });
+    await deliverMessagingOutbound(deps, { runId: "run-1" }, context);
+    expect(deps.sendToThread).toHaveBeenCalledTimes(1);
   });
 });
