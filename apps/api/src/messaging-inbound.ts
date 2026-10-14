@@ -1,5 +1,6 @@
 import type { JobPublisher, MessagingInboundMessage } from "@rakazo/adapter-kit";
 import { messagingDeliverJob, runContinueJob } from "@rakazo/adapter-kit";
+import { isBotStopped } from "@rakazo/adapters";
 import type { MessageBlock } from "@rakazo/contracts";
 import { parseMessagingCommand, sanitizeMessagingLabel, UPSTREAM_BRAND } from "@rakazo/core";
 import type {
@@ -622,6 +623,8 @@ async function handleChannelEvent(
       botId: identity.botId,
       threadId: thread.id,
     };
+    // Fork extension: a stopped bot sits the group conversation out (no run, no routine).
+    if (await isBotStopped(target)) continue;
     if (await wakeMessageRoutines(deps, target, event)) continue;
 
     const sent = await deps.events.sendUserMessage({
