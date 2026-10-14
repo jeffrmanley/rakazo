@@ -40,12 +40,6 @@ export function inspectBrandLogo(bytes: Uint8Array): BrandLogoCheck {
   return { ok: true, ...header };
 }
 
-/** Pixel size of a logo that already passed {@link inspectBrandLogo}. */
-export function brandLogoSize(bytes: Uint8Array): { width: number; height: number } | null {
-  const check = inspectBrandLogo(bytes);
-  return check.ok ? { width: check.width, height: check.height } : null;
-}
-
 function withinSide(value: number): boolean {
   return value >= BRAND_LOGO_MIN_SIDE && value <= BRAND_LOGO_MAX_SIDE;
 }

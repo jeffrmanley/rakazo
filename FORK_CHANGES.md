@@ -138,6 +138,7 @@ Relative to upstream commit `2d666c4`.
 - `packages/adapters/src/pi-models.test.ts` (modified)
 - `packages/adapters/src/pi-models.ts` (modified)
 - `packages/adapters/src/pi-oauth.ts` (modified)
+- `packages/adapters/src/pi-runtime-computer.test.ts` (modified)
 - `packages/adapters/src/pi-runtime.ts` (modified)
 - `packages/adapters/src/runtime-context.test.ts` (modified)
 - `packages/adapters/src/runtime-context.ts` (modified)
