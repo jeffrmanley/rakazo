@@ -169,6 +169,11 @@ msgstr ""
 msgid "{size} B"
 msgstr "{size} B"
 
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "{spent} of {cap} today"
+msgstr "今日 {spent} / {cap}"
+
 #: src/components/ToolActivityDisclosure.tsx
 msgid "{stepCount, plural, one {Done · # tool} other {Done · # tools}}"
 msgstr ""
@@ -597,6 +602,10 @@ msgstr "发送外部邮件前询问"
 msgid "Ask the server owner to configure this provider."
 msgstr ""
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Assistant ({amount})"
+msgstr "助手（{amount}）"
+
 #. placeholder {0}: preset.time
 #: src/pages/RoutineSchedule.tsx
 msgid "at {0}"
@@ -781,6 +790,10 @@ msgstr ""
 #: src/components/computer/ComputerWorkspace.tsx
 msgid "Browser"
 msgstr ""
+
+#: src/pages/SettingsOverlay.tsx
+msgid "Budget"
+msgstr "预算"
 
 #: src/pages/KnowledgeSection.tsx
 msgid "Built-in"
@@ -1594,6 +1607,7 @@ msgstr "无法撤销连接"
 msgid "Could not run routine"
 msgstr "无法运行例行任务"
 
+#: src/lib/budgets.ts
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/shell/bot-panel.tsx
@@ -1802,6 +1816,10 @@ msgstr "Cron 表达式"
 msgid "Current password"
 msgstr "当前密码"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Custom"
+msgstr "自定义"
+
 #: src/pages/shell/bot-credentials.tsx
 msgid "Custom header"
 msgstr ""
@@ -1813,6 +1831,18 @@ msgstr "客户支持"
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Customize bot avatar"
 msgstr "自定义机器人头像"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Daily budget"
+msgstr "每日预算"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Daily budget in USD"
+msgstr "每日预算（美元）"
+
+#: src/pages/BudgetSettingsPanel.tsx
+msgid "Daily cap (USD)"
+msgstr "每日上限（美元）"
 
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Dark"
@@ -1858,6 +1888,14 @@ msgstr "默认（{0}）"
 #: src/pages/MemorySettingsOverlay.tsx
 msgid "Default scope"
 msgstr "默认范围"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Delegation depth"
+msgstr "委派深度"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Delegations per run"
+msgstr "每次运行的委派数"
 
 #: src/pages/Artifacts.tsx
 #: src/pages/BotContextMenu.tsx
@@ -2552,6 +2590,10 @@ msgstr "退出"
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Light"
 msgstr "浅色"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Limits"
+msgstr "限制"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Linear issue"
@@ -3395,6 +3437,10 @@ msgstr "插件"
 msgid "POST to"
 msgstr "POST 到"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Premium models"
+msgstr "高级模型"
+
 #. placeholder {0}: props.name
 #: src/components/ArtifactFileCard.tsx
 msgid "Preview {0}"
@@ -3814,6 +3860,10 @@ msgstr "运行中 · 停止"
 #: src/pages/RoutineEditor.tsx
 msgid "Running…"
 msgstr "正在运行…"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Runs at once"
+msgstr "同时运行数"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Runs when this bot receives a verified message from this provider."
@@ -4285,6 +4335,10 @@ msgstr "支持图片"
 msgid "Supports thinking"
 msgstr "支持思考"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Swarm ({amount})"
+msgstr "集群（{amount}）"
+
 #: src/pages/shell/command-palette.tsx
 msgid "Switch bot"
 msgstr ""
@@ -4503,6 +4557,16 @@ msgstr "工具源"
 #: src/pages/PluginsOverlay.tsx
 msgid "Tools"
 msgstr ""
+
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "Top up today"
+msgstr "今日充值"
+
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "Top-up amount in USD"
+msgstr "充值金额（美元）"
 
 #: src/components/call/CallCard.tsx
 msgid "Transcript"
@@ -4802,6 +4866,10 @@ msgstr "Bot 应在哪里运行？"
 #: src/lib/ticket-status.ts
 msgid "Won't do"
 msgstr ""
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Worker ({amount})"
+msgstr "执行者（{amount}）"
 
 #: src/lib/roster-status.ts
 #: src/pages/Auth.tsx

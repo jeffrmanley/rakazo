@@ -38,6 +38,7 @@ import { thinkingLevelLabel } from "../../lib/model-catalog";
 import { rpc } from "../../lib/rpc";
 import { errorText } from "../../lib/user-error";
 import { AvatarStudioPopover } from "./avatar-studio-popover";
+import { BotBudgetSection } from "./bot-budget";
 import { BotCredentialsSection } from "./bot-credentials";
 
 const ScratchpadSection = lazy(() =>
@@ -539,6 +540,7 @@ export function BotSettings({
           }}
         />
       </div>
+      <BotBudgetSection botId={bot.id} />
       <details
         data-testid="bot-settings-advanced"
         className="group mt-5"

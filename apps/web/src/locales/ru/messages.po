@@ -169,6 +169,11 @@ msgstr ""
 msgid "{size} B"
 msgstr "{size} Б"
 
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "{spent} of {cap} today"
+msgstr "{spent} из {cap} сегодня"
+
 #: src/components/ToolActivityDisclosure.tsx
 msgid "{stepCount, plural, one {Done · # tool} other {Done · # tools}}"
 msgstr ""
@@ -597,6 +602,10 @@ msgstr "Спросите перед отправкой внешнего элек
 msgid "Ask the server owner to configure this provider."
 msgstr "Попросите владельца сервера настроить этого провайдера."
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Assistant ({amount})"
+msgstr "Ассистент ({amount})"
+
 #. placeholder {0}: preset.time
 #: src/pages/RoutineSchedule.tsx
 msgid "at {0}"
@@ -781,6 +790,10 @@ msgstr "Просмотреть MCP-серверы"
 #: src/components/computer/ComputerWorkspace.tsx
 msgid "Browser"
 msgstr ""
+
+#: src/pages/SettingsOverlay.tsx
+msgid "Budget"
+msgstr "Бюджет"
 
 #: src/pages/KnowledgeSection.tsx
 msgid "Built-in"
@@ -1594,6 +1607,7 @@ msgstr "Не удалось отменить соединение"
 msgid "Could not run routine"
 msgstr "Не удалось запустить задачу"
 
+#: src/lib/budgets.ts
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/shell/bot-panel.tsx
@@ -1802,6 +1816,10 @@ msgstr "Выражение Cron"
 msgid "Current password"
 msgstr "Текущий пароль"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Custom"
+msgstr "Свой"
+
 #: src/pages/shell/bot-credentials.tsx
 msgid "Custom header"
 msgstr ""
@@ -1813,6 +1831,18 @@ msgstr "Поддержка клиентов"
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Customize bot avatar"
 msgstr "Настроить аватар бота"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Daily budget"
+msgstr "Дневной бюджет"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Daily budget in USD"
+msgstr "Дневной бюджет в USD"
+
+#: src/pages/BudgetSettingsPanel.tsx
+msgid "Daily cap (USD)"
+msgstr "Дневной лимит (USD)"
 
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Dark"
@@ -1858,6 +1888,14 @@ msgstr "По умолчанию ({0})"
 #: src/pages/MemorySettingsOverlay.tsx
 msgid "Default scope"
 msgstr "Область действия по умолчанию"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Delegation depth"
+msgstr "Глубина делегирования"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Delegations per run"
+msgstr "Делегирований за запуск"
 
 #: src/pages/Artifacts.tsx
 #: src/pages/BotContextMenu.tsx
@@ -2552,6 +2590,10 @@ msgstr "Выйти"
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Light"
 msgstr "Светлая"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Limits"
+msgstr "Ограничения"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Linear issue"
@@ -3395,6 +3437,10 @@ msgstr "Плагин"
 msgid "POST to"
 msgstr "ОТПРАВИТЬ в"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Premium models"
+msgstr "Премиум-модели"
+
 #. placeholder {0}: props.name
 #: src/components/ArtifactFileCard.tsx
 msgid "Preview {0}"
@@ -3814,6 +3860,10 @@ msgstr "Выполняется · Остановить"
 #: src/pages/RoutineEditor.tsx
 msgid "Running…"
 msgstr "Выполняется…"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Runs at once"
+msgstr "Запусков одновременно"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Runs when this bot receives a verified message from this provider."
@@ -4285,6 +4335,10 @@ msgstr ""
 msgid "Supports thinking"
 msgstr "Поддерживает рассуждения"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Swarm ({amount})"
+msgstr "Рой ({amount})"
+
 #: src/pages/shell/command-palette.tsx
 msgid "Switch bot"
 msgstr "Сменить бота"
@@ -4503,6 +4557,16 @@ msgstr "Источники инструментов"
 #: src/pages/PluginsOverlay.tsx
 msgid "Tools"
 msgstr "Инструменты"
+
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "Top up today"
+msgstr "Пополнить на сегодня"
+
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "Top-up amount in USD"
+msgstr "Сумма пополнения в USD"
 
 #: src/components/call/CallCard.tsx
 msgid "Transcript"
@@ -4802,6 +4866,10 @@ msgstr "Где должны работать боты?"
 #: src/lib/ticket-status.ts
 msgid "Won't do"
 msgstr ""
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Worker ({amount})"
+msgstr "Исполнитель ({amount})"
 
 #: src/lib/roster-status.ts
 #: src/pages/Auth.tsx

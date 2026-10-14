@@ -169,6 +169,11 @@ msgstr ""
 msgid "{size} B"
 msgstr "{size} B"
 
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "{spent} of {cap} today"
+msgstr "{spent} de {cap} hoje"
+
 #: src/components/ToolActivityDisclosure.tsx
 msgid "{stepCount, plural, one {Done · # tool} other {Done · # tools}}"
 msgstr ""
@@ -597,6 +602,10 @@ msgstr "Perguntar antes de enviar e-mail externo"
 msgid "Ask the server owner to configure this provider."
 msgstr ""
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Assistant ({amount})"
+msgstr "Assistente ({amount})"
+
 #. placeholder {0}: preset.time
 #: src/pages/RoutineSchedule.tsx
 msgid "at {0}"
@@ -781,6 +790,10 @@ msgstr ""
 #: src/components/computer/ComputerWorkspace.tsx
 msgid "Browser"
 msgstr ""
+
+#: src/pages/SettingsOverlay.tsx
+msgid "Budget"
+msgstr "Orçamento"
 
 #: src/pages/KnowledgeSection.tsx
 msgid "Built-in"
@@ -1594,6 +1607,7 @@ msgstr "Não foi possível revogar a conexão"
 msgid "Could not run routine"
 msgstr ""
 
+#: src/lib/budgets.ts
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/shell/bot-panel.tsx
@@ -1802,6 +1816,10 @@ msgstr "Expressão cron"
 msgid "Current password"
 msgstr "Senha atual"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Custom"
+msgstr "Personalizado"
+
 #: src/pages/shell/bot-credentials.tsx
 msgid "Custom header"
 msgstr ""
@@ -1813,6 +1831,18 @@ msgstr ""
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Customize bot avatar"
 msgstr "Personalizar avatar do bot"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Daily budget"
+msgstr "Orçamento diário"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Daily budget in USD"
+msgstr "Orçamento diário em USD"
+
+#: src/pages/BudgetSettingsPanel.tsx
+msgid "Daily cap (USD)"
+msgstr "Limite diário (USD)"
 
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Dark"
@@ -1858,6 +1888,14 @@ msgstr "Padrão ({0})"
 #: src/pages/MemorySettingsOverlay.tsx
 msgid "Default scope"
 msgstr "Escopo padrão"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Delegation depth"
+msgstr "Profundidade de delegação"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Delegations per run"
+msgstr "Delegações por execução"
 
 #: src/pages/Artifacts.tsx
 #: src/pages/BotContextMenu.tsx
@@ -2552,6 +2590,10 @@ msgstr ""
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Light"
 msgstr "Claro"
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Limits"
+msgstr "Limites"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Linear issue"
@@ -3395,6 +3437,10 @@ msgstr "Plugin"
 msgid "POST to"
 msgstr ""
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Premium models"
+msgstr "Modelos premium"
+
 #. placeholder {0}: props.name
 #: src/components/ArtifactFileCard.tsx
 msgid "Preview {0}"
@@ -3814,6 +3860,10 @@ msgstr "Em execução · Parar"
 #: src/pages/RoutineEditor.tsx
 msgid "Running…"
 msgstr "Executando..."
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Runs at once"
+msgstr "Execuções simultâneas"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Runs when this bot receives a verified message from this provider."
@@ -4285,6 +4335,10 @@ msgstr "Suporta imagens"
 msgid "Supports thinking"
 msgstr "Suporta raciocínio"
 
+#: src/pages/shell/bot-budget.tsx
+msgid "Swarm ({amount})"
+msgstr "Enxame ({amount})"
+
 #: src/pages/shell/command-palette.tsx
 msgid "Switch bot"
 msgstr ""
@@ -4503,6 +4557,16 @@ msgstr "Fontes de ferramentas"
 #: src/pages/PluginsOverlay.tsx
 msgid "Tools"
 msgstr ""
+
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "Top up today"
+msgstr "Recarregar hoje"
+
+#: src/pages/BudgetSettingsPanel.tsx
+#: src/pages/shell/bot-budget.tsx
+msgid "Top-up amount in USD"
+msgstr "Valor da recarga em USD"
 
 #: src/components/call/CallCard.tsx
 msgid "Transcript"
@@ -4802,6 +4866,10 @@ msgstr "Onde os bots devem ser executados?"
 #: src/lib/ticket-status.ts
 msgid "Won't do"
 msgstr ""
+
+#: src/pages/shell/bot-budget.tsx
+msgid "Worker ({amount})"
+msgstr "Trabalhador ({amount})"
 
 #: src/lib/roster-status.ts
 #: src/pages/Auth.tsx
