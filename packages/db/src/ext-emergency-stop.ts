@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
+import type { MessageBlock } from "@rakazo/contracts";
 import type { Prisma, PrismaClient } from "./client.js";
 import { appendEventInTransaction } from "./events.js";
+import { createThreadMessageInTransaction } from "./messages.js";
 import { withTransactionRetry } from "./transaction-retry.js";
 
 /**
@@ -106,8 +108,11 @@ const MAX_CACHED_SPACES = 1_000;
 
 /**
  * Reads active stops with a per-space cache (the key is the space id, so one
- * tenant's entry never answers for another). A failed read rejects instead of
- * reporting "running"; callers decide how to fail.
+ * tenant's entry never answers for another). The cache is trusted only to say
+ * "running": a cached stop is confirmed by a fresh read before `check` reports
+ * it, so a resume made by any process counts for every later action at once,
+ * while a stop still reaches every reader within the TTL. A failed read rejects
+ * instead of reporting "running"; callers decide how to fail.
  */
 export function createEmergencyStopReader(
   prisma: Pick<PrismaClient, "extControlStop">,
@@ -117,10 +122,9 @@ export function createEmergencyStopReader(
   const now = options.now ?? Date.now;
   const cache = new Map<string, { at: number; stops: Promise<ActiveStop[]> }>();
 
-  const activeStops = (spaceId: string): Promise<ActiveStop[]> => {
-    const cached = cache.get(spaceId);
+  /** Read from the database and remember the answer. */
+  const fetch = (spaceId: string): Promise<ActiveStop[]> => {
     const at = now();
-    if (cached && at - cached.at < ttlMs) return cached.stops;
     if (cache.size >= MAX_CACHED_SPACES) {
       for (const [key, entry] of cache) if (at - entry.at >= ttlMs) cache.delete(key);
       if (cache.size >= MAX_CACHED_SPACES) cache.clear();
@@ -141,10 +145,20 @@ export function createEmergencyStopReader(
     return stops;
   };
 
+  const cached = (spaceId: string): { stops: Promise<ActiveStop[]>; fresh: boolean } => {
+    const entry = cache.get(spaceId);
+    if (entry && now() - entry.at < ttlMs) return { stops: entry.stops, fresh: false };
+    return { stops: fetch(spaceId), fresh: true };
+  };
+
   return {
-    activeStops,
+    activeStops: (spaceId) => cached(spaceId).stops,
     async check(target) {
-      return resolveStop(await activeStops(target.spaceId), target);
+      const read = cached(target.spaceId);
+      const stop = resolveStop(await read.stops, target);
+      if (!stop || read.fresh) return stop;
+      // Only acted on once confirmed: the cached stop may have been resumed elsewhere.
+      return resolveStop(await fetch(target.spaceId), target);
     },
     invalidate(spaceId) {
       if (spaceId) cache.delete(spaceId);
@@ -276,6 +290,10 @@ export async function cancelRunsForStop(
     runIds?: readonly string[];
   },
   at: Date = new Date(),
+  options: {
+    /** A system note posted in each cancelled run's thread, in the same commit as the cancel. */
+    notice?: string;
+  } = {},
 ): Promise<CancelledRuns> {
   const where = {
     status: { in: [...filter.statuses] },
@@ -298,6 +316,7 @@ export async function cancelRunsForStop(
       batch.map((run) => run.id),
       filter.statuses,
       at,
+      options.notice,
     );
     runIds.push(...done.runIds);
     for (const { threadId, seq } of done.threads) {
@@ -314,6 +333,7 @@ async function cancelBatch(
   ids: string[],
   statuses: readonly string[],
   at: Date,
+  notice: string | undefined,
 ): Promise<CancelledRuns> {
   return withTransactionRetry(() =>
     prisma.$transaction(
@@ -336,6 +356,25 @@ async function cancelBatch(
         const latest = new Map<string, number>();
         // One lock order (thread id) so concurrent stops never deadlock on thread rows.
         for (const run of [...cancelled].sort((a, b) => a.threadId.localeCompare(b.threadId))) {
+          if (notice) {
+            // The reason commits with the cancellation: nobody sees one without the other.
+            const blocks: MessageBlock[] = [{ kind: "meta", text: notice }];
+            const message = await createThreadMessageInTransaction(tx, {
+              threadId: run.threadId,
+              role: "system",
+              blocks,
+              botId: run.botId,
+              clientNonce: `ext-stop-paused:${run.id}`,
+              markUnread: true,
+            });
+            await appendEventInTransaction(tx, {
+              spaceId: run.spaceId,
+              threadId: run.threadId,
+              botId: run.botId,
+              type: "thread.message.created",
+              payload: { messageId: message.id, role: "system", blocks },
+            });
+          }
           const event = await appendEventInTransaction(tx, {
             spaceId: run.spaceId,
             threadId: run.threadId,

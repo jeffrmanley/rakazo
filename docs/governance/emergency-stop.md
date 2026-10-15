@@ -53,6 +53,11 @@ stays as history. A check constraint enforces the scope shape.
 
 Each process reads active stops through a cache keyed by space with a one second TTL (one query
 per space per second at most, `WHERE resumedAt IS NULL AND (scope = 'global' OR spaceId = $1)`).
+The cache is trusted only to say "running": before anything acts on a stop (cancelling a run,
+the paused reply or note, holding a routine or a cloud agent, dropping a send, refusing a tool
+call), a cached stop is confirmed by a fresh read. A resume therefore counts at once in every
+process, while a stop reaches every process within the TTL. While a bot is stopped its checks
+read the database each time; that is one small indexed query, and a stopped bot does little.
 The process that writes a stop or resume drops its cache at once. Every live run watches the
 state once a second, so a stop written by the API reaches a run in the worker within about two
 seconds. The API also cancels the scope's runs that are not executing in the same request; the
@@ -166,8 +171,8 @@ With the audit log off, stops and resumes are not audited.
 - A tool call that is already executing is not interrupted; a long tool (a slow shell command)
   delays the halt of its run until it returns. Background work it launched is terminated with the
   computer pause.
-- Stop state is read through a one second cache, so a check in another process can be up to a
-  second stale; enforcement lands within about two seconds and well within five.
+- A stop is read through a one second cache, so another process can miss it for up to a second;
+  enforcement lands within about two seconds and well within five. A resume is never stale.
 - If the worker that holds a running run dies, the run is cancelled when its lease expires and
   the reconciler hands it to the run-start guard.
 - Pausing a computer relies on the idle sleep (`SANDBOX_IDLE_MS=0` disables it; then the computer

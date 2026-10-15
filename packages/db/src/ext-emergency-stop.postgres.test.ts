@@ -266,4 +266,40 @@ describePostgres("ext emergency stop (PostgreSQL)", () => {
     expect(transactions).toHaveLength(3);
     for (const options of transactions) expect(options.timeout).toBeGreaterThan(5_000);
   });
+
+  it("commits the paused notice with the cancellation, and only for runs it cancels", async () => {
+    const queued = await queueRun(owner, "queued");
+    const done = await queueRun(owner, "completed");
+    const cancelled = await cancelRunsForStop(
+      prisma,
+      { runIds: [queued.id, done.id], statuses: ["queued", "running"] },
+      new Date(),
+      { notice: "Paused by Dana at 2026-10-16 01:00 UTC" },
+    );
+    expect(cancelled.runIds).toEqual([queued.id]);
+    const notices = await prisma.message.findMany({
+      where: {
+        clientNonce: { in: [`ext-stop-paused:${queued.id}`, `ext-stop-paused:${done.id}`] },
+      },
+    });
+    expect(notices).toEqual([
+      expect.objectContaining({
+        role: "system",
+        threadId: owner.threadId,
+        clientNonce: `ext-stop-paused:${queued.id}`,
+        blocks: [{ kind: "meta", text: "Paused by Dana at 2026-10-16 01:00 UTC" }],
+      }),
+    ]);
+    // The note's event precedes the run's cancellation event in the same commit.
+    const events = await prisma.event.findMany({
+      where: { threadId: owner.threadId, seq: { lte: cancelled.threads[0]!.seq } },
+      orderBy: { seq: "desc" },
+      take: 2,
+      select: { type: true, runId: true },
+    });
+    expect(events).toEqual([
+      { type: "run.cancelled", runId: queued.id },
+      { type: "thread.message.created", runId: null },
+    ]);
+  });
 });

@@ -111,6 +111,28 @@ describe("createRunStopGuard", () => {
     guard.dispose();
   });
 
+  it("does not halt the run when the stop is lifted before the in-flight tool call ends", async () => {
+    vi.useFakeTimers();
+    const { reader, set } = fakeReader(null);
+    const onStop = vi.fn();
+    const guard = createRunStopGuard({ reader, target, onStop, intervalMs: 1_000 });
+    const gate = deferred<string>();
+    const call = guard.wrapTool(() => gate.promise)("shell", {}, "exec-1");
+    await vi.advanceTimersByTimeAsync(0);
+    set(active);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(guard.stopped).toBe(active);
+    // Resumed while the call was still running.
+    set(null);
+    gate.resolve("finished");
+    await expect(call).resolves.toBe("finished");
+    expect(onStop).not.toHaveBeenCalled();
+    expect(guard.stopped).toBeNull();
+    const next = vi.fn(async () => "ran");
+    await expect(guard.wrapTool(next)("shell", {}, "exec-2")).resolves.toBe("ran");
+    guard.dispose();
+  });
+
   it("checks again after each tool, before the next model call", async () => {
     const { reader, set } = fakeReader(null);
     const onStop = vi.fn();
