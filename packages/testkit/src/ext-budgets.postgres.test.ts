@@ -628,6 +628,48 @@ describeBudgets("fork extension: budgets end to end (Pi with priced usage)", () 
     }
   });
 
+  it("delivers the final answer of the call that crosses the cap, then the stop notice", async () => {
+    const env = await startPiApp([
+      {
+        expect: () => {},
+        usage: priced(1.5),
+        response: { type: "text", text: "Here is the answer you paid for." },
+      },
+    ]);
+    try {
+      const botId = await env.newBot("Answerer");
+      await env.handles.prisma.usageRecord.create({
+        data: {
+          spaceId: env.me.spaceId,
+          userId: env.me.userId,
+          botId,
+          provider: "fixture",
+          model: "fixture",
+          costUsd: 2,
+        },
+      });
+      const { runId } = await rpc<{ runId: string }>(env.handles.app, env.cookie, "threads/send", {
+        botId,
+        text: "Answer the question.",
+      });
+      await waitForRun(env.handles.prisma, runId);
+      expect(env.model.requests).toHaveLength(1);
+      const replies = await env.handles.prisma.message.findMany({
+        where: { runId, role: "bot" },
+        orderBy: { seq: "asc" },
+        select: { blocks: true },
+      });
+      const texts = replies.flatMap((reply) =>
+        (reply.blocks as Array<{ kind: string; text?: string }>)
+          .filter((block) => block.kind === "text")
+          .map((block) => block.text),
+      );
+      expect(texts).toEqual(["Here is the answer you paid for.", BUDGET_STOP_TEXT]);
+    } finally {
+      await env.stop();
+    }
+  });
+
   it("refuses delegations beyond fan-out and depth as tool errors and starts nothing", async () => {
     let targetId = "";
     const toolResult = (request: { messages: Array<{ role: string; content?: unknown }> }) => {

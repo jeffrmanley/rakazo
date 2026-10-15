@@ -12,6 +12,7 @@
  */
 import type { BackgroundJob, JobPublisher } from "@rakazo/adapter-kit";
 import { messagingDeliverJob, routineWakeupJob, runContinueJob } from "@rakazo/adapter-kit";
+import type { MessageBlock } from "@rakazo/contracts";
 import type { BudgetDefaults, BudgetNoticeKind } from "@rakazo/core";
 import {
   BUDGET_BLOCK_TEXT,
@@ -312,7 +313,8 @@ export async function budgetAfterModelCall(
 
 /**
  * Finishes a run halted by `budgetAfterModelCall`: the model call that crossed the cap
- * is kept, nothing further runs, and the run completes with a short stop notice.
+ * is kept (its answer is delivered), nothing further runs, and the run completes with a
+ * short stop notice after it.
  */
 export async function haltRunForBudget(
   deps: GuardDeps & { events: ThreadEvents },
@@ -322,9 +324,12 @@ export async function haltRunForBudget(
     workerId: string;
     fence: number;
     attemptId: string;
+    /** What the run produced before the halt (redacted); the user paid for it. */
+    produced?: MessageBlock[];
   },
 ): Promise<void> {
   const { run } = input;
+  const produced = input.produced ?? [];
   await recordBudgetBlock({
     spaceId: run.spaceId,
     botId: run.botId,
@@ -342,10 +347,21 @@ export async function haltRunForBudget(
     leaseOwner: input.workerId,
     leaseFence: input.fence,
     outcome: "completed",
-    blocks: isBackgroundRunTrigger(run.trigger) ? [] : [{ kind: "text", text: BUDGET_STOP_TEXT }],
+    blocks: isBackgroundRunTrigger(run.trigger)
+      ? []
+      : [...produced, { kind: "text", text: BUDGET_STOP_TEXT }],
     markUnread: true,
   });
-  if (finished) await afterBudgetFinish(deps, run, input.botName, BUDGET_STOP_TEXT, finished);
+  const answer = produced.flatMap((block) => (block.kind === "text" ? [block.text] : []));
+  if (finished) {
+    await afterBudgetFinish(
+      deps,
+      run,
+      input.botName,
+      [...answer, BUDGET_STOP_TEXT].join("\n\n"),
+      finished,
+    );
+  }
 }
 
 /** Marks a halt requested by `budgetAfterModelCall`, so the executor can tell it from a failure. */

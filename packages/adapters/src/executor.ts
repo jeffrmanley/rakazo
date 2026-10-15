@@ -7306,12 +7306,14 @@ export function createRunExecutor(deps: ExecutorDeps) {
             await workspaceCheckpoint.flush().catch(() => undefined);
           }
           if (budgetStop && !auditFailure) {
+            flushPendingTools();
             await haltRunForBudget(deps, {
               run,
               botName: bot.name,
               workerId,
               fence,
               attemptId: attempt.id,
+              produced: redactBlocks(messageSegments, runSecrets),
             });
             return;
           }
