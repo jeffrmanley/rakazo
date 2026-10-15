@@ -323,13 +323,17 @@ async function recordPolicyChange(
 
 /**
  * Server-side premium rule for model selection: with budgets on, a Fable or Mythos class
- * model can be chosen only for a bot marked premium.
+ * model can be chosen only for a bot marked premium (bot model, routine model, and the
+ * model a duplicate copies; a new bot starts without one).
  */
 export async function assertPremiumModelAllowed(
   prisma: PrismaClient,
-  input: { spaceId: string; botId: string; modelId: string | null | undefined },
+  /** botId null: a bot not created yet, which is never premium. */
+  input: { spaceId: string; botId: string | null; modelId: string | null | undefined },
 ): Promise<void> {
   if (!getBudgetPolicy() || !isPremiumModelId(input.modelId)) return;
-  const settings = await loadBotBudget(prisma, input);
-  if (!settings.premium) throw new ORPCError("BAD_REQUEST", { message: PREMIUM_MODEL_REFUSAL });
+  const premium = input.botId
+    ? (await loadBotBudget(prisma, { spaceId: input.spaceId, botId: input.botId })).premium
+    : false;
+  if (!premium) throw new ORPCError("BAD_REQUEST", { message: PREMIUM_MODEL_REFUSAL });
 }

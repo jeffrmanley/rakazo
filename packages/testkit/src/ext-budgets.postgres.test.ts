@@ -363,6 +363,20 @@ describeBudgets("fork extension: budgets end to end (scripted runtime)", () => {
     expect(alerts.map((row) => row.body)).toEqual(["This space has spent $400.00 this month."]);
   });
 
+  it("refuses to duplicate a bot onto a premium model the new bot may not use", async () => {
+    const owner = await newOwner("duplicate");
+    const botId = await newBot(owner, "Premium source");
+    await prisma.bot.update({
+      where: { id: botId },
+      data: { modelProvider: "anthropic", modelId: "claude-fable-5" },
+    });
+    const before = await prisma.bot.count({ where: { spaceId: owner.spaceId } });
+    await expect(rpc(app, owner.cookie, "bots/duplicate", { botId })).rejects.toThrow(
+      PREMIUM_MODEL_REFUSAL,
+    );
+    expect(await prisma.bot.count({ where: { spaceId: owner.spaceId } })).toBe(before);
+  });
+
   it("keeps each space's budgets private and ignores a spoofed spaceId", async () => {
     const a = await newOwner("tenant-a");
     const b = await newOwner("tenant-b");
