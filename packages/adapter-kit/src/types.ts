@@ -798,6 +798,26 @@ export interface MessagingOutboundStatus {
 
 export type MessagingInboundEvent = MessagingInboundMessage | MessagingOutboundStatus;
 
+/**
+ * A platform slash command (Slack `/stop`), verified by the same webhook
+ * checks as every other inbound event. Fork extension (emergency stop).
+ */
+export interface MessagingCommand {
+  provider: string;
+  /** Lowercase command with its slash, e.g. "/stop". */
+  command: string;
+  /** Argument text after the command; may be empty. */
+  text: string;
+  /** Sender address within the provider (Slack user id). */
+  from: string;
+  /** Conversation the command was typed in. */
+  threadId: string;
+  /** Per-invocation id (Slack trigger_id); a repeated delivery is dropped. */
+  handle: string;
+  /** Reply only the sender sees (Slack response_url, ephemeral). */
+  respond(body: string): Promise<void>;
+}
+
 export interface WebSearchCapabilities {
   search: boolean;
   /** True when results come from the active model’s native search, not a third-party API. */

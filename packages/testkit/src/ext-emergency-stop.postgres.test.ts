@@ -13,6 +13,7 @@ import {
   ComposioEmulator,
   FakeSandboxProvider,
   MessagingTeamChatEmulator,
+  SlackEmulator,
   TeamsEmulator,
 } from "@rakazo/adapters";
 import { loadExtEnv } from "@rakazo/core";
@@ -213,6 +214,21 @@ describeStop("fork extension: emergency stop through the API", () => {
 
   it("stops a bot: queued runs are cancelled, new runs never execute, routines hold, events are audited", async () => {
     const queued = await queueRun(prisma, alice);
+    const aliceThread = await prisma.thread.findUniqueOrThrow({ where: { botId: alice } });
+    const cloudAgent = await prisma.cloudAgent.create({
+      data: {
+        operationKey: `stop-cloud-${stamp}`,
+        providerKey: "emulator",
+        spaceId: users.ownerA.spaceId,
+        userId: users.ownerA.userId,
+        botId: alice,
+        threadId: aliceThread.id,
+        title: "Running cloud agent",
+        launchRequest: {},
+        remoteId: "remote-1",
+        nextPollAt: null,
+      },
+    });
     const res = await post(app, users.ownerA.cookie, STOP, {
       scope: "bot",
       botId: alice,
@@ -226,6 +242,11 @@ describeStop("fork extension: emergency stop through the API", () => {
     expect(body.stop).toMatchObject({ scope: "bot", botId: alice });
     expect(body.error_id).toBeUndefined();
     await expect(runStatus(prisma, queued)).resolves.toBe("cancelled");
+    // The bot's running cloud agent is asked to cancel (its poll job does the remote cancel).
+    expect(
+      await prisma.cloudAgent.findUniqueOrThrow({ where: { id: cloudAgent.id } }),
+    ).toMatchObject({ cancelRequested: true });
+    await prisma.cloudAgent.delete({ where: { id: cloudAgent.id } });
     expect(await prisma.event.count({ where: { runId: queued, type: "run.cancelled" } })).toBe(1);
     // Bob in space B keeps running.
     await expect(
@@ -239,6 +260,20 @@ describeStop("fork extension: emergency stop through the API", () => {
     });
     await expect.poll(() => runStatus(prisma, sent.runId), { timeout: 5_000 }).toBe("cancelled");
     expect(await prisma.message.count({ where: { runId: sent.runId, role: "bot" } })).toBe(0);
+    // The sender sees why in the thread, like a chat sender gets the paused reply.
+    const notice = await prisma.message.findFirstOrThrow({
+      where: {
+        threadId: aliceThread.id,
+        role: "system",
+        clientNonce: `ext-stop-paused:${sent.runId}`,
+      },
+    });
+    expect(notice.blocks).toEqual([
+      {
+        kind: "meta",
+        text: expect.stringMatching(/^Paused by Ada Owner at \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/),
+      },
+    ]);
 
     // A due routine does not start; its next occurrence is scheduled instead.
     const thread = await prisma.thread.findUniqueOrThrow({ where: { botId: alice } });
@@ -757,6 +792,30 @@ describeStop("fork extension: emergency stop from Slack and Teams", () => {
     ).toBe(4);
   });
 
+  it("takes /stop typed as plain text in a Teams 1:1 chat", async () => {
+    teams.resetWitnesses();
+    await app.request(
+      teams.buildInboundRequest({
+        conversationType: "personal",
+        conversationId: `a:stop-personal-${stamp}`,
+        from: ownerTeams,
+        text: "/stop",
+      }),
+    );
+    await waitForSent(teams.sent, (post) => post.text === "Stopped every bot in this space.");
+    expect(await stops()).toEqual([expect.objectContaining({ scope: "space" })]);
+    await app.request(
+      teams.buildInboundRequest({
+        conversationType: "personal",
+        conversationId: `a:stop-personal-${stamp}`,
+        from: ownerTeams,
+        text: "/resume",
+      }),
+    );
+    await waitForSent(teams.sent, (post) => post.text === "Resumed this space.");
+    expect(await stops()).toEqual([]);
+  });
+
   it("treats /stop as ordinary text when EXT_EMERGENCY_STOP is off", async () => {
     await handles.stop();
     await boot({ ...loadExtEnv({}), auditLog: true });
@@ -775,6 +834,160 @@ describeStop("fork extension: emergency stop from Slack and Teams", () => {
     await waitFor(() => prisma.externalMessage.findFirst({ where: { providerEventId: handle } }));
     expect(await stops()).toEqual([]);
     expect(slack.sent.some((post) => post.body.startsWith("Stopped"))).toBe(false);
+  });
+});
+
+describeStop("fork extension: emergency stop from Slack slash commands", () => {
+  const stamp = randomInt(1_000_000_000);
+  const slack = new SlackEmulator();
+  let handles: Handles;
+  let app: App;
+  let prisma: PrismaClient;
+  let owner: { userId: string; spaceId: string; botId: string };
+  const ownerSlack = `U-SLASH-OWNER-${stamp}`;
+  const memberSlack = `U-SLASH-MEMBER-${stamp}`;
+
+  const boot = async (ext = extOn) => {
+    const { createApp } = await import("../../../apps/api/src/app.ts");
+    handles = await createApp({
+      databaseUrl: process.env.DATABASE_URL!,
+      dataDir: mkdtempSync(path.join(tmpdir(), "rakazo-stop-slash-")),
+      sandboxProvider: "fake",
+      agentRuntime: "scripted",
+      teamChatBotId: owner.botId,
+      messaging: new ChatSdkMessagingSurface([slack.createPlatform()]),
+      ext,
+    });
+    app = handles.app;
+    prisma = handles.prisma;
+  };
+
+  beforeAll(async () => {
+    const { createDb } = await import("@rakazo/db");
+    const seed = createDb(process.env.DATABASE_URL!);
+    const policy = { signupsEnabled: "true", signupAllowlist: "" };
+    const seeded = await provisionMessagingIdentity(
+      seed.prisma,
+      { provider: "seed-slash", address: `owner-${stamp}`, displayName: "Sol Owner" },
+      policy,
+    );
+    owner = { userId: seeded.userId, spaceId: seeded.spaceId, botId: seeded.botId };
+    await seed.prisma.bot.update({ where: { id: owner.botId }, data: { name: "Crew" } });
+    const plain = await provisionMessagingIdentity(
+      seed.prisma,
+      { provider: "seed-slash", address: `member-${stamp}`, displayName: "Plain Member" },
+      policy,
+    );
+    const space = await seed.prisma.space.findUniqueOrThrow({
+      where: { id: owner.spaceId },
+      select: { organizationId: true },
+    });
+    // A database trigger adds the matching space membership.
+    await seed.prisma.member.create({
+      data: {
+        id: randomUUID(),
+        organizationId: space.organizationId,
+        userId: plain.userId,
+        role: "member",
+        createdAt: new Date(),
+      },
+    });
+    await seed.prisma.messagingIdentity.createMany({
+      data: [
+        { provider: "slack", address: ownerSlack, ...owner },
+        {
+          provider: "slack",
+          address: memberSlack,
+          userId: plain.userId,
+          spaceId: owner.spaceId,
+          botId: owner.botId,
+        },
+      ],
+    });
+    await seed.prisma.$disconnect();
+    await seed.pool.end();
+    await boot();
+  });
+
+  afterAll(async () => {
+    await prisma?.extControlStop.updateMany({
+      where: { spaceId: owner.spaceId, resumedAt: null },
+      data: { resumedAt: new Date(), resumedBy: "test-cleanup" },
+    });
+    await handles?.stop();
+  });
+
+  const stops = () =>
+    prisma.extControlStop.findMany({ where: { spaceId: owner.spaceId, resumedAt: null } });
+  const slash = (command: string, text: string, userId: string, triggerId = randomUUID()) =>
+    app.request(
+      slack.buildCommandRequest({ command, text, userId, channelId: `C${stamp}`, triggerId }),
+    );
+  const reply = (text: string) =>
+    waitFor(async () => slack.responses.find((response) => response.text === text));
+
+  it("lets an owner stop and resume a bot with signed /stop and /resume", async () => {
+    const res = await slash("/stop", "crew", ownerSlack);
+    expect(res.status).toBe(200);
+    const stopped = await reply("Stopped Crew.");
+    expect(stopped.responseType).toBe("ephemeral");
+    expect(await stops()).toEqual([
+      expect.objectContaining({ scope: "bot", botId: owner.botId, stoppedBy: owner.userId }),
+    ]);
+    const audit = await waitFor(() =>
+      prisma.extAuditEvent.findFirst({
+        where: { spaceId: owner.spaceId, kind: "control.stop", actorId: owner.userId },
+      }),
+    );
+    expect(audit.summary).toContain("/stop from slack");
+
+    await slash("/resume", "Crew", ownerSlack);
+    await reply("Resumed Crew.");
+    expect(await stops()).toEqual([]);
+    await waitFor(() =>
+      prisma.extAuditEvent.findFirst({
+        where: { spaceId: owner.spaceId, kind: "control.resume", actorId: owner.userId },
+      }),
+    );
+  });
+
+  it("refuses a non-owner's /stop and changes nothing", async () => {
+    slack.responses.length = 0;
+    await slash("/stop", "", memberSlack);
+    await reply("Only an owner of this space can do that.");
+    await slash("/stop", "", `U-SLASH-STRANGER-${stamp}`);
+    await waitFor(async () => slack.responses.length >= 2);
+    expect(slack.responses[1]!.text).toBe("Only an owner of this space can do that.");
+    expect(await stops()).toEqual([]);
+  });
+
+  it("rejects unsigned and replayed commands with 401 before anything runs", async () => {
+    slack.responses.length = 0;
+    const body = { command: "/stop", text: "", userId: ownerSlack, channelId: `C${stamp}` };
+    const unsigned = await app.request(slack.buildCommandRequest(body, { sign: false }));
+    expect(unsigned.status).toBe(401);
+    const forged = await app.request(
+      slack.buildCommandRequest(body, { signingSecret: "guessed-secret" }),
+    );
+    expect(forged.status).toBe(401);
+    // A captured request replayed after Slack's five-minute window.
+    const replayed = await app.request(
+      slack.buildCommandRequest(body, { timestamp: Math.floor(Date.now() / 1000) - 600 }),
+    );
+    expect(replayed.status).toBe(401);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(slack.responses).toEqual([]);
+    expect(await stops()).toEqual([]);
+  });
+
+  it("answers that the command is unavailable when EXT_EMERGENCY_STOP is off", async () => {
+    await handles.stop();
+    await boot({ ...loadExtEnv({}), auditLog: true });
+    slack.responses.length = 0;
+    expect((await slash("/stop", "", ownerSlack)).status).toBe(200);
+    await reply("This command is not available.");
+    expect(await stops()).toEqual([]);
+    expect(await prisma.run.count({ where: { botId: owner.botId, status: "queued" } })).toBe(0);
   });
 });
 

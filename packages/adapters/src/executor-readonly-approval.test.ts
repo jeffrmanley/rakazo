@@ -7,7 +7,8 @@ import type {
 import { MEMORY_REVISION_CONFLICT_ERROR } from "@rakazo/adapter-kit";
 import type { ActionApprovalRule } from "@rakazo/core";
 import { approvalEffectKey, toolEffectIdempotencyKey } from "@rakazo/core/node/approval-effect-key";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { installEmergencyStop } from "@rakazo/db";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isApprovalPausedResult } from "./approval-effect.js";
 import { MAX_SHARED_MEMORY_CHARS } from "./builtin-tools.js";
 import type * as ComputerLifecycleModule from "./computer-lifecycle.js";
@@ -61,7 +62,10 @@ function fixture({
   disabledBuiltinTools = [],
   existingSharedMemory,
   advanceRevisionAfterRead = false,
+  onRules,
 }: {
+  /** Called when the approval rules are read, i.e. after the tool call has started. */
+  onRules?: () => void;
   builtin?: boolean;
   disabledBuiltinTools?: string[];
   existingSharedMemory?: string;
@@ -207,7 +211,12 @@ function fixture({
     botSecret: { findMany: vi.fn(async () => []) },
     agentSkill: { findMany: vi.fn(async () => []) },
     scratchpadItem: { findMany: vi.fn(async () => []) },
-    actionApprovalRule: { findMany: vi.fn(async () => rules) },
+    actionApprovalRule: {
+      findMany: vi.fn(async () => {
+        onRules?.();
+        return rules;
+      }),
+    },
     actionAutoReviewPreference: { findUnique: vi.fn(async () => ({ enabled: autoReview })) },
     externalEffect,
   };
@@ -693,5 +702,70 @@ describe("connector read-only metadata and approval enforcement", () => {
       expect(f.execute).not.toHaveBeenCalled();
       expect(f.pauseRunForInput).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("emergency stop during review and approval", () => {
+  let stopped = false;
+  beforeEach(() => {
+    reviewMock.mockReset();
+    stopped = false;
+    installEmergencyStop({
+      check: async () =>
+        stopped
+          ? {
+              id: "stop-1",
+              scope: "bot",
+              spaceId: "space-1",
+              botId: "bot-1",
+              reason: "r",
+              stoppedBy: "user-1",
+              stoppedAt: new Date(),
+            }
+          : null,
+      activeStops: async () => [],
+      invalidate: () => undefined,
+    });
+  });
+  afterEach(() => installEmergencyStop(null));
+
+  it("does not run the side effect when the stop lands while the reviewer is judging", async () => {
+    reviewMock.mockImplementation(async () => {
+      stopped = true;
+      return { decision: "pass", model: "mock" };
+    });
+    const f = fixture({ name: "demo_send_message", autoReview: true });
+    await f.run();
+    expect(reviewMock).toHaveBeenCalledOnce();
+    expect(f.execute).not.toHaveBeenCalled();
+    expect(f.pauseRunForInput).not.toHaveBeenCalled();
+  });
+
+  it("does not ask the owner for approval once the bot is stopped", async () => {
+    reviewMock.mockImplementation(async () => {
+      stopped = true;
+      return { decision: "ask", reason: "Writes data", model: "mock" };
+    });
+    const f = fixture({ name: "demo_send_message", autoReview: true });
+    await f.run();
+    expect(f.pauseRunForInput).not.toHaveBeenCalled();
+    expect(f.execute).not.toHaveBeenCalled();
+  });
+
+  it("does not run a call that needs no approval when the stop lands during gating", async () => {
+    const f = fixture({
+      onRules: () => {
+        stopped = true;
+      },
+    });
+    await f.run();
+    expect(f.execute).not.toHaveBeenCalled();
+  });
+
+  it("still runs the call when nothing is stopped", async () => {
+    reviewMock.mockResolvedValue({ decision: "pass", model: "mock" });
+    const f = fixture({ name: "demo_send_message", autoReview: true });
+    await f.run();
+    expect(f.execute).toHaveBeenCalledOnce();
   });
 });

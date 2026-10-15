@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type { AdapterContext, BackgroundJob, JobPublisher } from "@rakazo/adapter-kit";
-import { clearThread, createDb, type PrismaClient } from "@rakazo/db";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { clearThread, createDb, installEmergencyStop, type PrismaClient } from "@rakazo/db";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { CloudAgentConnection } from "./cloud-agent-factory.js";
 import { pollCloudAgent } from "./cloud-agent-poll.js";
 import { executeCloudAgentTool, reconcileCloudAgents } from "./cloud-agent-service.js";
 import { CursorCloudAgentProvider } from "./cursor-cloud-agent.js";
+import { requestCloudAgentCancellation } from "./ext-emergency-stop.js";
 import { createJobReconciler } from "./job-reconciler.js";
 import { CursorCloudAgentEmulator } from "./testing/cursor-cloud-agent-emulator.js";
 
@@ -469,5 +470,92 @@ describePostgres("cloud agent lifecycle and recovery (PostgreSQL + Cursor emulat
     expect(await h.state(id)).toMatchObject({ status: "failed", nextPollAt: null });
     expect(await h.wakes()).toHaveLength(1);
     expect(h.wire.ids.size).toBe(0);
+  });
+
+  describe("emergency stop", () => {
+    const stopFor = (h: { id: string; bot: { id: string } }) => ({
+      id: `stop-${h.id}`,
+      scope: "bot" as const,
+      spaceId: h.id,
+      botId: h.bot.id,
+      reason: "test",
+      stoppedBy: h.id,
+      stoppedAt: new Date(),
+    });
+    const installStopped = (stops: ReturnType<typeof stopFor>[]) =>
+      installEmergencyStop({
+        check: async (target) =>
+          stops.find((stop) => stop.spaceId === target.spaceId && stop.botId === target.botId) ??
+          null,
+        activeStops: async () => stops,
+        invalidate: () => undefined,
+      });
+    afterEach(() => installEmergencyStop(null));
+
+    it("holds a persisted launch while the bot is stopped and dispatches it after resume", async () => {
+      const h = await setup();
+      const id = await h.launch();
+      installStopped([stopFor(h)]);
+      await h.poll(id);
+      expect(h.wire.requests).toHaveLength(0);
+      const held = await h.state(id);
+      expect(held).toMatchObject({ remoteId: null, launchDispatched: false, status: "running" });
+      expect(held.nextPollAt!.getTime()).toBeGreaterThan(Date.now());
+      expect(h.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "cloud_agent.poll", payload: { agentId: id } }),
+      );
+      installEmergencyStop(null);
+      await prisma.cloudAgent.update({ where: { id }, data: { nextPollAt: new Date() } });
+      await h.poll(id);
+      expect((await h.state(id)).remoteId).toBeTruthy();
+    });
+
+    it("holds a follow-up reply while the bot is stopped", async () => {
+      const h = await setup();
+      const id = await h.launch();
+      await h.poll(id);
+      await h.finish(id);
+      await h.tool("reply", { id, prompt: "Add tests" });
+      const before = h.wire.requests.length;
+      installStopped([stopFor(h)]);
+      await h.poll(id);
+      expect(h.wire.requests).toHaveLength(before);
+      expect(await h.state(id)).toMatchObject({ followupDispatching: false });
+    });
+
+    it("requests cancellation of the scope's running agents and leaves other bots alone", async () => {
+      const running = await setup();
+      const runningId = await running.launch();
+      await running.poll(runningId);
+      const pending = await setup();
+      const pendingId = await pending.launch();
+      const other = await setup();
+      const otherId = await other.launch();
+      await other.poll(otherId);
+
+      for (const h of [running, pending]) {
+        await requestCloudAgentCancellation(h.deps, {
+          scope: "bot",
+          spaceId: h.id,
+          botId: h.bot.id,
+        });
+      }
+      expect(await running.state(runningId)).toMatchObject({ cancelRequested: true });
+      expect(await pending.state(pendingId)).toMatchObject({ cancelRequested: true });
+      expect(await other.state(otherId)).toMatchObject({ cancelRequested: false });
+      expect(running.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "cloud_agent.poll", payload: { agentId: runningId } }),
+      );
+
+      // Cancelling is allowed while stopped: the remote run is cancelled, the
+      // never-dispatched launch is cancelled locally without any request.
+      installStopped([stopFor(running), stopFor(pending)]);
+      await running.poll(runningId);
+      expect((await running.state(runningId)).status).toBe("cancelled");
+      expect(running.wire.requests.some((request) => request.path.endsWith("/cancel"))).toBe(true);
+      await pending.poll(pendingId);
+      expect((await pending.state(pendingId)).status).toBe("cancelled");
+      expect(pending.wire.requests).toHaveLength(0);
+    });
   });
 });

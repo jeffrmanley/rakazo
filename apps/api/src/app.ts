@@ -66,6 +66,7 @@ import {
   reconcileCloudAgents,
   reconcileComputerUpdates,
   removePiUserSessions,
+  requestCloudAgentCancellation,
   ScriptedAgentRuntime,
   SmtpEmailProvider,
   SpaceMemoryProviderResolver,
@@ -718,6 +719,7 @@ export async function createApp(
         events,
         pauseComputers: (target, runIds) =>
           pauseStoppedComputers({ prisma, sandbox, jobs }, target, runIds),
+        cancelCloudAgents: (target) => requestCloudAgentCancellation({ prisma, jobs }, target),
       })
     : undefined;
   if (controlService)
@@ -976,6 +978,15 @@ export async function createApp(
               prefersTeamChatSurface(event, env.teamChatBotId) ? (env.teamChatBotId ?? null) : null,
           })
         : undefined;
+    // Fork extension: Slack slash commands arrive on the same signed webhook. With the
+    // module off they change nothing and say so, rather than failing silently.
+    messaging.onCommand?.(["/stop", "/resume"], async (command) => {
+      if (!chatControl) {
+        await command.respond("This command is not available.");
+        return;
+      }
+      await chatControl.handleCommand(command);
+    });
     const inboundSink = async (event: MessagingInboundEvent) => {
       if (event.type !== "message") {
         await applyMessagingOutboundStatus(prisma, event);

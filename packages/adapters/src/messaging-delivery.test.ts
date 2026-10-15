@@ -1098,6 +1098,35 @@ describe("deliverMessagingOutbound with the emergency stop on", () => {
     );
   });
 
+  it("drops a stopped bot's agent-connection invite", async () => {
+    const stop = reader(stopped);
+    installEmergencyStop(stop);
+    const deps = createDeps({
+      outboundRows: [
+        {
+          id: "out-connect",
+          idempotencyKey: "connect:bot-1:bot-2",
+          kind: "dm",
+          identityId: "mi-1",
+          body: "Connect?",
+          status: "pending",
+          sourceMessageId: null,
+        },
+      ],
+    });
+    Object.assign(deps.prisma.bot, {
+      findUnique: vi.fn(async () => ({
+        id: "bot-1",
+        spaceId: "ws-1",
+        homeMessagingIdentityId: null,
+      })),
+    });
+    await deliverMessagingOutbound(deps, {}, context);
+    expect(stop.check).toHaveBeenCalledWith({ spaceId: "ws-1", botId: "bot-1" });
+    expect(deps.rows[0]?.status).toBe("failed");
+    expect(deps.sendToThread).not.toHaveBeenCalled();
+  });
+
   it("sends normally while the bot runs", async () => {
     installEmergencyStop(reader(null));
     const deps = createDeps({ run: { ...messagingRun, spaceId: "ws-1" } });

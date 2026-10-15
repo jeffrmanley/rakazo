@@ -4,6 +4,7 @@ import type {
   AdapterContext,
   AdapterDescriptor,
   MessagingCapabilities,
+  MessagingCommand,
   MessagingInboundEvent,
   MessagingInboundMessage,
   MessagingOutboundStatus,
@@ -12,7 +13,8 @@ import type {
   MessagingSendResult,
   MessagingSurface,
 } from "@rakazo/adapter-kit";
-import type { Adapter, Message, Thread } from "chat";
+import { getLogger } from "@rakazo/logging";
+import type { Adapter, Message, SlashCommandEvent, Thread } from "chat";
 import { Chat } from "chat";
 
 /** Per-webhook drain of Chat SDK waitUntil work + inbound sink failures. */
@@ -51,7 +53,13 @@ export interface MessagingPlatform {
     raw: unknown,
     base: MessagingInboundMessage,
   ) => Partial<MessagingInboundMessage>;
+  /** Reply only the sender of a slash command sees (Slack response_url). */
+  respondToCommand?: (raw: unknown, body: string) => Promise<void>;
 }
+
+/** How long a slash command's per-invocation id is remembered to drop a repeated delivery. */
+const COMMAND_DEDUPE_MS = 10 * 60_000;
+const COMMAND_DEDUPE_MAX = 10_000;
 
 /**
  * MessagingSurface over the Chat SDK (github.com/vercel/chat): one bot
@@ -64,6 +72,8 @@ export class ChatSdkMessagingSurface implements MessagingSurface {
   private readonly byProvider = new Map<string, MessagingPlatform>();
   private sink: ((event: MessagingInboundEvent) => Promise<void>) | undefined;
   private initialized: Promise<void> | undefined;
+  private readonly seenCommands = new Map<string, number>();
+  private readonly pendingCommands = new Set<Promise<void>>();
 
   constructor(platforms: MessagingPlatform[], options: { userName?: string } = {}) {
     if (platforms.length === 0) throw new Error("ChatSdkMessagingSurface needs >=1 platform");
@@ -122,6 +132,27 @@ export class ChatSdkMessagingSurface implements MessagingSurface {
 
   onInbound(sink: (event: MessagingInboundEvent) => Promise<void>): void {
     this.sink = sink;
+  }
+
+  onCommand(commands: string[], handler: (command: MessagingCommand) => Promise<void>): void {
+    this.chat.onSlashCommand(
+      commands.map((command) => command.toLowerCase()),
+      (event: SlashCommandEvent) => {
+        const command = this.toCommand(event);
+        if (!command || this.isRepeatedCommand(command)) return;
+        // Acknowledge the webhook now (Slack allows three seconds); the
+        // handler replies through the command's own response channel.
+        const task = handler(command)
+          .catch((error) => getLogger().error("slash command handler failed", error))
+          .finally(() => this.pendingCommands.delete(task));
+        this.pendingCommands.add(task);
+      },
+    );
+  }
+
+  /** Wait for slash command handlers still running (tests and shutdown). */
+  async drainCommands(): Promise<void> {
+    while (this.pendingCommands.size > 0) await Promise.all([...this.pendingCommands]);
   }
 
   handleWebhook(provider: string, request: Request): Promise<Response> | null {
@@ -188,6 +219,7 @@ export class ChatSdkMessagingSurface implements MessagingSurface {
     const pending = this.initialized;
     this.initialized = undefined;
     if (pending) await pending.catch(() => undefined);
+    await this.drainCommands();
     await this.stopPollingAdapters();
     const chat = this.chat as { shutdown?: () => Promise<void> };
     await chat.shutdown?.().catch(() => undefined);
@@ -259,6 +291,44 @@ export class ChatSdkMessagingSurface implements MessagingSurface {
       if (status) await this.sink?.(status);
     }
     return response;
+  }
+
+  private toCommand(event: SlashCommandEvent): MessagingCommand | null {
+    const platform = [...this.byProvider.values()].find((p) => p.adapter === event.adapter);
+    if (!platform || event.user.isBot || event.user.isMe) return null;
+    const provider = platform.provider;
+    const raw = event.raw as Record<string, unknown> | null;
+    const triggerId = typeof raw?.trigger_id === "string" ? raw.trigger_id : "";
+    return {
+      provider,
+      command: event.command.toLowerCase(),
+      text: event.text ?? "",
+      from: event.user.userId,
+      threadId: event.channel.id,
+      handle: triggerId || `${event.user.userId}:${event.command}:${event.text}:${Date.now()}`,
+      respond: async (body) => {
+        if (platform.respondToCommand) {
+          await platform.respondToCommand(event.raw, body);
+          return;
+        }
+        await event.channel.postEphemeral(event.user, { markdown: body }, { fallbackToDM: true });
+      },
+    };
+  }
+
+  private isRepeatedCommand(command: MessagingCommand): boolean {
+    const now = Date.now();
+    const key = `${command.provider}:${command.handle}`;
+    if (this.seenCommands.size >= COMMAND_DEDUPE_MAX) {
+      for (const [seen, at] of this.seenCommands) {
+        if (now - at > COMMAND_DEDUPE_MS) this.seenCommands.delete(seen);
+      }
+      if (this.seenCommands.size >= COMMAND_DEDUPE_MAX) this.seenCommands.clear();
+    }
+    const previous = this.seenCommands.get(key);
+    if (previous !== undefined && now - previous <= COMMAND_DEDUPE_MS) return true;
+    this.seenCommands.set(key, now);
+    return false;
   }
 
   private toInbound(thread: Thread, message: Message): MessagingInboundMessage | null {

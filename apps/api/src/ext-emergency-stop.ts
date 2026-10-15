@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type { MessagingInboundMessage, MessagingSurface } from "@rakazo/adapter-kit";
+import type {
+  MessagingCommand,
+  MessagingInboundMessage,
+  MessagingSurface,
+} from "@rakazo/adapter-kit";
 import { notifyStoppedThreads, toTeamChatInbound } from "@rakazo/adapters";
 import type { Actor } from "@rakazo/contracts";
 import {
@@ -92,7 +96,15 @@ export class ControlError extends Error {
 
 type ControlPrisma = Pick<
   PrismaClient,
-  "$transaction" | "spaceMember" | "bot" | "user" | "messagingIdentity" | "deploymentSettings"
+  | "$transaction"
+  | "spaceMember"
+  | "bot"
+  | "user"
+  | "run"
+  | "messagingIdentity"
+  | "messagingChannelMember"
+  | "agentConnection"
+  | "deploymentSettings"
 >;
 
 function deny(principal: ControlPrincipal, scope: ControlScope, reason: string): ControlError {
@@ -220,6 +232,8 @@ export function createControlService(deps: {
   events: Pick<ThreadEvents, "notify">;
   /** Best-effort: pause (not destroy) the scope's computers. */
   pauseComputers?: (target: StopTarget, runIds: string[]) => Promise<void>;
+  /** Best-effort: ask the scope's running cloud agents to cancel. */
+  cancelCloudAgents?: (target: StopTarget) => Promise<unknown>;
 }): ControlService {
   const { prisma, reader } = deps;
   const forget = (target: StopTarget) => reader.invalidate(target.spaceId ?? undefined);
@@ -286,6 +300,9 @@ export function createControlService(deps: {
           });
         }
       }
+      await deps
+        .cancelCloudAgents?.(target)
+        .catch((error) => getLogger().error("emergency stop could not cancel cloud agents", error));
       // Running runs pause their own computer once their in-flight tool call is done.
       await deps
         .pauseComputers?.(target, cancelledRunIds)
@@ -416,7 +433,11 @@ export function createChatControl(deps: {
   messaging: Pick<MessagingSurface, "sendToThread">;
   /** The team-chat bot this message reaches when it rides the team-chat path, else null. */
   teamChatBotFor: (event: MessagingInboundMessage) => string | null;
-}): { intercept(event: MessagingInboundMessage): Promise<boolean> } {
+}): {
+  intercept(event: MessagingInboundMessage): Promise<boolean>;
+  /** A platform slash command (/stop, /resume); replies go only to the sender. */
+  handleCommand(command: MessagingCommand): Promise<void>;
+} {
   const { prisma, reader, service } = deps;
 
   const reply = async (event: MessagingInboundMessage, body: string) => {
@@ -441,11 +462,37 @@ export function createChatControl(deps: {
     }
   };
 
-  const linkedIdentity = (event: MessagingInboundMessage) =>
+  const linkedIdentity = (sender: { provider: string; from: string }) =>
     prisma.messagingIdentity.findUnique({
-      where: { provider_address: { provider: event.provider, address: event.from } },
-      select: { userId: true, spaceId: true, botId: true },
+      where: { provider_address: { provider: sender.provider, address: sender.from } },
+      select: { id: true, userId: true, spaceId: true, botId: true },
     });
+
+  /** Mirrors messaging-inbound's owner commands: is there an invite or connection to answer? */
+  const ownerCommandPending = async (
+    identity: { id: string; botId: string },
+    command: NonNullable<ReturnType<typeof parseMessagingCommand>>,
+  ): Promise<boolean> => {
+    if (command === "leave") {
+      return Boolean(
+        await prisma.messagingChannelMember.findFirst({
+          where: { identityId: identity.id, status: "approved" },
+          select: { id: true },
+        }),
+      );
+    }
+    const [invite, connection] = await Promise.all([
+      prisma.messagingChannelMember.findFirst({
+        where: { identityId: identity.id, status: "invited" },
+        select: { id: true },
+      }),
+      prisma.agentConnection.findFirst({
+        where: { targetBotId: identity.botId, status: "pending" },
+        select: { id: true },
+      }),
+    ]);
+    return Boolean(invite || connection);
+  };
 
   const replyPaused = async (event: MessagingInboundMessage, stop: ActiveStop) => {
     const user = await prisma.user.findUnique({
@@ -455,16 +502,18 @@ export function createChatControl(deps: {
     await reply(event, formatPausedReply({ name: user?.name ?? "", at: stop.stoppedAt }));
   };
 
+  /** Shared by typed commands and platform slash commands; `answer` replies to the sender. */
   const runCommand = async (
-    event: MessagingInboundMessage,
+    sender: { provider: string; from: string },
     command: NonNullable<ReturnType<typeof parseControlCommand>>,
+    answer: (body: string) => Promise<void>,
   ) => {
-    const identity = await linkedIdentity(event);
+    const identity = await linkedIdentity(sender);
     if (!identity) {
       getLogger().warn("emergency stop chat command from an unlinked sender", {
-        "messaging.provider": event.provider,
+        "messaging.provider": sender.provider,
       });
-      await reply(event, REFUSAL);
+      await answer(REFUSAL);
       return;
     }
     const settings = await prisma.deploymentSettings.findUnique({
@@ -480,7 +529,7 @@ export function createChatControl(deps: {
       await authorizeControl(prisma, principal, command.botName ? "bot" : "space");
     } catch (error) {
       if (!(error instanceof ControlError)) throw error;
-      await reply(event, REFUSAL);
+      await answer(REFUSAL);
       return;
     }
     let bot: { id: string; name: string } | null = null;
@@ -495,23 +544,22 @@ export function createChatControl(deps: {
         orderBy: { createdAt: "asc" },
       });
       if (!bot) {
-        await reply(event, `No bot named "${sanitizeMessagingLabel(command.botName)}" here.`);
+        await answer(`No bot named "${sanitizeMessagingLabel(command.botName)}" here.`);
         return;
       }
     }
-    const reason = `/${command.action} from ${event.provider}`;
+    const reason = `/${command.action} from ${sender.provider}`;
     const request: ControlRequest = bot
       ? { scope: "bot", botId: bot.id, reason }
       : { scope: "space", reason };
     try {
       if (command.action === "stop") {
         await service.stop(principal, request);
-        await reply(event, bot ? `Stopped ${bot.name}.` : "Stopped every bot in this space.");
+        await answer(bot ? `Stopped ${bot.name}.` : "Stopped every bot in this space.");
         return;
       }
       const { resumed } = await service.resume(principal, request);
-      await reply(
-        event,
+      await answer(
         resumed
           ? bot
             ? `Resumed ${bot.name}.`
@@ -522,14 +570,14 @@ export function createChatControl(deps: {
       );
     } catch (error) {
       if (error instanceof ControlError) {
-        await reply(event, error.status === 403 ? REFUSAL : "Not found.");
+        await answer(error.status === 403 ? REFUSAL : "Not found.");
         return;
       }
       const errorId = error instanceof AuditWriteError ? error.errorRef : randomUUID();
       if (!(error instanceof AuditWriteError)) {
         getLogger().error("emergency stop chat command failed", error, { "error.id": errorId });
       }
-      await reply(event, `Internal error (error_id: ${errorId})`);
+      await answer(`Internal error (error_id: ${errorId})`);
     }
   };
 
@@ -550,12 +598,13 @@ export function createChatControl(deps: {
     }
     // Personal-line groups fan out per member; stopped bots sit out there (messaging-inbound).
     if (!event.isDirect) return false;
-    // Owner YES/NO/LEAVE answers are not messages to the bot and never start a run.
-    if (parseMessagingCommand(event.content)) return false;
     const identity = await linkedIdentity(event);
     if (!identity) return false;
     const stop = await reader.check({ spaceId: identity.spaceId, botId: identity.botId });
     if (!stop) return false;
+    // An owner YES/NO/LEAVE that answers something pending is not a message to the bot.
+    const ownerCommand = parseMessagingCommand(event.content);
+    if (ownerCommand && (await ownerCommandPending(identity, ownerCommand))) return false;
     await replyPaused(event, stop);
     return true;
   };
@@ -564,11 +613,23 @@ export function createChatControl(deps: {
     async intercept(event) {
       const command = parseControlCommand(event.content);
       if (command) {
-        if (event.senderIsBot) return false;
-        await runCommand(event, command);
+        // Bots cannot run commands; their message is handled like any other (paused or routed).
+        if (event.senderIsBot) return interceptPaused(event);
+        await runCommand(event, command, (body) => reply(event, body));
         return true;
       }
       return interceptPaused(event);
+    },
+    async handleCommand(slash) {
+      const command = parseControlCommand(`${slash.command} ${slash.text}`.trim());
+      if (!command) return;
+      await runCommand(slash, command, async (body) => {
+        try {
+          await slash.respond(body);
+        } catch (error) {
+          getLogger().error("emergency stop slash command reply failed", error);
+        }
+      });
     },
   };
 }

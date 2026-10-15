@@ -255,14 +255,20 @@ export interface CancelledRuns {
   threads: Array<{ threadId: string; seq: number }>;
 }
 
+/** Runs cancelled per transaction; each run appends an event under its thread's lock. */
+export const STOP_CANCEL_BATCH = 100;
+/** Explicit, generous per-batch timeout (Prisma's default is 5 seconds). */
+const STOP_CANCEL_TIMEOUT_MS = 30_000;
+
 /**
  * Cancel the matching runs and append one `run.cancelled` per run in the same
- * commit. The caller chooses the statuses: the API leaves `running` runs to
- * their worker, which halts them at the next guard and lets an in-flight tool
- * call finish first.
+ * commit, in batches of STOP_CANCEL_BATCH so a large space or global stop
+ * never holds one long transaction. The caller chooses the statuses: the API
+ * leaves `running` runs to their worker, which halts them at the next guard
+ * and lets an in-flight tool call finish first.
  */
 export async function cancelRunsForStop(
-  prisma: Pick<PrismaClient, "$transaction">,
+  prisma: Pick<PrismaClient, "$transaction" | "run">,
   filter: {
     statuses: readonly string[];
     spaceId?: string | null;
@@ -271,46 +277,82 @@ export async function cancelRunsForStop(
   },
   at: Date = new Date(),
 ): Promise<CancelledRuns> {
+  const where = {
+    status: { in: [...filter.statuses] },
+    ...(filter.spaceId ? { spaceId: filter.spaceId } : {}),
+    ...(filter.botId ? { botId: filter.botId } : {}),
+    ...(filter.runIds ? { id: { in: [...filter.runIds] } } : {}),
+  };
+  const runIds: string[] = [];
+  const latest = new Map<string, number>();
+  for (;;) {
+    const batch = await prisma.run.findMany({
+      where,
+      select: { id: true },
+      orderBy: { id: "asc" },
+      take: STOP_CANCEL_BATCH,
+    });
+    if (batch.length === 0) break;
+    const done = await cancelBatch(
+      prisma,
+      batch.map((run) => run.id),
+      filter.statuses,
+      at,
+    );
+    runIds.push(...done.runIds);
+    for (const { threadId, seq } of done.threads) {
+      latest.set(threadId, Math.max(seq, latest.get(threadId) ?? -1));
+    }
+    // Runs that changed status meanwhile no longer match; anything left is the next batch.
+    if (batch.length < STOP_CANCEL_BATCH || done.runIds.length === 0) break;
+  }
+  return { runIds, threads: [...latest].map(([threadId, seq]) => ({ threadId, seq })) };
+}
+
+async function cancelBatch(
+  prisma: Pick<PrismaClient, "$transaction">,
+  ids: string[],
+  statuses: readonly string[],
+  at: Date,
+): Promise<CancelledRuns> {
   return withTransactionRetry(() =>
-    prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const cancelled = await tx.run.updateManyAndReturn({
-        where: {
-          status: { in: [...filter.statuses] },
-          ...(filter.spaceId ? { spaceId: filter.spaceId } : {}),
-          ...(filter.botId ? { botId: filter.botId } : {}),
-          ...(filter.runIds ? { id: { in: [...filter.runIds] } } : {}),
-        },
-        data: { status: "cancelled", completedAt: at, leaseOwner: null, leaseExpiresAt: null },
-        select: { id: true, taskId: true, threadId: true, spaceId: true, botId: true },
-      });
-      if (cancelled.length === 0) return { runIds: [], threads: [] };
-      const runIds = cancelled.map((run) => run.id);
-      await tx.attempt.updateMany({
-        where: { runId: { in: runIds }, status: "running" },
-        data: { status: "cancelled", finishedAt: at },
-      });
-      await tx.task.updateMany({
-        where: { id: { in: cancelled.map((run) => run.taskId) } },
-        data: { status: "cancelled" },
-      });
-      const latest = new Map<string, number>();
-      // One lock order (thread id) so concurrent stops never deadlock on thread rows.
-      for (const run of [...cancelled].sort((a, b) => a.threadId.localeCompare(b.threadId))) {
-        const event = await appendEventInTransaction(tx, {
-          spaceId: run.spaceId,
-          threadId: run.threadId,
-          botId: run.botId,
-          type: "run.cancelled",
-          runId: run.id,
-          payload: {},
+    prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const cancelled = await tx.run.updateManyAndReturn({
+          where: { id: { in: ids }, status: { in: [...statuses] } },
+          data: { status: "cancelled", completedAt: at, leaseOwner: null, leaseExpiresAt: null },
+          select: { id: true, taskId: true, threadId: true, spaceId: true, botId: true },
         });
-        latest.set(run.threadId, event.seq);
-      }
-      await tx.event.deleteMany({ where: { type: "thread.progress", runId: { in: runIds } } });
-      return {
-        runIds,
-        threads: [...latest].map(([threadId, seq]) => ({ threadId, seq })),
-      };
-    }),
+        if (cancelled.length === 0) return { runIds: [], threads: [] };
+        const runIds = cancelled.map((run) => run.id);
+        await tx.attempt.updateMany({
+          where: { runId: { in: runIds }, status: "running" },
+          data: { status: "cancelled", finishedAt: at },
+        });
+        await tx.task.updateMany({
+          where: { id: { in: cancelled.map((run) => run.taskId) } },
+          data: { status: "cancelled" },
+        });
+        const latest = new Map<string, number>();
+        // One lock order (thread id) so concurrent stops never deadlock on thread rows.
+        for (const run of [...cancelled].sort((a, b) => a.threadId.localeCompare(b.threadId))) {
+          const event = await appendEventInTransaction(tx, {
+            spaceId: run.spaceId,
+            threadId: run.threadId,
+            botId: run.botId,
+            type: "run.cancelled",
+            runId: run.id,
+            payload: {},
+          });
+          latest.set(run.threadId, event.seq);
+        }
+        await tx.event.deleteMany({ where: { type: "thread.progress", runId: { in: runIds } } });
+        return {
+          runIds,
+          threads: [...latest].map(([threadId, seq]) => ({ threadId, seq })),
+        };
+      },
+      { timeout: STOP_CANCEL_TIMEOUT_MS },
+    ),
   );
 }

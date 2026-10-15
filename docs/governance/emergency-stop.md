@@ -14,7 +14,9 @@ seconds of the request:
 - A running run's in-flight model call is aborted and the run ends `cancelled`.
 - Queued tool calls are dropped. A tool call already executing is allowed to finish; its
   result is recorded (the audit log's `tool.result`), then the run halts before the next model
-  call. Nothing new starts.
+  call. Nothing new starts. Automatic review and owner approval come before the call: a stop
+  that lands while the reviewer is judging, or before the approval request goes out, keeps the
+  side effect from starting and sends no "needs approval" request.
 - Due routines do not start. A recurring routine skips the occurrence (the next one is
   scheduled); a one-shot routine stays due and fires once the bot is resumed.
 - The bot's computer is paused, not destroyed: background shell work left by the scope's runs is
@@ -23,10 +25,19 @@ seconds of the request:
   up.
 - New chat messages to a stopped bot get `Paused by <name> at <YYYY-MM-DD HH:MM> UTC` and start
   no run. In a team room the bot answers mentions and direct messages that way and ignores
-  ambient talk; on the personal line a stopped bot sits out group conversations silently.
+  ambient talk; on the personal line a stopped bot sits out group conversations silently. An
+  owner's YES, NO or LEAVE still answers a pending invite or connection; with nothing pending it
+  gets the paused reply too. A message sent from the app or the API lands in the thread, its run
+  is cancelled before it starts, and the same `Paused by …` line appears in the thread as a
+  system note.
+- Cloud agents of the scope are asked to cancel: a running remote agent is cancelled, a launch
+  that was never dispatched is cancelled locally. A launch or follow-up of a stopped bot that is
+  still persisted is not dispatched; it is checked again every 30 seconds and goes out after a
+  resume if nothing cancelled it.
 - Outbound sends from a stopped bot are dropped, not queued: chat mirrors of its replies are not
-  written, pending outbox rows for its messages are marked failed, and team-chat replies are
-  recorded with the handle `suppressed:emergency-stop` instead of being posted.
+  written, pending outbox rows for its messages and its agent-connection invites are marked
+  failed, and team-chat replies are recorded with the handle `suppressed:emergency-stop` instead
+  of being posted.
 
 The checks are deterministic code: at run start (before the run is leased), before the model
 call, around every tool call (before it, and again after it before the result returns to the
@@ -92,9 +103,44 @@ changes. Commands are handled before any routing, so they work while the bot is 
 create a run. The reply confirms the action (`Stopped Crew.`, `Resumed this space.`, …). Global
 stops are not available from chat.
 
-Slack treats a message that starts with `/` as one of its own slash commands. Unless a `/stop`
-slash command is registered for the app, start the message with a mention (`@Crew /stop`) or a
-space.
+In Teams the command is typed as ordinary text and reaches the bot like any message.
+
+### Slack slash commands
+
+In Slack, `/stop` and `/resume` are the app's slash commands. Slack posts them, form encoded, to
+the same Request URL as events, `/api/v1/messaging/webhook/slack`, and the same adapter verifies
+them: the signature over the timestamp and body with `SLACK_SIGNING_SECRET`, and a timestamp at
+most five minutes old (an unsigned, mis-signed or replayed request is answered 401 before
+anything runs). A repeated delivery of the same invocation (`trigger_id`) inside ten minutes is
+dropped (remembered by the API process). The sender's Slack user id must be a linked identity of an owner, as above; the reply is
+ephemeral (only the sender sees it) through Slack's `response_url`, and only `hooks.slack.com`
+is ever contacted. The webhook is acknowledged at once and the command finishes in the
+background, so a slow stop never trips Slack's three second deadline. With the module off the
+command changes nothing and answers `This command is not available.`
+
+Register both commands in the Slack app manifest (the `commands` bot scope is required):
+
+```yaml
+features:
+  slash_commands:
+    - command: /stop
+      url: https://<your-hooks-host>/api/v1/messaging/webhook/slack
+      description: Stop a bot, or every bot in this space
+      usage_hint: "[bot name]"
+      should_escape: false
+    - command: /resume
+      url: https://<your-hooks-host>/api/v1/messaging/webhook/slack
+      description: Resume a stopped bot, or this space
+      usage_hint: "[bot name]"
+      should_escape: false
+oauth_config:
+  scopes:
+    bot:
+      - commands
+```
+
+Without the slash commands registered, Slack refuses a message that starts with `/`; typing
+`@Crew /stop` (a mention first) still works as a plain-text fallback.
 
 ## Web app
 
@@ -140,4 +186,7 @@ With the audit log off, stops and resumes are not audited.
   spoofing and isolation, queued runs, a restart, routines, audit fail-safe and fail-closed,
   global stops, an aborted in-flight model call within five seconds, a tool call finishing
   mid-stop, the computer pause, Slack and Teams commands and paused replies, refusal of
-  non-owners, and the flag off).
+  non-owners, signed Slack slash commands (owner, non-owner, unsigned, forged and replayed requests,
+flag off), plain-text `/stop` in a Teams 1:1 chat, and the flag off). The surface-level Slack tests
+(`packages/adapters/src/slack-commands.test.ts`) run the pinned Slack adapter against the
+`SlackEmulator` and check that events still reach the inbound path.

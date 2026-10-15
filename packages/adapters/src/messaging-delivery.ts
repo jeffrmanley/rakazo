@@ -352,8 +352,8 @@ async function drain(deps: MessagingDeliveryDeps, context: AdapterContext): Prom
     });
     if (claim.count === 0) continue;
     try {
-      // Fork extension: a bot message from a stopped bot is not sent.
-      if (await outboundBotIsStopped(deps, row.sourceMessageId)) {
+      // Fork extension: a bot message (or connect invite) from a stopped bot is not sent.
+      if (await outboundBotIsStopped(deps, row)) {
         await deps.prisma.messagingOutbound.updateMany({
           where: { id: row.id },
           data: { status: "failed" },
@@ -458,12 +458,22 @@ async function drain(deps: MessagingDeliveryDeps, context: AdapterContext): Prom
 
 async function outboundBotIsStopped(
   deps: MessagingDeliveryDeps,
-  sourceMessageId: string | null,
+  row: { sourceMessageId: string | null; idempotencyKey: string },
 ): Promise<boolean> {
   // Off (no reader installed): no lookup at all.
-  if (!sourceMessageId || !getEmergencyStop()) return false;
+  if (!getEmergencyStop()) return false;
+  // A connect invite carries its requesting bot in the key (connect:{requester}:{target}).
+  const invite = connectInvitePair(row.idempotencyKey);
+  if (invite) {
+    const bot = await deps.prisma.bot.findUnique({
+      where: { id: invite.requesterBotId },
+      select: { id: true, spaceId: true },
+    });
+    return bot ? isBotStopped({ spaceId: bot.spaceId, botId: bot.id }) : false;
+  }
+  if (!row.sourceMessageId) return false;
   const source = await deps.prisma.message.findUnique({
-    where: { id: sourceMessageId },
+    where: { id: row.sourceMessageId },
     select: { botId: true, thread: { select: { spaceId: true, botId: true } } },
   });
   const botId = source?.botId ?? source?.thread.botId;
