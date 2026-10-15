@@ -22,6 +22,9 @@ upstream names, and the Apache-2.0 credit in Settings links back to the upstream
   Teams (`EXT_EMERGENCY_STOP`, see `docs/governance/emergency-stop.md`).
 - Daily spend caps, run concurrency and delegation limits per bot and space (`EXT_BUDGETS`,
   see `docs/governance/budgets.md`).
+- Approvals: risky tool calls wait for a listed approver, decided from the web card or
+  Approve/Deny buttons in Slack and Teams, with expiry and audit (`EXT_APPROVALS`, see
+  `docs/governance/approvals.md`).
 - White-label branding: the deployment owner sets the name, short name, tagline and logo in
   Settings → Branding (stored in `deployment_settings`, served by public `/api/v1/brand`
   endpoints), with `PUBLIC_BRAND_*` as the fallback; emails, chat replies and default prompts
@@ -46,6 +49,7 @@ Relative to upstream commit `2d666c4`.
 - `apps/api/src/cli/audit-verify.ts` (added)
 - `apps/api/src/env.test.ts` (modified)
 - `apps/api/src/env.ts` (modified)
+- `apps/api/src/ext-approvals.ts` (added)
 - `apps/api/src/ext-audit.test.ts` (added)
 - `apps/api/src/ext-audit.ts` (added)
 - `apps/api/src/ext-budgets.test.ts` (added)
@@ -80,6 +84,8 @@ Relative to upstream commit `2d666c4`.
 - `apps/web/src/brand-plugin.test.ts` (added)
 - `apps/web/src/brand-plugin.ts` (added)
 - `apps/web/src/components/BrandLogo.tsx` (added)
+- `apps/web/src/lib/approvals.test.ts` (added)
+- `apps/web/src/lib/approvals.ts` (added)
 - `apps/web/src/lib/brand.test.ts` (added)
 - `apps/web/src/lib/brand.ts` (added)
 - `apps/web/src/lib/budgets.test.ts` (added)
@@ -113,6 +119,8 @@ Relative to upstream commit `2d666c4`.
 - `apps/web/src/pages/SettingsOverlay.tsx` (modified)
 - `apps/web/src/pages/Shell.tsx` (modified)
 - `apps/web/src/pages/Welcome.tsx` (modified)
+- `apps/web/src/pages/shell/bot-approvals.test.tsx` (added)
+- `apps/web/src/pages/shell/bot-approvals.tsx` (added)
 - `apps/web/src/pages/shell/bot-budget.test.tsx` (added)
 - `apps/web/src/pages/shell/bot-budget.tsx` (added)
 - `apps/web/src/pages/shell/bot-panel.tsx` (modified)
@@ -125,6 +133,7 @@ Relative to upstream commit `2d666c4`.
 
 ### `docs`
 
+- `docs/governance/approvals.md` (added)
 - `docs/governance/audit-log.md` (added)
 - `docs/governance/budgets.md` (added)
 - `docs/governance/emergency-stop.md` (added)
@@ -151,6 +160,8 @@ Relative to upstream commit `2d666c4`.
 - `packages/adapters/package.json` (modified)
 - `packages/adapters/src/agent-connections.test.ts` (modified)
 - `packages/adapters/src/agent-connections.ts` (modified)
+- `packages/adapters/src/approval-ask.test.ts` (modified)
+- `packages/adapters/src/approval-ask.ts` (modified)
 - `packages/adapters/src/bot-messages.ts` (modified)
 - `packages/adapters/src/chat-sdk-surface.ts` (modified)
 - `packages/adapters/src/child-bots.ts` (modified)
@@ -160,6 +171,11 @@ Relative to upstream commit `2d666c4`.
 - `packages/adapters/src/compacted-context.ts` (added)
 - `packages/adapters/src/executor-readonly-approval.test.ts` (modified)
 - `packages/adapters/src/executor.ts` (modified)
+- `packages/adapters/src/ext-approval-actions.test.ts` (added)
+- `packages/adapters/src/ext-approval-card.test.ts` (added)
+- `packages/adapters/src/ext-approval-card.ts` (added)
+- `packages/adapters/src/ext-approvals.test.ts` (added)
+- `packages/adapters/src/ext-approvals.ts` (added)
 - `packages/adapters/src/ext-audit-tools.test.ts` (added)
 - `packages/adapters/src/ext-audit-tools.ts` (added)
 - `packages/adapters/src/ext-budget-guard.test.ts` (added)
@@ -174,6 +190,7 @@ Relative to upstream commit `2d666c4`.
 - `packages/adapters/src/keyless-http-web.ts` (modified)
 - `packages/adapters/src/mcp-oauth.test.ts` (modified)
 - `packages/adapters/src/mcp-oauth.ts` (modified)
+- `packages/adapters/src/messaging-card.ts` (added)
 - `packages/adapters/src/messaging-context.ts` (modified)
 - `packages/adapters/src/messaging-delivery.test.ts` (modified)
 - `packages/adapters/src/messaging-delivery.ts` (modified)
@@ -217,10 +234,14 @@ Relative to upstream commit `2d666c4`.
 ### `packages/core`
 
 - `packages/core/package.json` (modified)
+- `packages/core/src/approval-effect-key.test.ts` (modified)
+- `packages/core/src/approval-effect-key.ts` (modified)
 - `packages/core/src/brand-logo.test.ts` (added)
 - `packages/core/src/brand-logo.ts` (added)
 - `packages/core/src/brand.test.ts` (added)
 - `packages/core/src/brand.ts` (added)
+- `packages/core/src/ext-approvals.test.ts` (added)
+- `packages/core/src/ext-approvals.ts` (added)
 - `packages/core/src/ext-budget.test.ts` (added)
 - `packages/core/src/ext-budget.ts` (added)
 - `packages/core/src/ext-emergency-stop.test.ts` (added)
@@ -239,10 +260,13 @@ Relative to upstream commit `2d666c4`.
 - `packages/db/prisma/migrations/20261015120000_ext_emergency_stop/migration.sql` (added)
 - `packages/db/prisma/migrations/20261015120000_runtime_brand/migration.sql` (added)
 - `packages/db/prisma/migrations/20261016120000_ext_run_slot_waits/migration.sql` (added)
+- `packages/db/prisma/migrations/20261017120000_ext_approvals/migration.sql` (added)
 - `packages/db/prisma/schema.prisma` (modified)
 - `packages/db/src/brand-settings.postgres.test.ts` (added)
 - `packages/db/src/brand-settings.ts` (added)
 - `packages/db/src/events.ts` (modified)
+- `packages/db/src/ext-approvals.postgres.test.ts` (added)
+- `packages/db/src/ext-approvals.ts` (added)
 - `packages/db/src/ext-audit.postgres.test.ts` (added)
 - `packages/db/src/ext-audit.test.ts` (added)
 - `packages/db/src/ext-audit.ts` (added)
@@ -263,6 +287,7 @@ Relative to upstream commit `2d666c4`.
 
 - `packages/testkit/src/cli/evals.ts` (modified)
 - `packages/testkit/src/cli/harness.ts` (modified)
+- `packages/testkit/src/ext-approvals.postgres.test.ts` (added)
 - `packages/testkit/src/ext-audit-log.postgres.test.ts` (added)
 - `packages/testkit/src/ext-budgets.postgres.test.ts` (added)
 - `packages/testkit/src/ext-emergency-stop.postgres.test.ts` (added)
