@@ -109,6 +109,21 @@ describe("BotApprovalsSection", () => {
     expect(switchFor("Internal changes").checked).toBe(true);
   });
 
+  it("says that the computer can still reach outside while only External actions are gated", async () => {
+    const note =
+      "Shell and browser can still reach outside. For high-risk bots, also gate Internal changes.";
+    approvals.fetchBotApprovals.mockResolvedValue(view());
+    approvals.saveBotApprovals.mockResolvedValue(
+      view({ gatedClasses: ["write-internal", "write-external"] }),
+    );
+    await render();
+    expect(container.textContent).toContain(note);
+    await act(async () => {
+      switchFor("Internal changes").click();
+    });
+    expect(container.textContent).not.toContain(note);
+  });
+
   it("chooses approvers; none chosen means the space owners and the requester", async () => {
     approvals.fetchBotApprovals.mockResolvedValue(view());
     approvals.saveBotApprovals.mockResolvedValue(view({ approverUserIds: ["u-member"] }));

@@ -78,6 +78,14 @@ export function BotApprovalsSection({ botId }: { botId: string }) {
           />
         </div>
       ))}
+      {gatedClasses.includes("write-external") && !gatedClasses.includes("write-internal") ? (
+        <p className="mt-2 text-[12px] text-muted-foreground/70">
+          <Trans>
+            Shell and browser can still reach outside. For high-risk bots, also gate Internal
+            changes.
+          </Trans>
+        </p>
+      ) : null}
       <p className="mt-4 text-[14px] text-muted-foreground">
         <Trans>Approvers</Trans>
       </p>

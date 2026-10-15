@@ -4155,6 +4155,10 @@ msgstr "Geteilte Skills"
 msgid "Shell"
 msgstr "Shell"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Shell and browser can still reach outside. For high-risk bots, also gate Internal changes."
+msgstr "Shell und Browser können weiterhin nach außen wirken. Für riskante Bots auch interne Änderungen freigeben lassen."
+
 #: src/pages/BrandingSettingsPanel.tsx
 msgid "Short name"
 msgstr "Kurzname"

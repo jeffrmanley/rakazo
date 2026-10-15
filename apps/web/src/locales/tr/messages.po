@@ -4155,6 +4155,10 @@ msgstr "Paylaşılan beceriler"
 msgid "Shell"
 msgstr "Kabuk"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Shell and browser can still reach outside. For high-risk bots, also gate Internal changes."
+msgstr "Kabuk ve tarayıcı hâlâ dışarıya erişebilir. Yüksek riskli botlarda dahili değişiklikler için de onay isteyin."
+
 #: src/pages/BrandingSettingsPanel.tsx
 msgid "Short name"
 msgstr "Kısa ad"

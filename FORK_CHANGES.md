@@ -261,6 +261,7 @@ Relative to upstream commit `2d666c4`.
 - `packages/db/prisma/migrations/20261015120000_runtime_brand/migration.sql` (added)
 - `packages/db/prisma/migrations/20261016120000_ext_run_slot_waits/migration.sql` (added)
 - `packages/db/prisma/migrations/20261017120000_ext_approvals/migration.sql` (added)
+- `packages/db/prisma/migrations/20261018120000_ext_approvals_cards/migration.sql` (added)
 - `packages/db/prisma/schema.prisma` (modified)
 - `packages/db/src/brand-settings.postgres.test.ts` (added)
 - `packages/db/src/brand-settings.ts` (added)

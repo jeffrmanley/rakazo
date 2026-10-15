@@ -4155,6 +4155,10 @@ msgstr "共享技能"
 msgid "Shell"
 msgstr "Shell"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Shell and browser can still reach outside. For high-risk bots, also gate Internal changes."
+msgstr "Shell 和浏览器仍可对外产生影响。对高风险机器人，也请为内部更改设置审批。"
+
 #: src/pages/BrandingSettingsPanel.tsx
 msgid "Short name"
 msgstr "简称"

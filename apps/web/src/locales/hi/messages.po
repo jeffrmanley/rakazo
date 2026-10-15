@@ -4155,6 +4155,10 @@ msgstr "साझा स्किल्स"
 msgid "Shell"
 msgstr "शेल"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Shell and browser can still reach outside. For high-risk bots, also gate Internal changes."
+msgstr "शेल और ब्राउज़र अब भी बाहर असर डाल सकते हैं। ज़्यादा जोखिम वाले बॉट के लिए आंतरिक बदलावों पर भी मंज़ूरी लें।"
+
 #: src/pages/BrandingSettingsPanel.tsx
 msgid "Short name"
 msgstr "छोटा नाम"

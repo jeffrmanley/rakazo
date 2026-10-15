@@ -4155,6 +4155,10 @@ msgstr "공유 스킬"
 msgid "Shell"
 msgstr "셸"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Shell and browser can still reach outside. For high-risk bots, also gate Internal changes."
+msgstr "셸과 브라우저는 여전히 외부에 영향을 줄 수 있습니다. 위험도가 높은 봇은 내부 변경도 승인받도록 하세요."
+
 #: src/pages/BrandingSettingsPanel.tsx
 msgid "Short name"
 msgstr "짧은 이름"
