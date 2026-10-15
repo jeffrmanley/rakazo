@@ -153,6 +153,7 @@ Relative to upstream commit `2d666c4`.
 - `packages/adapters/src/ext-budget-guard.ts` (added)
 - `packages/adapters/src/ext-emergency-stop.test.ts` (added)
 - `packages/adapters/src/ext-emergency-stop.ts` (added)
+- `packages/adapters/src/favicon.test.ts` (modified)
 - `packages/adapters/src/group-handoff.ts` (modified)
 - `packages/adapters/src/history-compaction.test.ts` (modified)
 - `packages/adapters/src/history-compaction.ts` (modified)
