@@ -6,7 +6,7 @@ import type {
 } from "@rakazo/adapter-kit";
 import { runContinueJob } from "@rakazo/adapter-kit";
 import { AutomatedSenderPoliciesSchema, type MessageBlock } from "@rakazo/contracts";
-import { BOT_MESSAGE_MAX_HOPS, UPSTREAM_BRAND } from "@rakazo/core";
+import { BOT_MESSAGE_MAX_HOPS, escapeBrandMarkdown, UPSTREAM_BRAND } from "@rakazo/core";
 import type { PrismaClient, ThreadEvents } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import type { TeamChatEngagementJudge } from "./team-chat-judge.js";
@@ -140,8 +140,9 @@ export class TeamChatBridge {
     return this.deps.providerId;
   }
 
+  /** The brand name for room replies, escaped because they are sent as Markdown. */
   private async brandName(): Promise<string> {
-    return (await this.deps.brandName?.()) ?? UPSTREAM_BRAND.name;
+    return escapeBrandMarkdown((await this.deps.brandName?.()) ?? UPSTREAM_BRAND.name);
   }
 
   /** Mark a deferred row as having an in-process routine wake until clearRoutineWake. */
@@ -245,7 +246,7 @@ export class TeamChatBridge {
       conversation.spaceId !== target.spaceId ||
       !conversation.thread
     ) {
-      throw new Error("Team chat conversation belongs to a different Rakazo target");
+      throw new Error("Team chat conversation belongs to a different target");
     }
     const now = new Date();
     const deferredUntil = new Date(now.getTime() + DEFERRED_RESERVATION_MS);
@@ -484,7 +485,7 @@ export class TeamChatBridge {
     },
   ): Promise<void> {
     if (message.threadMessageId) return;
-    if (!conversation.thread) throw new Error("Team chat conversation has no Rakazo thread");
+    if (!conversation.thread) throw new Error("Team chat conversation has no thread");
     const visible = await this.deps.events.sendUserMessage({
       spaceId: conversation.spaceId,
       threadId: conversation.thread.id,
@@ -961,7 +962,7 @@ export class TeamChatBridge {
     };
   }): Promise<void> {
     const thread = message.externalConversation.thread;
-    if (!thread) throw new Error("Team chat conversation has no Rakazo thread");
+    if (!thread) throw new Error("Team chat conversation has no thread");
     // In-flight routine wakes own the row via engagementReason; never start a
     // fallback TeamChat agent until that claim is cleared.
     if (isRoutingOwnershipReason(message.engagementReason)) {

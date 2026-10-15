@@ -13,6 +13,7 @@ import {
   iconCandidates,
 } from "./favicon.js";
 import type { ResolveHostname } from "./network-address.js";
+import { WEB_TOOL_USER_AGENT } from "./web-ssrf.js";
 
 type Reply = { status?: number; headers?: Record<string, string>; body?: Uint8Array | string };
 
@@ -822,6 +823,6 @@ describe("favicon SSRF guard", () => {
 
     expect(seen.cookie).toBeUndefined();
     expect(seen.authorization).toBeUndefined();
-    expect(seen["user-agent"]).toMatch(/^Rakazo\//);
+    expect(seen["user-agent"]).toBe(WEB_TOOL_USER_AGENT);
   });
 });

@@ -17,7 +17,12 @@ type Row = Record<string, unknown> & { id: string; ownerUserId: string | null };
 
 /** The slice of Prisma the brand service uses, over one in-memory settings row. */
 function fakePrisma(row: Row | null = { id: "default", ownerUserId: OWNER }) {
-  const state = { row, fail: false };
+  const state = {
+    row,
+    fail: false,
+    /** Runs before a logo-bytes read, to simulate a change between two reads. */
+    beforeLogoRead: undefined as (() => void) | undefined,
+  };
   const pick = (select?: Record<string, boolean>) => {
     if (!state.row) return null;
     if (!select) return { ...state.row };
@@ -27,6 +32,7 @@ function fakePrisma(row: Row | null = { id: "default", ownerUserId: OWNER }) {
     deploymentSettings: {
       findUnique: async ({ select }: { select?: Record<string, boolean> }) => {
         if (state.fail) throw new Error("connection reset with secret detail");
+        if (select?.brandLogo) state.beforeLogoRead?.();
         return pick(select);
       },
       updateMany: async ({
@@ -172,6 +178,25 @@ describe("GET /api/v1/brand", () => {
     expect(after.version).not.toBe(before);
   });
 
+  it("changes version when only the text changes, even with a logo", async () => {
+    const { app, call } = setup();
+    await call(actor(OWNER), "uploadLogo", { data: base64(png(128, 128)) });
+    const version = async () =>
+      ((await (await app.request(BRAND_API_PATH)).json()) as { version: string }).version;
+    const withLogo = await version();
+    await call(actor(OWNER), "update", { tagline: "New tagline." });
+    expect(await version()).not.toBe(withLogo);
+  });
+
+  it("changes version when the environment brand changes", async () => {
+    const versionFor = async (env: Record<string, string>) =>
+      ((await (await setup({ env }).app.request(BRAND_API_PATH)).json()) as { version: string })
+        .version;
+    expect(await versionFor({ PUBLIC_BRAND_NAME: "Acme" })).not.toBe(
+      await versionFor({ PUBLIC_BRAND_NAME: "Acme", PUBLIC_BRAND_TAGLINE: "Other." }),
+    );
+  });
+
   it("hides internal errors behind an error id and logs the details", async () => {
     const { app, state } = setup();
     state.fail = true;
@@ -214,6 +239,25 @@ describe("GET /api/v1/brand/logo", () => {
       headers: { "if-none-match": `"${sha}"` },
     });
     expect(revalidated.status).toBe(304);
+  });
+
+  it("never marks bytes immutable under a version they do not belong to", async () => {
+    const { app, call, state } = setup();
+    await call(actor(OWNER), "uploadLogo", { data: base64(png(128, 128)) });
+    const { version } = (await (await app.request(BRAND_API_PATH)).json()) as { version: string };
+    // Another process replaces the logo between the settings read and the bytes read.
+    const replacement = png(256, 256);
+    state.beforeLogoRead = () => {
+      state.row = {
+        ...state.row!,
+        brandLogo: replacement,
+        brandLogoSha256: createHash("sha256").update(replacement).digest("hex"),
+      };
+      state.beforeLogoRead = undefined;
+    };
+    const response = await app.request(`${BRAND_API_PATH}/logo?v=${version}`);
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(replacement);
+    expect(response.headers.get("cache-control")).toBe("no-cache");
   });
 
   it("generates a monogram for a white-labelled deployment without an upload", async () => {

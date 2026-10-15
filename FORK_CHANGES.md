@@ -115,6 +115,7 @@ Relative to upstream commit `2d666c4`.
 ### `docs/governance`
 
 - `docs/governance/emergency-stop.md` (added)
+
 ### `docs/governance/budgets.md`
 
 - `docs/governance/budgets.md` (added)
@@ -144,18 +145,20 @@ Relative to upstream commit `2d666c4`.
 - `packages/adapters/src/agent-connections.ts` (modified)
 - `packages/adapters/src/bot-messages.ts` (modified)
 - `packages/adapters/src/chat-sdk-surface.ts` (modified)
-- `packages/adapters/src/executor.ts` (modified)
-- `packages/adapters/src/ext-emergency-stop.test.ts` (added)
-- `packages/adapters/src/ext-emergency-stop.ts` (added)
 - `packages/adapters/src/child-bots.ts` (modified)
-- `packages/adapters/src/ext-budget-guard.test.ts` (added)
-- `packages/adapters/src/ext-budget-guard.ts` (added)
-- `packages/adapters/src/group-handoff.ts` (modified)
 - `packages/adapters/src/compacted-context.test.ts` (added)
 - `packages/adapters/src/compacted-context.ts` (added)
+- `packages/adapters/src/executor.ts` (modified)
+- `packages/adapters/src/ext-budget-guard.test.ts` (added)
+- `packages/adapters/src/ext-budget-guard.ts` (added)
+- `packages/adapters/src/ext-emergency-stop.test.ts` (added)
+- `packages/adapters/src/ext-emergency-stop.ts` (added)
+- `packages/adapters/src/favicon.test.ts` (modified)
+- `packages/adapters/src/group-handoff.ts` (modified)
 - `packages/adapters/src/history-compaction.test.ts` (modified)
 - `packages/adapters/src/history-compaction.ts` (modified)
 - `packages/adapters/src/index.ts` (modified)
+- `packages/adapters/src/keyless-http-web.ts` (modified)
 - `packages/adapters/src/mcp-oauth.test.ts` (modified)
 - `packages/adapters/src/mcp-oauth.ts` (modified)
 - `packages/adapters/src/messaging-context.ts` (modified)
@@ -170,14 +173,16 @@ Relative to upstream commit `2d666c4`.
 - `packages/adapters/src/pi-models.test.ts` (modified)
 - `packages/adapters/src/pi-models.ts` (modified)
 - `packages/adapters/src/pi-oauth.ts` (modified)
-- `packages/adapters/src/pi-runtime.ts` (modified)
 - `packages/adapters/src/pi-runtime-computer.test.ts` (modified)
+- `packages/adapters/src/pi-runtime.ts` (modified)
 - `packages/adapters/src/runtime-context.test.ts` (modified)
 - `packages/adapters/src/runtime-context.ts` (modified)
 - `packages/adapters/src/team-chat-messaging.test.ts` (modified)
 - `packages/adapters/src/team-chat-messaging.ts` (modified)
 - `packages/adapters/src/teams-emulator.ts` (added)
 - `packages/adapters/src/teams-messaging.test.ts` (added)
+- `packages/adapters/src/web-ssrf.test.ts` (modified)
+- `packages/adapters/src/web-ssrf.ts` (modified)
 
 ### `packages/auth`
 

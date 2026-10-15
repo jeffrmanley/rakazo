@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   brandManifest,
   brandMonogramSvg,
+  escapeBrandMarkdown,
   isWhiteLabelled,
   resolveBrand,
   UPSTREAM_BRAND,
@@ -106,6 +107,27 @@ describe("validateBrandText", () => {
     expect(validateBrandText({ name: "😀".repeat(60) }).ok).toBe(true);
   });
 
+  it("rejects invisible format characters and line or paragraph separators", () => {
+    for (const bad of [
+      "Acme\u202eemcA", // right-to-left override
+      "Ac\u200bme", // zero-width space
+      "Ac\u200dme", // zero-width joiner
+      "Ac\u2066me", // left-to-right isolate
+      "Ac\ufeffme", // byte order mark
+      "Ac\u2028me", // line separator
+      "Ac\u2029me", // paragraph separator
+    ]) {
+      for (const field of ["name", "shortName", "tagline"] as const) {
+        expect(validateBrandText({ [field]: bad }), JSON.stringify(bad)).toEqual({
+          ok: false,
+          field,
+          reason: "control_characters",
+        });
+      }
+    }
+    expect(validateBrandText({ name: "Café Crew 🚀" }).ok).toBe(true);
+  });
+
   it("limits the tagline to 140 characters", () => {
     expect(validateBrandText({ tagline: "t".repeat(140) }).ok).toBe(true);
     expect(validateBrandText({ tagline: "t".repeat(141) })).toEqual({
@@ -174,5 +196,23 @@ describe("brandMonogramSvg", () => {
     expect(brandMonogramSvg("😀 Crew")).toContain(">😀</text>");
     expect(brandMonogramSvg("élan")).toContain(">É</text>");
     expect(brandMonogramSvg("   ")).toContain("></text>");
+  });
+});
+
+describe("escapeBrandMarkdown", () => {
+  it("leaves plain names alone", () => {
+    expect(escapeBrandMarkdown("Acme Crew 2")).toBe("Acme Crew 2");
+  });
+
+  it("escapes Markdown, link and mention syntax so chat apps show the name literally", () => {
+    expect(escapeBrandMarkdown("*Acme* _Crew_ ~x~ `y`")).toBe(
+      "\\*Acme\\* \\_Crew\\_ \\~x\\~ \\`y\\`",
+    );
+    expect(escapeBrandMarkdown("[Click](https://evil.example)")).toBe(
+      "\\[Click\\]\\(https://evil.example\\)",
+    );
+    expect(escapeBrandMarkdown("<@U123> <!here> @here & \\")).toBe(
+      "\\<\\@U123\\> \\<\\!here\\> \\@here \\& \\\\",
+    );
   });
 });

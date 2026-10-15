@@ -44,6 +44,7 @@ export type BrandResult<T> =
   | { ok: false; error: "invalid"; reason: BrandErrorReason };
 
 export type BrandLogoAsset =
+  /** `version` is the brand version these bytes belong to; "" when unknown (never cached as immutable). */
   | { kind: "image"; body: Uint8Array; mime: string; etag: string; version: string }
   | { kind: "static"; location: string };
 
@@ -70,11 +71,17 @@ interface Snapshot {
 const shortHash = (value: string | Uint8Array) =>
   createHash("sha256").update(value).digest("hex").slice(0, 16);
 
+/** Changes with the logo, any stored edit, or the resolved text (which covers PUBLIC_BRAND_*). */
 function versionOf(settings: BrandSettings, brand: Brand): string {
-  if (settings.logoSha256) return settings.logoSha256.slice(0, 16);
-  if (settings.updatedAt) return settings.updatedAt.getTime().toString(36);
-  // Environment-only branding: changes with the configured name.
-  return shortHash(brand.name);
+  return shortHash(
+    JSON.stringify([
+      settings.logoSha256,
+      settings.updatedAt?.getTime() ?? null,
+      brand.name,
+      brand.shortName,
+      brand.tagline,
+    ]),
+  );
 }
 
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -182,7 +189,8 @@ export function createBrandService(deps: {
           body: logo.bytes,
           mime: logo.mime,
           etag: `"${logo.sha256}"`,
-          version: current.view.version,
+          // Bytes replaced since the settings read belong to a newer version: never immutable.
+          version: logo.sha256 === sha256 ? current.view.version : "",
         };
       }
       if (!usesMonogram(current.brand)) return { kind: "static", location: STATIC_LOGO_PATH };
@@ -324,9 +332,10 @@ export function mountBrandRoutes(app: Hono, brand: BrandService): void {
       c.header("cache-control", "no-cache");
       return c.redirect(asset.location, 302);
     }
+    const versioned = asset.version !== "" && c.req.query("v") === asset.version;
     const headers = {
       etag: asset.etag,
-      "cache-control": c.req.query("v") === asset.version ? IMMUTABLE : "no-cache",
+      "cache-control": versioned ? IMMUTABLE : "no-cache",
       "x-content-type-options": "nosniff",
       "content-security-policy": "default-src 'none'",
       "content-disposition": "inline",

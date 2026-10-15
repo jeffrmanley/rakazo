@@ -1529,6 +1529,18 @@ describe("createMessagingInboundHandler white-label copy", () => {
     expect(bodies.join("\n")).not.toContain("Rakazo");
   });
 
+  it("escapes chat Markdown and mention syntax in the brand name", async () => {
+    const deps = createDeps();
+    deps.brandName = async () => "*Acme* <!here> [x](https://evil.example)";
+    const handle = createMessagingInboundHandler(deps);
+    await handle(groupEvent);
+
+    const bodies = deps.outboundRows.map((row) => String(row.body));
+    const escaped = "\\*Acme\\* \\<\\!here\\> \\[x\\]\\(https://evil.example\\)";
+    expect(bodies.some((body) => body.includes(`hosts ${escaped} personal agents`))).toBe(true);
+    expect(bodies.some((body) => body.includes(`linked to your ${escaped} agent`))).toBe(true);
+  });
+
   it("keeps upstream copy when no brand is configured", async () => {
     const deps = createDeps();
     const handle = createMessagingInboundHandler(deps);

@@ -63,8 +63,10 @@ export type BrandTextValidation =
   | { ok: true; value: Partial<Record<BrandTextField, string | null>> }
   | { ok: false; field: BrandTextField; reason: "too_long" | "control_characters" };
 
-// C0, DEL and C1 control characters, which include line breaks and tabs.
-const CONTROL_CHARACTERS = /\p{Cc}/u;
+// Control characters (C0, DEL, C1: line breaks, tabs), invisible format characters (bidi
+// overrides and isolates, zero-width characters, BOM) and line/paragraph separators. Format
+// characters could reorder or hide text in titles, emails and chat replies.
+const CONTROL_CHARACTERS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 
 export function validateBrandText(input: BrandTextInput): BrandTextValidation {
   const value: Partial<Record<BrandTextField, string | null>> = {};
@@ -81,6 +83,15 @@ export function validateBrandText(input: BrandTextInput): BrandTextValidation {
     value[field] = trimmed;
   }
   return { ok: true, value };
+}
+
+/**
+ * The brand name for chat copy sent as Markdown (Slack, Teams, …): Markdown,
+ * link, HTML and mention syntax is backslash-escaped so the name renders
+ * literally and cannot add formatting, links or @-mentions.
+ */
+export function escapeBrandMarkdown(name: string): string {
+  return name.replace(/[\\`*_~[\]()<>&@!#|]/g, (char) => `\\${char}`);
 }
 
 export interface BrandManifestIcon {
