@@ -76,4 +76,48 @@ describe("model HTTP emulator contract", () => {
     expect((await post(server)).status).toBe(400);
     expect(() => server.assertComplete()).toThrow();
   });
+
+  it("streams parallel tool calls in one turn and serves an open-ended script", async () => {
+    const seen: number[] = [];
+    const server = await startModelEmulator({
+      steps: (_request, index) => {
+        seen.push(index);
+        return {
+          expect() {},
+          response: {
+            type: "tools",
+            calls: [
+              { id: "a", name: "message_bot", arguments: { message: "one" } },
+              { id: "b", name: "message_bot", arguments: { message: "two" } },
+            ],
+          },
+        };
+      },
+    });
+    servers.push(server);
+    for (let n = 0; n < 3; n += 1) {
+      const response = await post(server);
+      expect(response.status).toBe(200);
+      const chunks = (await response.text())
+        .split("\n\n")
+        .filter((line) => line.startsWith("data: {"))
+        .map(
+          (line) =>
+            JSON.parse(line.slice(6)) as {
+              choices: Array<{
+                delta: { tool_calls?: Array<{ index: number; id?: string }> };
+                finish_reason: string | null;
+              }>;
+            },
+        );
+      const calls = chunks.flatMap((chunk) => chunk.choices[0]?.delta.tool_calls ?? []);
+      expect(calls.map((call) => [call.index, call.id])).toEqual([
+        [0, "a"],
+        [1, "b"],
+      ]);
+      expect(chunks.at(-1)?.choices[0]?.finish_reason).toBe("tool_calls");
+    }
+    expect(seen).toEqual([0, 1, 2]);
+    server.assertComplete();
+  });
 });

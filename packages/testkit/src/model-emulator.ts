@@ -27,20 +27,28 @@ export type ModelEmulatorResponse =
       /** Concatenation must equal the JSON arguments. Each fragment is a separate SSE delta. */
       argumentChunks?: string[];
     }
+  | {
+      /** Several tool calls in one assistant turn (parallel tool calls). */
+      type: "tools";
+      calls: Array<{ id: string; name: string; arguments: Record<string, unknown> }>;
+      assistantText?: string;
+    }
   | { type: "error"; status: number; message: string }
   | { type: "disconnect"; text?: string }
   | { type: "hold"; text?: string; onOpen?: () => void; onClose?: () => void };
 
+export interface ModelEmulatorUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  prompt_tokens_details?: { cached_tokens?: number };
+  completion_tokens_details?: { reasoning_tokens?: number };
+  cost?: number;
+}
+
 export interface ModelEmulatorStep {
   /** Synthetic endpoint usage, including explicit zero and omitted breakdown fields. */
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-    prompt_tokens_details?: { cached_tokens?: number };
-    completion_tokens_details?: { reasoning_tokens?: number };
-    cost?: number;
-  };
+  usage?: ModelEmulatorUsage;
   /** Assertions run before the response; failures also make assertComplete fail. */
   expect: (request: ModelEmulatorRequest) => void | Promise<void>;
   response: ModelEmulatorResponse | ((request: ModelEmulatorRequest) => ModelEmulatorResponse);
@@ -53,7 +61,13 @@ export interface ModelEmulatorStep {
  * propagating the original fixture assertion.
  */
 export async function startModelEmulator(options: {
-  steps: ModelEmulatorStep[];
+  /**
+   * A fixed script, or an open-ended one: a function picks the step for each request (the
+   * index counts from 0). With a function, assertComplete checks assertion failures only.
+   */
+  steps:
+    | ModelEmulatorStep[]
+    | ((request: ModelEmulatorRequest, index: number) => ModelEmulatorStep);
   modelId?: string;
   apiKey?: string;
 }) {
@@ -78,7 +92,8 @@ export async function startModelEmulator(options: {
       assert.equal(body.model, modelId, "Model routing changed");
       assert.equal(body.stream, true, "Expected streaming model request");
       assert.ok(Array.isArray(body.messages), "Expected model messages");
-      const step = options.steps[stepIndex++];
+      const steps = options.steps;
+      const step = typeof steps === "function" ? steps(body, stepIndex++) : steps[stepIndex++];
       assert.ok(step, `Unexpected model request ${stepIndex}`);
       await step.expect(body);
       const reply = typeof step.response === "function" ? step.response(body) : step.response;
@@ -126,6 +141,21 @@ export async function startModelEmulator(options: {
           emit({ tool_calls: [{ index: 0, function: { arguments: fragment } }] });
         }
         emit({}, "tool_calls");
+      } else if (reply.type === "tools") {
+        if (reply.assistantText) emit({ content: reply.assistantText });
+        reply.calls.forEach((call, index) => {
+          emit({
+            tool_calls: [
+              {
+                index,
+                id: call.id,
+                type: "function",
+                function: { name: call.name, arguments: JSON.stringify(call.arguments) },
+              },
+            ],
+          });
+        });
+        emit({}, "tool_calls");
       } else {
         if (reply.text) emit({ content: reply.text });
         if (reply.type === "hold") {
@@ -171,6 +201,7 @@ export async function startModelEmulator(options: {
     assertComplete() {
       if (failures.length)
         throw new AggregateError(failures, failures.map((error) => error.message).join("\n"));
+      if (typeof options.steps === "function") return;
       assert.equal(stepIndex, options.steps.length, "Not all model fixture steps were consumed");
     },
     async close() {
