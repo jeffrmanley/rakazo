@@ -141,7 +141,7 @@ describe("redactAuditValue", () => {
     const long = "x".repeat(5_000);
     const many = Array.from({ length: 150 }, (_, i) => i);
     const out = redactAuditValue(
-      { long, many, api_key: "k-0123456789", note: "uses secret-value" },
+      { long, many, api_key: "fake-placeholder", note: "uses secret-value" },
       { secrets: ["secret-value"], full: true },
     ) as Record<string, unknown>;
     expect(out.long).toBe(long);
