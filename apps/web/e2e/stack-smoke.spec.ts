@@ -13,6 +13,9 @@ const MODEL_URL = process.env.STACK_MODEL_URL ?? "http://echo-model:8080/v1";
 const MODEL_ID = "echo-1";
 const BRAND = "withJZ Crew";
 const UPSTREAM_NAME = ["Rak", "azo"].join("");
+/** Upgrade rehearsal: sign in as the owner created on the previous build instead of signing up. */
+const OWNER_EMAIL = process.env.STACK_OWNER_EMAIL;
+const OWNER_PASSWORD = process.env.STACK_OWNER_PASSWORD ?? "password12";
 
 /** A valid solid-colour PNG of the given size, built without dependencies. */
 function png(size: number): Buffer {
@@ -72,7 +75,14 @@ test.describe("compose stack", () => {
     const transcript = page.getByTestId("transcript");
 
     await test.step("sign up and connect the model during onboarding", async () => {
-      await signup(page, `owner-${stamp}@example.test`, "password12", `Owner ${stamp}`);
+      if (OWNER_EMAIL) {
+        await page.goto("/sign-in");
+        await page.getByPlaceholder("Your email address").fill(OWNER_EMAIL);
+        await page.getByPlaceholder("Password").fill(OWNER_PASSWORD);
+        await page.getByRole("button", { name: "Continue with email" }).click();
+      } else {
+        await signup(page, `owner-${stamp}@example.test`, "password12", `Owner ${stamp}`);
+      }
       // A fresh deployment has no model yet: onboarding asks for one first.
       await page.getByRole("heading", { name: "Connect a model" }).waitFor({ timeout: 30_000 });
       await page.getByRole("combobox", { name: "Provider" }).click();
