@@ -312,8 +312,15 @@ describe("MCP transport seam", () => {
       {
         oauth: {
           redirectUri: "http://127.0.0.1:5173/mcp/oauth/callback",
-          tokens: { access_token: "stale-access", refresh_token: "refresh", token_type: "bearer" },
-          clientInformation: { client_id: "client-1" },
+          // The SDK binds stored credentials to their authorization server via `issuer`;
+          // unbound (older) values are written back once, which would add a persist here.
+          tokens: {
+            access_token: "stale-access",
+            refresh_token: "refresh",
+            token_type: "bearer",
+            issuer: "https://auth.example.test",
+          },
+          clientInformation: { client_id: "client-1", issuer: "https://auth.example.test" },
           discoveryState: {
             authorizationServerUrl: "https://auth.example.test",
             resourceMetadata: {
