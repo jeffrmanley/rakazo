@@ -21,8 +21,10 @@ if [[ "${SKIP_BUILD:-0}" != 1 ]]; then "${compose[@]}" build; fi
 cleanup() { if [[ "${KEEP:-0}" != 1 ]]; then "${compose[@]}" down -v; fi; }
 trap cleanup EXIT
 
-for _ in $(seq 1 90); do
-  if curl -fsS "http://127.0.0.1:${E2E_WEB_PORT}/" >/dev/null 2>&1; then break; fi
+# The api applies migrations before it listens; wait for it as well as the web server.
+for _ in $(seq 1 150); do
+  if curl -fsS "http://127.0.0.1:${E2E_API_PORT:-13100}/health" >/dev/null 2>&1 &&
+    curl -fsS "http://127.0.0.1:${E2E_WEB_PORT}/" >/dev/null 2>&1; then break; fi
   sleep 2
 done
 
@@ -43,7 +45,8 @@ pg_user="$(grep -E '^POSTGRES_USER=' .env | cut -d= -f2-)"; pg_user="${pg_user:-
 pg_db="$(grep -E '^POSTGRES_DB=' .env | cut -d= -f2-)"; pg_db="${pg_db:-rakazo}"
 tampered="$("${compose[@]}" exec -T postgres psql -U "$pg_user" -d "$pg_db" -At -v ON_ERROR_STOP=1 \
   -c "set session_replication_role = replica" \
-  -c "update ext_audit_events set summary = summary || ' (edited)' where id = (select id from ext_audit_events order by at desc limit 1) returning id" | head -1)"
+  -c "update ext_audit_events set summary = summary || ' (edited)' where id = (select id from ext_audit_events order by at desc limit 1) returning id" |
+  grep -E '^[0-9a-f-]{36}$' | head -1)"
 if "${compose[@]}" exec -T api pnpm --filter @rakazo/api audit:verify >/tmp/stack-e2e-verify.log 2>&1; then
   echo "FAIL: audit verifier passed a tampered chain" >&2; exit 1
 fi
