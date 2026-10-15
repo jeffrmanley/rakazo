@@ -70,8 +70,9 @@ A call in a gated class becomes a mandatory approval: no "always allow" rule, au
 model judgment can let it through, and the web card offers **Allow once** and **Deny** only.
 
 1. The executor records the intended effect (upstream), then the request
-   (`ext_approvals`): tool, risk class, every argument and the bot's stated reason (the model's
-   text before the call) with secrets redacted but nothing cut, the approvers eligible at that
+   (`ext_approvals`): tool, risk class, every argument and the bot's stated reason (the text of the
+   model's message that issued the call, passed by the runtime with the call; nothing if the
+   model wrote none) with secrets redacted but nothing cut, the approvers eligible at that
    moment, a 30 minute deadline, and the SHA-256 of the tool name and its canonical arguments.
    `approval.request` is written in the same transaction; if that fails there is no request, no
    card and no execution, and the run halts with the error id, like any audit failure.

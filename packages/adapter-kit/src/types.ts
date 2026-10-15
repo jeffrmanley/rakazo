@@ -183,8 +183,14 @@ export interface AgentToolExecutionResult {
   details: unknown;
 }
 
-/** Hooks for a tool call that can report output before it returns. */
+/** Hooks and context for one tool call. */
 export interface AgentToolExecutionObserver {
+  /**
+   * Fork extension (EXT_APPROVALS): the text of the model's message that issued this call (its
+   * stated reason), unredacted; empty when the model wrote none. Absent when the runtime cannot
+   * tell, and the executor falls back to the text it has streamed.
+   */
+  statedReason?: string;
   /**
    * A shell command has already produced output and is still running.
    * Resolves with the final redacted result when the process exits.

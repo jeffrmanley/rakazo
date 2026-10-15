@@ -265,6 +265,7 @@ export class PiAgentRuntime implements AgentRuntime {
           depth: 0,
           pausePending: false,
           pendingShells: [],
+          statedReason: "",
         };
         resumeHost = host;
         const tools = toAgentTools(toolDefs, host);
@@ -490,6 +491,11 @@ export class PiAgentRuntime implements AgentRuntime {
         // it counts as the final reply, including when the completed message omits it.
         let streamedBeforePendingFinal = 0;
         agent.subscribe(async (event) => {
+          // Fork extension (EXT_APPROVALS): the message's text is the stated reason of the
+          // calls it issues (its tools run after this listener).
+          if (event.type === "message_end" && event.message.role === "assistant") {
+            host.statedReason = assistantText(event.message).trim();
+          }
           if (event.type === "message_end") {
             await piSession?.appendMessage(event.message);
           }
@@ -1274,6 +1280,7 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
               executionId,
               tool.route,
               {
+                statedReason: host.statedReason,
                 onShellStillRunning: (completion) => {
                   host.pendingShells.push(completion);
                 },
@@ -1415,6 +1422,7 @@ async function executeSubagent(host: ToolHost, executionId: string, args: Record
     depth: 1,
     agentNamespace: agentId,
     pendingShells: [],
+    statedReason: "",
   };
   const contextPolicy = createRuntimeContextPolicy(
     {
@@ -1509,6 +1517,9 @@ async function executeSubagent(host: ToolHost, executionId: string, args: Record
   let streamed = "";
   let lastPush = 0;
   nested.subscribe((event) => {
+    if (event.type === "message_end" && event.message.role === "assistant") {
+      nestedHost.statedReason = assistantText(event.message).trim();
+    }
     if (event.type === "tool_execution_start") {
       if (host.toolCallBudget.exceeded) return;
       const toolName = "toolName" in event && event.toolName ? String(event.toolName) : "a tool";
@@ -2199,6 +2210,8 @@ interface ToolHost {
   pausePending: boolean;
   /** Shell commands that returned output and are still running. */
   pendingShells: Array<Promise<FinishedShellCommand>>;
+  /** Fork extension (EXT_APPROVALS): text of the message whose tool calls are running. */
+  statedReason: string;
 }
 
 function toolCallBudgetExceededMessage(limit: number) {

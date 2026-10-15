@@ -4695,7 +4695,11 @@ export function createRunExecutor(deps: ExecutorDeps) {
                   riskClass: extRiskClass,
                   callHash: approvalCallHash(replayEffectToolName, args),
                   args,
-                  reason: (currentTextSegment || assembled).trim().slice(-1_000),
+                  // The runtime's own record of the message that issued this call; the
+                  // streamed text can lag behind a tool the runtime already dispatched.
+                  reason: (observer?.statedReason ?? (currentTextSegment || assembled))
+                    .trim()
+                    .slice(-1_000),
                   requestedBy: run.userId,
                   secrets: runSecrets,
                 });
