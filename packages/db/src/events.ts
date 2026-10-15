@@ -833,6 +833,27 @@ export async function answerWaitingRunWithTextInTransaction(
   return commitAnswerRunInput(tx, { ...input, messageId: found.messageId, answer });
 }
 
+/**
+ * Fork extension (EXT_APPROVALS): answer the pending approval card of one effect inside the
+ * caller's transaction, so the approval row, its audit record and the run's resume commit or
+ * roll back together. Null when the run no longer waits on that card.
+ */
+export async function answerApprovalAskInTransaction(
+  tx: Prisma.TransactionClient,
+  input: {
+    spaceId: string;
+    threadId: string;
+    runId: string;
+    effectId: string;
+    answeredByUserId: string;
+    answer: "allow" | "deny";
+  },
+): Promise<{ threadId: string; seq: number } | null> {
+  const found = await findPendingAsk(tx, input);
+  if (!found || found.pendingAsk.approvalEffectId !== input.effectId) return null;
+  return commitAnswerRunInput(tx, { ...input, messageId: found.messageId });
+}
+
 export async function pauseRunForInput(
   prisma: PrismaClient,
   input: PauseRunForInput,

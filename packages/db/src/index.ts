@@ -10,6 +10,7 @@ export * from "./computers.js";
 export * from "./credential-secrets.js";
 export * from "./events.js";
 export * from "./expire-stuck-run.js";
+export * from "./ext-approvals.js";
 export * from "./ext-audit.js";
 export * from "./ext-budgets.js";
 export * from "./ext-emergency-stop.js";

@@ -70,4 +70,12 @@ describe("buildApprovalAskBlock", () => {
     if (block.kind !== "ask") throw new Error("expected ask block");
     expect(block.detail).toContain("stay separate from other spaces");
   });
+
+  it("leaves out Always allow for a call an approval policy gates (EXT_APPROVALS)", () => {
+    const block = buildApprovalAskBlock("effect-2", "gmail_send_email", { to: "a" }, [], {
+      offerAlways: false,
+    });
+    if (block.kind !== "ask") throw new Error("expected ask block");
+    expect(block.actions?.map((action) => action.id)).toEqual(["allow", "deny"]);
+  });
 });

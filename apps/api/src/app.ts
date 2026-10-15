@@ -24,6 +24,7 @@ import {
   ChatSdkMessagingSurface,
   CodexCatalogCache,
   ComposioConnector,
+  createApprovalModule,
   createBackgroundJobHandlers,
   createCloudAgentConnection,
   createConnectorStack,
@@ -47,6 +48,7 @@ import {
   InMemoryRealtimeFanout,
   InstalledConnectorProvider,
   IntegrationProviderSettings,
+  installApprovals,
   installBudgetPolicy,
   isComposioEnabled,
   isMessagingSurfaceEnabled,
@@ -113,6 +115,12 @@ import { mountBillingRoutes } from "./billing-webhook.js";
 import { createBrandService, mountBrandRoutes } from "./brand.js";
 import type { AppEnv } from "./env.js";
 import { loadEnv } from "./env.js";
+import type { ApprovalService } from "./ext-approvals.js";
+import {
+  createApprovalService,
+  mountApprovalActions,
+  mountApprovalRoutes,
+} from "./ext-approvals.js";
 import {
   auditErrorInterceptor,
   mountAuditRoutes,
@@ -172,6 +180,8 @@ export interface AppHandles {
   connectors: ConnectorRegistry;
   messaging?: MessagingSurface;
   email?: TransactionalEmailProvider;
+  /** Fork extension: present only with EXT_APPROVALS=1. */
+  approvals?: ApprovalService;
   executor: ReturnType<typeof createRunExecutor>;
   runtime: AgentRuntime;
   awaitIdle?: () => Promise<void>;
@@ -571,7 +581,16 @@ export async function createApp(
     : undefined;
   reconciler?.start();
 
+  // Fork extension: EXT_APPROVALS=1 makes gated tool calls wait for a listed approver, with
+  // cards in Slack and Teams and the expiry sweep in this process.
+  installApprovals(env.ext.approvals ? createApprovalModule({ prisma, messaging }) : null);
+  const approvals = env.ext.approvals
+    ? createApprovalService({ prisma, events, jobs, messaging })
+    : undefined;
+  const stopApprovalSweep = approvals?.start();
+
   const router = createRouter({
+    approvals,
     cloudAgent,
     codexCatalog,
     prisma,
@@ -728,8 +747,13 @@ export async function createApp(
   if (env.ext.budgets) {
     mountBudgetRoutes(app, { prisma, defaults: env.ext, authenticate: sessionActor });
   }
+  if (approvals) mountApprovalRoutes(app, { prisma, authenticate: sessionActor });
   mountExtModulesRoute(app, {
-    modules: { emergencyStop: Boolean(controlService), budgets: env.ext.budgets },
+    modules: {
+      emergencyStop: Boolean(controlService),
+      budgets: env.ext.budgets,
+      approvals: Boolean(approvals),
+    },
     authenticate: sessionActor,
   });
   if (billing && billingProvider) {
@@ -992,6 +1016,8 @@ export async function createApp(
       }
       await chatControl.handleCommand(command);
     });
+    // Fork extension: approval card buttons; with the module off no handler is registered.
+    if (approvals) mountApprovalActions(messaging, approvals);
     const inboundSink = async (event: MessagingInboundEvent) => {
       if (event.type !== "message") {
         await applyMessagingOutboundStatus(prisma, event);
@@ -1101,6 +1127,7 @@ export async function createApp(
     connectors: stack.connector,
     messaging,
     email,
+    approvals,
     executor,
     runtime,
     awaitIdle: inMemoryJobs ? () => inMemoryJobs.awaitIdle() : undefined,
@@ -1114,6 +1141,8 @@ export async function createApp(
       installAuditWriter(null);
       installEmergencyStop(null);
       installBudgetPolicy(null);
+      stopApprovalSweep?.();
+      installApprovals(null);
       oauthLogins.abortAll();
       messagingStopped = true;
       clearMessagingRetryDelay?.();

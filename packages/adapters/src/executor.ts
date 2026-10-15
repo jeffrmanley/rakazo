@@ -94,14 +94,16 @@ import {
   userTurnMessageForRun,
 } from "@rakazo/core";
 import {
+  approvalCallHash,
   approvalEffectKey,
   isToolEffectIdempotencyKey,
   legacyScopedToolEffectIdempotencyKey,
   stableJsonValue,
   toolEffectIdempotencyKey,
 } from "@rakazo/core/node/approval-effect-key";
-import type { AuditWriteError, McpServer, Prisma, PrismaClient, ThreadEvents } from "@rakazo/db";
+import type { McpServer, Prisma, PrismaClient, ThreadEvents } from "@rakazo/db";
 import {
+  AuditWriteError,
   appendEventInTransaction,
   createSpaceForMember,
   createThreadMessageInTransaction,
@@ -240,6 +242,7 @@ import { checkpointRunComputerWorkspace } from "./computer-workspace.js";
 import { redactConnectorPayload, sanitizeConnectorError } from "./connector-safety.js";
 import { formatCurrentTimeInstruction } from "./current-time.js";
 import { resolveDeploymentModel } from "./deployment-model.js";
+import { getApprovals } from "./ext-approvals.js";
 import { auditedToolExecution } from "./ext-audit-tools.js";
 import {
   BudgetStop,
@@ -4344,8 +4347,23 @@ export function createRunExecutor(deps: ExecutorDeps) {
           const requiresApprovalByDefault =
             requiresUnattendedApproval ||
             toolRequiresApproval(name, viaConnector, declaredReadOnly);
+          // Fork extension (EXT_APPROVALS): a call in a risk class the bot's policy gates waits
+          // for a listed approver; no rule, auto review or "always allow" can skip it.
+          const approvals = getApprovals();
+          const extRiskClass =
+            approvals && !READ_ONLY_AGENT_TOOLS.has(name) && name !== "request_secret"
+              ? await approvals.gate({
+                  spaceId: run.spaceId,
+                  botId: bot.id,
+                  toolName: name,
+                  viaConnector,
+                  readOnly: declaredReadOnly,
+                })
+              : null;
           const requiresMandatoryApproval =
-            requiresUnattendedApproval || toolRequiresExplicitApproval(name);
+            requiresUnattendedApproval ||
+            toolRequiresExplicitApproval(name) ||
+            Boolean(extRiskClass);
           const connectorKind = connectorKindFromToolName(
             name,
             connectedPlugins.map((plugin) => plugin.provider),
@@ -4612,6 +4630,37 @@ export function createRunExecutor(deps: ExecutorDeps) {
               // Another worker owns the run now; exit without leaving a local pause card.
               return pauseForApproval();
             }
+            // Fork extension (EXT_APPROVALS): the request and its audit record come before the
+            // card. A failed audit write fails closed: no card, no execution, the run halts.
+            let extApprovalId: string | undefined;
+            if (approvals && extRiskClass) {
+              try {
+                const request = await approvals.request({
+                  spaceId: run.spaceId,
+                  botId: bot.id,
+                  runId,
+                  threadId: thread.id,
+                  effectId: applied!.effect.id,
+                  toolName: replayEffectToolName,
+                  riskClass: extRiskClass,
+                  callHash: approvalCallHash(replayEffectToolName, args),
+                  args,
+                  reason: (currentTextSegment || assembled).trim().slice(-1_000),
+                  requestedBy: run.userId,
+                  secrets: runSecrets,
+                });
+                if (request.status !== "pending") {
+                  return { error: "This action was not approved. Do not retry it." };
+                }
+                extApprovalId = request.id;
+              } catch (error) {
+                if (error instanceof AuditWriteError) {
+                  auditFailure ??= error;
+                  runAbortController?.abort(error);
+                }
+                throw error;
+              }
+            }
             await workspaceCheckpoint.flush();
             const paused = await deps.events.pauseRunForInput({
               spaceId: run.spaceId,
@@ -4624,6 +4673,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
               blocks: [
                 buildApprovalAskBlock(applied!.effect.id, name, args, runSecrets, {
                   reviewReason,
+                  offerAlways: !extRiskClass,
                 }),
               ],
             });
@@ -4640,6 +4690,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
               botId: bot.id,
               threadId: thread.id,
             });
+            if (approvals && extApprovalId) await approvals.announce(extApprovalId);
             return pauseForApproval();
           };
 
@@ -4702,6 +4753,13 @@ export function createRunExecutor(deps: ExecutorDeps) {
             } else if (gate.action === "uncertain") {
               return settleUncertainEffect(deps.prisma, applied.effect.id, gate.toolName);
             } else if (gate.action === "execute") {
+              // Fork extension (EXT_APPROVALS): a gated call runs only under an approved request
+              // for this exact call (tool name and canonical arguments).
+              const refusal = await approvals?.checkExecution({
+                effectId: applied.effect.id,
+                callHash: approvalCallHash(replayEffectToolName, args),
+              });
+              if (refusal) return { error: refusal };
               const early = await claimOrReturn("approved");
               if (early !== undefined) return early;
             }

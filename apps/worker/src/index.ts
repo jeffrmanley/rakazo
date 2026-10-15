@@ -8,6 +8,7 @@ loadRootEnv();
 import {
   ChatSdkMessagingSurface,
   CodexCatalogCache,
+  createApprovalModule,
   createBackgroundJobHandlers,
   createCloudAgentConnection,
   createConnectorStack,
@@ -25,6 +26,7 @@ import {
   GraphileJobWorkerHost,
   InMemoryJobQueue,
   InstalledConnectorProvider,
+  installApprovals,
   installBudgetPolicy,
   isComposioEnabled,
   isMessagingSurfaceEnabled,
@@ -161,6 +163,9 @@ async function main() {
   })
     ? new ChatSdkMessagingSurface(messagingPlatforms)
     : undefined;
+  // Fork extension: EXT_APPROVALS=1 makes gated tool calls wait for a listed approver; this
+  // process posts the approval card when one of its runs pauses.
+  installApprovals(ext.approvals ? createApprovalModule({ prisma, messaging }) : null);
   const integrationSettings = new IntegrationProviderSettings(
     prisma,
     secrets,

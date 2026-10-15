@@ -237,6 +237,7 @@ import {
   resolveBusyBotName,
   toComputerStatus,
 } from "./computer-status.js";
+import type { ApprovalService } from "./ext-approvals.js";
 import { assertPremiumModelAllowed } from "./ext-budgets.js";
 import { searchIntegrationCatalog } from "./integration-catalog.js";
 import {
@@ -583,6 +584,8 @@ export interface RouterDeps {
   dataDir: string;
   /** Present when the external messaging surface is enabled. */
   messaging?: { enabled: boolean; providers: string[]; openSignup: boolean };
+  /** Fork extension: present only with EXT_APPROVALS=1 (gated approval cards). */
+  approvals?: Pick<ApprovalService, "answerFromWeb">;
   /** Present only when the deployment bills; self-hosted installs leave it unset. */
   billing?: BillingService;
   /** Runtime branding; defaults to one over `prisma` with no PUBLIC_BRAND_* values. */
@@ -2488,6 +2491,18 @@ export function createRouter(deps: RouterDeps) {
       }),
       answer: authed.threads.answer.handler(async ({ context, input }) => {
         const target = await resolveThreadTarget(deps.prisma, context.actor, input);
+        // Fork extension (EXT_APPROVALS): a gated call is decided by a listed approver only,
+        // through the same path as the Slack and Teams buttons (it also resumes the run).
+        if (
+          await deps.approvals?.answerFromWeb(context.actor, {
+            threadId: target.threadId,
+            runId: input.runId,
+            messageId: input.messageId,
+            answer: input.answer,
+          })
+        ) {
+          return { ok: true as const };
+        }
         const answered = await deps.events.answerRunInput({
           spaceId: context.actor.spaceId,
           threadId: target.threadId,

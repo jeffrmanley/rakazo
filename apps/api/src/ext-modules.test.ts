@@ -14,7 +14,7 @@ afterEach(() => {
   installLogger(createLogger({ service: "rakazo-api", level: "off", sinks: [] }));
 });
 
-function app(modules: { emergencyStop: boolean; budgets: boolean }) {
+function app(modules: { emergencyStop: boolean; budgets: boolean; approvals: boolean }) {
   const hono = new Hono();
   mountExtModulesRoute(hono, {
     modules,
@@ -27,9 +27,10 @@ function app(modules: { emergencyStop: boolean; budgets: boolean }) {
 describe("GET /api/v1/ext/modules", () => {
   it("tells a signed-in session which optional modules run, even when all are off", async () => {
     for (const modules of [
-      { emergencyStop: false, budgets: false },
-      { emergencyStop: true, budgets: false },
-      { emergencyStop: false, budgets: true },
+      { emergencyStop: false, budgets: false, approvals: false },
+      { emergencyStop: true, budgets: false, approvals: false },
+      { emergencyStop: false, budgets: true, approvals: false },
+      { emergencyStop: false, budgets: false, approvals: true },
     ]) {
       const res = await app(modules).request(EXT_MODULES_PATH, {
         headers: { cookie: "session=ok" },
@@ -41,7 +42,9 @@ describe("GET /api/v1/ext/modules", () => {
   });
 
   it("refuses and logs a request without a session", async () => {
-    const res = await app({ emergencyStop: true, budgets: true }).request(EXT_MODULES_PATH);
+    const res = await app({ emergencyStop: true, budgets: true, approvals: true }).request(
+      EXT_MODULES_PATH,
+    );
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "Unauthorized" });
     expect(sink.events).toEqual([

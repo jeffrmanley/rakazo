@@ -1669,3 +1669,69 @@ model ExtRunSlotWait {
   @@index([botId, runCreatedAt])
   @@map("ext_run_slot_waits")
 }
+
+/// Fork extension: approvals (EXT_APPROVALS). Which risk classes of a bot's tool calls wait
+/// for a person, and who may decide. FK-free like the other extension tables; no row means
+/// the defaults (write-external; space owners plus the user who started the run).
+model ExtBotApprovalPolicy {
+  botId           String   @id
+  spaceId         String
+  /// "read" | "write-internal" | "write-external"
+  gatedClasses    String[]
+  /// Empty: the space owners plus the user who started the run.
+  approverUserIds String[]
+  createdAt       DateTime @default(now())
+  createdBy       String
+  updatedAt       DateTime @updatedAt
+  updatedBy       String
+
+  @@index([spaceId])
+  @@map("ext_bot_approval_policies")
+}
+
+/// Fork extension: one request for a person to approve one exact tool call (EXT_APPROVALS).
+/// Bound to the upstream external effect it gates and to the hash of the tool name and its
+/// canonical arguments. Single use: a pending row is decided once and never reopened.
+model ExtApproval {
+  id            String    @id
+  spaceId       String
+  botId         String
+  runId         String
+  threadId      String
+  /// The upstream external_effects row this approval gates.
+  effectId      String    @unique
+  toolName      String
+  /// "read" | "write-internal" | "write-external"
+  riskClass     String
+  /// sha256 of the tool name and canonical arguments.
+  callHash      String
+  /// Arguments as shown to approvers, secrets redacted.
+  args          Json
+  /// The bot's stated reason, secrets redacted.
+  reason        String
+  /// The user who started the run.
+  requestedBy   String
+  /// Who may decide, fixed when the request was made.
+  approverIds   String[]
+  /// "pending" | "allow" | "deny" | "expired" | "invalid"
+  status        String
+  createdAt     DateTime
+  expiresAt     DateTime
+  decidedAt     DateTime?
+  /// The deciding user; null when the system decided (expiry, approver gone, stop).
+  decidedBy     String?
+  /// "web" | "slack" | "teams" | "system"
+  decidedVia    String?
+  /// Platform interaction id of the deciding click.
+  interactionId String?
+  decisionNote  String?
+  /// Where the chat card was posted, so a decision anywhere can update it.
+  cardProvider  String?
+  cardThreadId  String?
+  cardMessageId String?
+
+  @@index([status, expiresAt])
+  @@index([spaceId, status])
+  @@index([runId])
+  @@map("ext_approvals")
+}

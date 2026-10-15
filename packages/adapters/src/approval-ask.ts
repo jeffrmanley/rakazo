@@ -9,7 +9,8 @@ export function buildApprovalAskBlock(
   toolName: string,
   args: Record<string, unknown>,
   secrets: string[],
-  options?: { reviewReason?: string },
+  /** offerAlways false (a call an approval policy gates) leaves out "Always allow". */
+  options?: { reviewReason?: string; offerAlways?: boolean },
 ): MessageBlock {
   const summary = describeApprovalAction(toolName, args);
   const detail = formatApprovalDetail(toolName, args, options?.reviewReason);
@@ -34,7 +35,9 @@ export function buildApprovalAskBlock(
           ]
         : [
             { id: "allow", label: "Allow once" },
-            { id: "always", label: "Always allow this tool" },
+            ...(options?.offerAlways === false
+              ? []
+              : [{ id: "always", label: "Always allow this tool" }]),
             { id: "deny", label: "Deny" },
           ],
   };

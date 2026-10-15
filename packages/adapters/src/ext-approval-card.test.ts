@@ -97,7 +97,7 @@ describe("platform escaping", () => {
     // The argument block stays one code block: an embedded fence cannot close it.
     const code = blocks.find(
       (block) => block.type === "section" && JSON.stringify(block).includes("done"),
-    ) as { text: { text: string } };
+    ) as unknown as { text: { text: string } };
     expect(code.text.text.startsWith("```")).toBe(true);
     expect(code.text.text.match(/```/g)).toHaveLength(2);
     expect(blocks).toContainEqual(
@@ -117,7 +117,7 @@ describe("platform escaping", () => {
         title: "Crew *needs* approval",
         blocks: [{ kind: "code", text: hostile }],
         actions: [{ id: "a", label: "Approve", value: "v", style: "primary" }],
-      }),
+      }) as Parameters<typeof cardToAdaptiveCard>[0],
     );
     const serialized = JSON.stringify(card);
     expect(serialized).not.toContain("[click](https://evil.test)");

@@ -2,7 +2,7 @@ import { getLogger } from "@rakazo/logging";
 import type { Hono } from "hono";
 
 /** Fork extensions with controls in the web app, and whether this deployment runs each. */
-export type ExtModules = { emergencyStop: boolean; budgets: boolean };
+export type ExtModules = { emergencyStop: boolean; budgets: boolean; approvals: boolean };
 
 export const EXT_MODULES_PATH = "/api/v1/ext/modules";
 
