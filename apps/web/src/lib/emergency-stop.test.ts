@@ -7,6 +7,7 @@ import {
   sendControl,
   spaceStopOf,
 } from "./emergency-stop";
+import { resetExtModulesForTests } from "./ext-modules";
 
 const stop = (overrides: Partial<ControlStop>): ControlStop => ({
   id: "s",
@@ -25,7 +26,15 @@ const state = (stops: ControlStop[]): ControlState => ({
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  resetExtModulesForTests();
 });
+
+/** A server whose module list says `emergencyStop`, answering other requests with `answer`. */
+function server(emergencyStop: boolean, answer: () => Response) {
+  return vi.fn(async (url: string) =>
+    url === "/api/v1/ext/modules" ? Response.json({ emergencyStop, budgets: false }) : answer(),
+  );
+}
 
 describe("stop state helpers", () => {
   it("knows which bots are paused and why", () => {
@@ -49,18 +58,26 @@ describe("stop state helpers", () => {
 });
 
 describe("control requests", () => {
-  it("reads the state of the selected space, and treats 404 as the module being off", async () => {
-    const fetchMock = vi.fn(async () => Response.json(state([]), { status: 200 }));
+  it("reads the state of the selected space when the module runs", async () => {
+    const fetchMock = server(true, () => Response.json(state([]), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await expect(fetchControlState("space-a")).resolves.toEqual(state([]));
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const [url, init] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
     expect(url).toBe("/api/v1/control/state");
     expect(new Headers(init.headers).get("x-rakazo-space-id")).toBe("space-a");
     expect(init.credentials).toBe("include");
+  });
 
+  it("does not request the state when the module is off, and treats a 404 as off", async () => {
+    const off = server(false, () => Response.json(state([])));
+    vi.stubGlobal("fetch", off);
+    await expect(fetchControlState("space-a")).resolves.toBeNull();
+    expect(off.mock.calls.map(([url]) => url)).toEqual(["/api/v1/ext/modules"]);
+
+    resetExtModulesForTests();
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response("", { status: 404 })),
+      server(true, () => new Response("", { status: 404 })),
     );
     await expect(fetchControlState("space-a")).resolves.toBeNull();
   });

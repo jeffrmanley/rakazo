@@ -125,6 +125,7 @@ import {
   createControlService,
   mountControlRoutes,
 } from "./ext-emergency-stop.js";
+import { mountExtModulesRoute } from "./ext-modules.js";
 import { healthRoutes } from "./health.js";
 import { mountLocalSettings } from "./local-settings.js";
 import {
@@ -727,6 +728,10 @@ export async function createApp(
   if (env.ext.budgets) {
     mountBudgetRoutes(app, { prisma, defaults: env.ext, authenticate: sessionActor });
   }
+  mountExtModulesRoute(app, {
+    modules: { emergencyStop: Boolean(controlService), budgets: env.ext.budgets },
+    authenticate: sessionActor,
+  });
   if (billing && billingProvider) {
     mountBillingRoutes(app, {
       billing,

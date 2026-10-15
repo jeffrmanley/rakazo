@@ -140,21 +140,17 @@ export function createRuntimeBrandSource(
   };
 }
 
-const SERVER_PREFIXES = ["/api/", "/rpc/", "/novnc/", "/.well-known/", "/@", "/__"];
-
-/** A navigation the SPA answers with index.html: GET or HEAD, no file extension, not a server path. */
-function isDocumentRequest(method: string | undefined, url: string | undefined): boolean {
+/** GET or HEAD of the built index.html: what Vite's SPA fallback turns every app navigation into. */
+function isIndexRequest(method: string | undefined, url: string | undefined): boolean {
   if (method !== "GET" && method !== "HEAD") return false;
-  const pathname = (url ?? "/").split("?", 1)[0]!;
-  if (pathname === "/api" || pathname === "/rpc") return false;
-  if (SERVER_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return false;
-  const last = pathname.slice(pathname.lastIndexOf("/") + 1);
-  return !last.includes(".") || last === "index.html";
+  return (url ?? "").split("?", 1)[0] === "/index.html";
 }
 
 /**
- * Preview-server middleware: answers document requests with the built
- * index.html under the runtime brand, so the first byte already carries it.
+ * Preview-server middleware: answers requests for index.html with the built
+ * file under the runtime brand, so the first byte already carries it. Runs
+ * after Vite's SPA fallback, so it only sees what Vite would answer with
+ * index.html; every other route stays with whoever serves it.
  */
 export function brandHtmlMiddleware(
   indexPath: () => string,
@@ -163,12 +159,19 @@ export function brandHtmlMiddleware(
 ) {
   let template: string | undefined;
   return async (req: IncomingMessage, res: ServerResponse, next: (error?: unknown) => void) => {
-    if (!isDocumentRequest(req.method, req.url)) {
+    if (!isIndexRequest(req.method, req.url)) {
       next();
       return;
     }
     try {
       template ??= await fs.promises.readFile(indexPath(), "utf8");
+    } catch (error) {
+      // Nothing built: Vite answers as it would without the brand (404).
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") next();
+      else next(error);
+      return;
+    }
+    try {
       const view = (await source()) ?? fallbackBrandView(fallback);
       res.statusCode = 200;
       res.setHeader("content-type", "text/html; charset=utf-8");
@@ -228,9 +231,14 @@ export function brandPlugin(
     configurePreviewServer(server) {
       serveAssets(server);
       const outDir = path.resolve(server.config.root, server.config.build.outDir);
-      server.middlewares.use(
-        brandHtmlMiddleware(() => path.join(outDir, "index.html"), runtimeBrand, brand),
-      );
+      const html = brandHtmlMiddleware(() => path.join(outDir, "index.html"), runtimeBrand, brand);
+      // A direct /index.html request, before Vite's static files would serve it unbranded.
+      server.middlewares.use(html);
+      // App navigations once Vite's SPA fallback has rewritten them to /index.html: after
+      // other plugins' routes (the screen proxy), the API proxy and static files.
+      return () => {
+        server.middlewares.use(html);
+      };
     },
     generateBundle() {
       this.emitFile({ type: "asset", fileName: "site.webmanifest", source: manifest });

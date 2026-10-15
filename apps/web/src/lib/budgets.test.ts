@@ -6,8 +6,24 @@ import {
   parseUsdInput,
   saveBotBudget,
 } from "./budgets";
+import { resetExtModulesForTests } from "./ext-modules";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  resetExtModulesForTests();
+});
+
+it("does not ask for budgets when the module is off, so nothing is shown", async () => {
+  const fetchMock = vi.fn(async (url: string) =>
+    url === "/api/v1/ext/modules"
+      ? Response.json({ emergencyStop: false, budgets: false })
+      : Response.json({}),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  await expect(fetchSpaceBudget()).resolves.toBeNull();
+  await expect(fetchBotBudget("bot_1")).resolves.toBeNull();
+  expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(["/api/v1/ext/modules"]);
+});
 
 it("treats a 404 as budgets being off, so nothing is shown", async () => {
   vi.stubGlobal(

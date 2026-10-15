@@ -1,9 +1,14 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import type { Server } from "node:http";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { BrandView } from "@rakazo/contracts";
 import { resolveBrand, UPSTREAM_BRAND } from "@rakazo/core";
-import { describe, expect, it } from "vitest";
+import type { Plugin, PreviewServer } from "vite";
+import { preview } from "vite";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   brandHtml,
   brandHtmlMiddleware,
@@ -155,8 +160,9 @@ describe("preview server", () => {
     url: string,
     source: () => Promise<BrandView | null>,
     method = "GET",
-  ): Promise<{ handled: boolean; status?: number; body?: string; type?: string }> {
-    const handler = brandHtmlMiddleware(() => path.join(dir, "index.html"), source, resolveBrand());
+    indexPath = path.join(dir, "index.html"),
+  ): Promise<{ handled: boolean; status?: number; body?: string; type?: string; error?: unknown }> {
+    const handler = brandHtmlMiddleware(() => indexPath, source, resolveBrand());
     return new Promise((resolve) => {
       const headers: Record<string, string> = {};
       const res = {
@@ -167,12 +173,14 @@ describe("preview server", () => {
         end: (body: string) =>
           resolve({ handled: true, status: res.statusCode, body, type: headers["content-type"] }),
       };
-      void handler({ url, method } as never, res as never, () => resolve({ handled: false }));
+      void handler({ url, method } as never, res as never, (error?: unknown) =>
+        resolve({ handled: false, error }),
+      );
     });
   }
 
   it("serves index.html with the brand the API resolves, on first byte", async () => {
-    const response = await request("/app/bot-1?x=1", async () =>
+    const response = await request("/index.html", async () =>
       view({ name: "Acme", shortName: "Acme" }),
     );
     expect(response).toMatchObject({ handled: true, status: 200 });
@@ -181,9 +189,10 @@ describe("preview server", () => {
     expect(response.body).not.toContain("Rakazo");
   });
 
-  it("leaves API, assets and well-known paths alone", async () => {
+  it("answers only index.html: other routes stay with whoever serves them", async () => {
     const source = async () => view({ name: "Acme" });
     for (const url of [
+      "/app/bot-1",
       "/api/v1/brand",
       "/rpc/me",
       "/novnc/vnc.html",
@@ -193,12 +202,85 @@ describe("preview server", () => {
     ]) {
       expect((await request(url, source)).handled, url).toBe(false);
     }
-    expect((await request("/", source, "POST")).handled).toBe(false);
+    expect((await request("/index.html", source, "POST")).handled).toBe(false);
+  });
+
+  it("leaves a missing build to Vite instead of failing the request", async () => {
+    const response = await request("/index.html", async () => null, "GET", path.join(dir, "no"));
+    expect(response).toEqual({ handled: false, error: undefined });
   });
 
   it("falls back to the configured brand when the API is unreachable", async () => {
-    const response = await request("/", async () => null);
+    const response = await request("/index.html", async () => null);
     expect(response.body).toContain("<title>Rakazo</title>");
+  });
+});
+
+describe("Vite preview server with the brand plugin", () => {
+  let api: Server;
+  let apiOrigin: string;
+  const servers: PreviewServer[] = [];
+
+  beforeAll(async () => {
+    api = createServer((req, res) => {
+      if (req.url === "/api/v1/brand") {
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify(view({ name: "Acme", shortName: "Acme" })));
+      } else res.writeHead(404).end();
+    });
+    await new Promise<void>((resolve) => api.listen(0, "127.0.0.1", resolve));
+    apiOrigin = `http://127.0.0.1:${(api.address() as AddressInfo).port}`;
+  });
+
+  afterAll(async () => {
+    await Promise.all(servers.map((server) => server.close()));
+    await new Promise((resolve) => api.close(resolve));
+  });
+
+  /** A preview server for `root`, with a later plugin that owns `/screen` (like the screen proxy). */
+  async function start(root: string) {
+    const laterRoute: Plugin = {
+      name: "later-route",
+      configurePreviewServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.url !== "/screen") return next();
+          res.setHeader("content-type", "text/html");
+          res.end("<title>Screen</title>");
+        });
+      },
+    };
+    const server = await preview({
+      root,
+      configFile: false,
+      logLevel: "silent",
+      plugins: [brandPlugin(resolveBrand(), undefined, apiOrigin), laterRoute],
+      preview: { host: "127.0.0.1", port: 0 },
+    });
+    servers.push(server);
+    const origin = `http://127.0.0.1:${(server.httpServer.address() as AddressInfo).port}`;
+    return (url: string) => fetch(`${origin}${url}`, { headers: { accept: "text/html" } });
+  }
+
+  it("brands every app page and leaves other plugins' routes untouched", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "brand-vite-"));
+    mkdirSync(path.join(root, "dist"));
+    writeFileSync(path.join(root, "dist", "index.html"), INDEX);
+    const get = await start(root);
+    for (const url of ["/", "/bots/abc?x=1", "/index.html"]) {
+      const response = await get(url);
+      expect(response.status, url).toBe(200);
+      expect(await response.text(), url).toContain("<title>Acme</title>");
+    }
+    const screen = await get("/screen");
+    expect(await screen.text()).toBe("<title>Screen</title>");
+  });
+
+  it("without a build, other routes still work and app pages are a plain 404", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "brand-vite-"));
+    mkdirSync(path.join(root, "dist"));
+    const get = await start(root);
+    expect(await (await get("/screen")).text()).toBe("<title>Screen</title>");
+    expect((await get("/bots/abc")).status).toBe(404);
   });
 });
 

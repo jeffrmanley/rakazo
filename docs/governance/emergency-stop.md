@@ -3,7 +3,8 @@
 Fork extension (governance milestone M2b). Off by default; `EXT_EMERGENCY_STOP=1` turns it on.
 Set it for the API and the worker alike. With the flag off nothing changes: the control routes
 are not mounted (404), `/stop` in a chat is ordinary text, the web app shows no new controls and
-no run, routine or delivery path reads the stop table.
+no run, routine or delivery path reads the stop table. The web app learns which modules run from
+`GET /api/v1/ext/modules` (signed-in sessions) instead of probing the absent routes.
 
 ## Behaviour
 
