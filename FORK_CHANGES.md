@@ -30,6 +30,10 @@ upstream names, and the Apache-2.0 credit in Settings links back to the upstream
   endpoints), with `PUBLIC_BRAND_*` as the fallback; emails, chat replies and default prompts
   follow it without a rebuild.
 - A production compose stack end-to-end test (`infra/compose/e2e`).
+- Red-team evals: a deterministic suite in which the offline model emulator plays a hostile,
+  prompt-injected model against every governance control, `pnpm test:redteam` with a markdown
+  report, and an opt-in live mode that measures whether a real model attempts a violation
+  (`EXT_EVALS`, see `docs/governance/evals.md`).
 
 ## Files
 
@@ -38,6 +42,7 @@ Relative to upstream commit `2d666c4`.
 ### `(root)`
 
 - `.env.example` (modified)
+- `package.json` (modified)
 - `pnpm-lock.yaml` (modified)
 
 ### `apps/api`
@@ -137,6 +142,7 @@ Relative to upstream commit `2d666c4`.
 - `docs/governance/audit-log.md` (added)
 - `docs/governance/budgets.md` (added)
 - `docs/governance/emergency-stop.md` (added)
+- `docs/governance/evals.md` (added)
 - `docs/self-host.md` (modified)
 - `docs/teams-adapter-spec.md` (added)
 
@@ -288,9 +294,16 @@ Relative to upstream commit `2d666c4`.
 
 - `packages/testkit/src/cli/evals.ts` (modified)
 - `packages/testkit/src/cli/harness.ts` (modified)
+- `packages/testkit/src/cli/redteam.ts` (added)
+- `packages/testkit/src/evals/redteam-cases.test.ts` (added)
+- `packages/testkit/src/evals/redteam-cases.ts` (added)
+- `packages/testkit/src/evals/redteam-cli.test.ts` (added)
 - `packages/testkit/src/ext-approvals.postgres.test.ts` (added)
 - `packages/testkit/src/ext-audit-log.postgres.test.ts` (added)
 - `packages/testkit/src/ext-budgets.postgres.test.ts` (added)
 - `packages/testkit/src/ext-emergency-stop.postgres.test.ts` (added)
+- `packages/testkit/src/ext-redteam.postgres.test.ts` (added)
 - `packages/testkit/src/messaging-multi-identity.test.ts` (added)
+- `packages/testkit/src/model-emulator.test.ts` (modified)
+- `packages/testkit/src/model-emulator.ts` (modified)
 - `packages/testkit/src/teams-team-chat.test.ts` (added)
