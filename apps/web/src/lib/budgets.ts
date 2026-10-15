@@ -29,6 +29,8 @@ export type BotBudgetView = {
     maxSpawnDepth: number;
     maxSpawnFanout: number;
   };
+  /** Space owners may raise budgets; a bot owner may only lower them below the defaults. */
+  canRaise: boolean;
   canSetPremium: boolean;
   canTopUp: boolean;
 };

@@ -16,9 +16,15 @@ compared in micro-dollars, so float sums cannot flip them.
 | --- | --- | --- |
 | Bot, profile `assistant` | `EXT_BUDGET_DEFAULT_DAILY_USD` ($3) | bot owner or space owner |
 | Bot, profile `worker` | $15 | bot owner or space owner |
-| Bot, profile `swarm` | $40 | bot owner or space owner |
-| Bot, profile `custom` | the amount given ($0.01 to $10,000) | bot owner or space owner |
+| Bot, profile `swarm` | $40 | space owner |
+| Bot, profile `custom` | the amount given ($0.01 to $10,000) | space owner |
 | Space | `EXT_BUDGET_SPACE_DAILY_USD` ($50), or a custom amount | space owner |
+
+**Who may change what.** A bot's owner who is not a space owner may only keep the bot at or
+below the deployment defaults: the `assistant` or `worker` profile, and concurrency, delegation
+depth and fan-out no higher than the defaults (or the default itself). The `swarm` profile, custom
+amounts, premium, and any limit above its default need a space owner. The API refuses anything
+else with 403; the settings show those choices disabled.
 
 A **top-up** raises today's cap for one bot or for the space by an amount ($0.01 to $10,000). It
 is stored against the UTC day and expires when that day ends. Only space owners can top up.
@@ -74,7 +80,8 @@ asserts no tool name or argument refers to budgets, premium, top-ups or limits).
 - Bot settings, for the bot's owner and space owners: today's spend against the cap, the profile
   select and custom amount, "Premium models" (space owners), "Top up today" (space owners, once
   the bot is at 80%), and a collapsed "Limits" disclosure for runs at once, delegation depth and
-  delegations per run (blank uses the deployment default).
+  delegations per run (blank uses the deployment default). For a bot owner who is not a space
+  owner, `swarm` and `custom` are disabled and the limits stop at the defaults.
 - Settings, Budget section, for every member: today's space spend against the cap; space owners
   can set the daily cap (blank uses the default) and top up today.
 - The settings are web and desktop only; mobile shows no budget UI.
@@ -94,12 +101,13 @@ if that write fails, the change is not made.
 | `PUT /api/v1/budgets/space` | `{ "dailyUsd": number \| null }` | space owner |
 | `POST /api/v1/budgets/space/top-up` | `{ "amountUsd": number }` | space owner |
 | `GET /api/v1/budgets/bots/:botId` | | bot owner, space owner |
-| `PUT /api/v1/budgets/bots/:botId` | any of `profile`, `customDailyUsd`, `premium`, `maxConcurrentRuns`, `maxSpawnDepth`, `maxSpawnFanout` | bot owner, space owner (`premium`: space owner) |
+| `PUT /api/v1/budgets/bots/:botId` | any of `profile`, `customDailyUsd`, `premium`, `maxConcurrentRuns`, `maxSpawnDepth`, `maxSpawnFanout` | bot owner (lowering only, see above), space owner |
 | `POST /api/v1/budgets/bots/:botId/top-up` | `{ "amountUsd": number }` | space owner |
 
 Limits are whole numbers from 0 to 50, or `null` for the default. `customDailyUsd` implies the
 `custom` profile. The bot view returns today's bot and space spend, caps, top-ups and levels
-(`ok`, `warn`, `blocked`), the stored settings, the effective limits and the defaults.
+(`ok`, `warn`, `blocked`), the stored settings, the effective limits, the defaults, and what the
+caller may do (`canRaise`, `canSetPremium`, `canTopUp`).
 
 ## Configuration
 

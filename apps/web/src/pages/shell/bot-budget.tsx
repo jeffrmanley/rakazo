@@ -1,6 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { BudgetProfile } from "@rakazo/core";
 import {
+  BUDGET_MAX_LIMIT,
   BUDGET_PROFILE_DAILY_USD,
   BUDGET_PROFILES,
   formatUsd,
@@ -134,7 +135,11 @@ export function BotBudgetSection({ botId }: { botId: string }) {
           }}
         >
           {BUDGET_PROFILES.map((profile) => (
-            <NativeSelectOption key={profile} value={profile}>
+            <NativeSelectOption
+              key={profile}
+              value={profile}
+              disabled={!view.canRaise && profile !== "assistant" && profile !== "worker"}
+            >
               {profileLabel(profile)}
             </NativeSelectOption>
           ))}
@@ -143,6 +148,7 @@ export function BotBudgetSection({ botId }: { botId: string }) {
       {view.settings.profile === "custom" ? (
         <Input
           aria-label={t`Daily budget in USD`}
+          disabled={!view.canRaise}
           type="number"
           inputMode="decimal"
           min="0.01"
@@ -206,6 +212,7 @@ export function BotBudgetSection({ botId }: { botId: string }) {
               type="number"
               inputMode="numeric"
               min="0"
+              max={view.canRaise ? BUDGET_MAX_LIMIT : view.defaults[key]}
               step="1"
               placeholder={String(view.defaults[key])}
               value={limitDrafts[key] ?? ""}

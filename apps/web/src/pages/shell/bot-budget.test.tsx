@@ -67,6 +67,7 @@ function view(overrides: Partial<BotBudgetView> = {}): BotBudgetView {
       maxSpawnFanout: null,
     },
     defaults: { assistantDailyUsd: 3, maxConcurrentRuns: 2, maxSpawnDepth: 2, maxSpawnFanout: 5 },
+    canRaise: false,
     canSetPremium: false,
     canTopUp: false,
     ...overrides,
@@ -125,6 +126,25 @@ describe("BotBudgetSection", () => {
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(budgets.saveBotBudget).toHaveBeenCalledWith("bot-1", { profile: "worker" });
+  });
+
+  it("lets a bot owner only lower the budget: swarm and custom disabled, limits capped", async () => {
+    budgets.fetchBotBudget.mockResolvedValue(view());
+    await render();
+    const options = [...container.querySelectorAll("option")];
+    const disabled = Object.fromEntries(options.map((option) => [option.value, option.disabled]));
+    expect(disabled).toEqual({ assistant: false, worker: false, swarm: true, custom: true });
+    const limits = [...container.querySelectorAll('input[type="number"]')] as HTMLInputElement[];
+    expect(limits.map((input) => input.max)).toEqual(["2", "2", "5"]);
+  });
+
+  it("lets a space owner raise the budget", async () => {
+    budgets.fetchBotBudget.mockResolvedValue(view({ canRaise: true, canSetPremium: true }));
+    await render();
+    const options = [...container.querySelectorAll("option")];
+    expect(options.every((option) => !option.disabled)).toBe(true);
+    const limits = [...container.querySelectorAll('input[type="number"]')] as HTMLInputElement[];
+    expect(limits.map((input) => input.max)).toEqual(["50", "50", "50"]);
   });
 
   it("offers premium and a top-up to a space owner once the bot nears its cap", async () => {

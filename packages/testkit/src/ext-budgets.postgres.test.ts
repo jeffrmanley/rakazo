@@ -377,6 +377,96 @@ describeBudgets("fork extension: budgets end to end (scripted runtime)", () => {
     expect(await prisma.bot.count({ where: { spaceId: owner.spaceId } })).toBe(before);
   });
 
+  it("lets a bot owner only lower a budget; raising it is for space owners", async () => {
+    const owner = await newOwner("roles-owner");
+    const member = await newOwner("roles-member");
+    const space = await prisma.space.findUniqueOrThrow({ where: { id: owner.spaceId } });
+    await prisma.member.create({
+      data: {
+        id: `m-${stamp}`,
+        organizationId: space.organizationId,
+        userId: member.userId,
+        role: "member",
+        createdAt: new Date(),
+      },
+    });
+    await prisma.spaceMember.upsert({
+      where: { spaceId_userId: { spaceId: owner.spaceId, userId: member.userId } },
+      create: {
+        id: `sm-${stamp}`,
+        spaceId: owner.spaceId,
+        organizationId: space.organizationId,
+        userId: member.userId,
+        role: "member",
+        createdAt: new Date(),
+      },
+      update: { role: "member" },
+    });
+    const bot = await prisma.bot.create({
+      data: {
+        spaceId: owner.spaceId,
+        userId: member.userId,
+        name: "Members bot",
+        color: "#000000",
+      },
+    });
+    const asMember = (method: string, body?: unknown) =>
+      app.request(`/api/v1/budgets/bots/${bot.id}`, {
+        method,
+        headers: {
+          "content-type": "application/json",
+          cookie: member.cookie,
+          origin,
+          "x-rakazo-space-id": owner.spaceId,
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+
+    const view = await asMember("GET");
+    expect(view.status).toBe(200);
+    expect(await view.json()).toMatchObject({ canRaise: false, canSetPremium: false });
+    for (const allowed of [
+      { profile: "worker" },
+      { profile: "assistant" },
+      { maxConcurrentRuns: 1, maxSpawnDepth: 0, maxSpawnFanout: 5 },
+      { maxSpawnFanout: null },
+    ]) {
+      expect((await asMember("PUT", allowed)).status).toBe(200);
+    }
+    for (const refused of [
+      { profile: "swarm" },
+      { profile: "custom", customDailyUsd: 1 },
+      { customDailyUsd: 1 },
+      { premium: true },
+      { maxConcurrentRuns: 3 },
+      { maxSpawnDepth: 3 },
+      { maxSpawnFanout: 6 },
+    ]) {
+      expect((await asMember("PUT", refused)).status).toBe(403);
+    }
+    expect(await prisma.extBotBudget.findUniqueOrThrow({ where: { botId: bot.id } })).toMatchObject(
+      {
+        profile: "assistant",
+        customDailyUsd: null,
+        premium: false,
+        maxConcurrentRuns: 1,
+        maxSpawnDepth: 0,
+        maxSpawnFanout: null,
+      },
+    );
+
+    const raised = await call(app, owner.cookie, "PUT", `/api/v1/budgets/bots/${bot.id}`, {
+      profile: "swarm",
+      maxConcurrentRuns: 5,
+      maxSpawnFanout: 10,
+    });
+    expect(raised.status).toBe(200);
+    expect(await raised.json()).toMatchObject({
+      canRaise: true,
+      settings: { profile: "swarm", maxConcurrentRuns: 5, maxSpawnFanout: 10 },
+    });
+  });
+
   it("keeps each space's budgets private and ignores a spoofed spaceId", async () => {
     const a = await newOwner("tenant-a");
     const b = await newOwner("tenant-b");
