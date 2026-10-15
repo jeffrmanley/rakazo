@@ -1656,3 +1656,16 @@ model ExtRunSpawn {
   @@index([spaceId])
   @@map("ext_run_spawns")
 }
+
+/// Fork extension: runs waiting for one of their bot's concurrency slots (EXT_BUDGETS).
+/// A waiter refreshes `seenAt` on every retry; a freed slot goes to the live waiter whose
+/// run is oldest, so newer runs cannot starve it. Stale rows are ignored and pruned.
+model ExtRunSlotWait {
+  runId        String   @id
+  botId        String
+  runCreatedAt DateTime
+  seenAt       DateTime
+
+  @@index([botId, runCreatedAt])
+  @@map("ext_run_slot_waits")
+}

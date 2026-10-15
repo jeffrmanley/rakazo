@@ -53,6 +53,8 @@ Relative to upstream commit `2d666c4`.
 - `apps/api/src/router.ts` (modified)
 - `apps/api/src/server-update.ts` (modified)
 - `apps/api/src/team-chat-bridge.ts` (modified)
+- `apps/api/src/team-chat-judge.test.ts` (modified)
+- `apps/api/src/team-chat-judge.ts` (modified)
 - `apps/api/src/team-chat-startup.test.ts` (modified)
 - `apps/api/src/team-chat-startup.ts` (modified)
 
@@ -220,6 +222,7 @@ Relative to upstream commit `2d666c4`.
 - `packages/db/prisma/migrations/20261011120000_messaging_multi_identity/migration.sql` (added)
 - `packages/db/prisma/migrations/20261015120000_ext_emergency_stop/migration.sql` (added)
 - `packages/db/prisma/migrations/20261015120000_runtime_brand/migration.sql` (added)
+- `packages/db/prisma/migrations/20261016120000_ext_run_slot_waits/migration.sql` (added)
 - `packages/db/prisma/schema.prisma` (modified)
 - `packages/db/src/brand-settings.postgres.test.ts` (added)
 - `packages/db/src/brand-settings.ts` (added)

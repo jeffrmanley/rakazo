@@ -1,3 +1,4 @@
+import { installBudgetPolicy } from "@rakazo/adapters";
 import { describe, expect, it, vi } from "vitest";
 import {
   ModelTeamChatEngagementJudge,
@@ -40,6 +41,53 @@ describe("team chat engagement judge", () => {
       askedByEventId: "Ev-9",
     });
     expect(parseTeamChatEngagementDecision("not json")).toEqual({ act: false });
+  });
+
+  it("stays silent without calling the model while the bot is over its daily budget", async () => {
+    installBudgetPolicy({
+      budgetDefaultDailyUsd: 3,
+      budgetSpaceDailyUsd: 50,
+      maxConcurrentRunsPerBot: 2,
+      maxSpawnDepth: 2,
+      maxSpawnFanout: 5,
+    });
+    try {
+      const run = vi.fn();
+      const prisma = {
+        deploymentSettings: { findUnique: vi.fn(async () => null) },
+        spaceModelPreference: { findFirst: vi.fn(async () => null) },
+        extBotBudget: { findFirst: vi.fn(async () => null) },
+        extSpaceBudget: { findUnique: vi.fn(async () => null) },
+        extBudgetTopUp: { aggregate: vi.fn(async () => ({ _sum: { amountUsd: null } })) },
+        usageRecord: { aggregate: vi.fn(async () => ({ _sum: { costUsd: 3 } })) },
+      };
+      const judge = new ModelTeamChatEngagementJudge({
+        prisma: prisma as never,
+        runtime: { run } as never,
+        secrets: {} as never,
+        deploymentProvider: "google",
+        deploymentModel: "gemini-3.8-flash",
+        deploymentModelKey: "test-key",
+      });
+      await expect(
+        judge.decide({
+          bot: {
+            id: "bot-1",
+            spaceId: "space-1",
+            userId: "user-1",
+            name: "Arthur",
+            modelProvider: null,
+            modelId: null,
+          },
+          channelId: "C1",
+          rules: "",
+          messages: [],
+        }),
+      ).resolves.toEqual({ act: false });
+      expect(run).not.toHaveBeenCalled();
+    } finally {
+      installBudgetPolicy(null);
+    }
   });
 
   it("persists cache-read and cache-write tokens from usage events", async () => {

@@ -8,12 +8,21 @@ import { randomUUID } from "node:crypto";
 import type {
   BotBudgetSettings,
   BotLimitSettings,
+  BotLimits,
   BudgetDefaults,
   BudgetLevel,
   BudgetNoticeKind,
   BudgetProfile,
+  SpawnCheck,
 } from "@rakazo/core";
-import { budgetLevel, dailyCapUsd, isBudgetProfile, utcDay, utcMonth } from "@rakazo/core";
+import {
+  budgetLevel,
+  checkSpawnLimits,
+  dailyCapUsd,
+  isBudgetProfile,
+  utcDay,
+  utcMonth,
+} from "@rakazo/core";
 import type { Prisma, PrismaClient } from "./client.js";
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -281,34 +290,136 @@ export async function recordRunSpawn(
   await db.extRunSpawn.createMany({ data: [{ id: randomUUID(), ...input }], skipDuplicates: true });
 }
 
+/**
+ * Admits one delegation of `parentRunId` against depth and fan-out. The check and, for
+ * delegations that create no run of their own (`record`), the counting row commit in one
+ * transaction under an advisory lock on the parent run, so parallel calls cannot overshoot.
+ */
+export async function admitRunSpawn(
+  prisma: PrismaClient,
+  input: {
+    spaceId: string;
+    parentRunId: string;
+    tool: string;
+    limits: Pick<BotLimits, "maxSpawnDepth" | "maxSpawnFanout">;
+    record: boolean;
+  },
+): Promise<SpawnCheck> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`ext-run-spawns:${input.parentRunId}`}, 0))`;
+    const [parentDepth, started] = await Promise.all([
+      runSpawnDepth(tx, input.parentRunId),
+      countRunSpawns(tx, input.parentRunId),
+    ]);
+    const check = checkSpawnLimits({ parentDepth, started }, input.limits);
+    if (check.ok && input.record) {
+      await recordRunSpawn(tx, {
+        spaceId: input.spaceId,
+        parentRunId: input.parentRunId,
+        childRunId: null,
+        tool: input.tool,
+        depth: check.depth,
+      });
+    }
+    return check;
+  });
+}
+
 /** Run states that hold one of a bot's concurrency slots. */
 export const RUN_SLOT_STATUSES = ["leased", "running"] as const;
 
+/** A slot waiter that has not retried for this long is ignored (its run moved on or stalled). */
+export const SLOT_WAIT_FRESH_MS = 15_000;
+const SLOT_WAIT_PRUNE_MS = 60 * 60_000;
+
+export type SlotClaim<T> =
+  | { status: "claimed"; result: T }
+  /** Wait and retry; `wake` is an older waiting run the freed slot belongs to. */
+  | { status: "queued"; wake?: string }
+  /** The run is no longer claimable (finished, cancelled, held by a live lease): stop. */
+  | { status: "gone" };
+
 /**
- * Runs `claim` only if the bot has a free run slot. A per-bot transaction-scoped
- * advisory lock serializes every claimer of the bot across processes, and the count
- * and the claim commit together, so two workers cannot both take the last slot.
- * Runs whose lease expired (a dead worker) do not hold a slot.
+ * Runs `claim` only if the bot has a free run slot. A per-bot transaction-scoped advisory
+ * lock serializes every claimer of the bot across processes, and the count and the claim
+ * commit together, so two workers cannot both take the last slot. Runs whose lease
+ * expired (a dead worker) do not hold a slot.
+ *
+ * A run denied a slot is recorded as a waiter. When a slot is free, a run yields to the
+ * live waiter whose run is oldest (first in, first out) and names it to be woken, so a
+ * stream of newer runs cannot starve an older one. A waiter that stopped retrying is
+ * ignored, so a stalled run cannot block its bot.
  */
 export async function claimBotRunSlot<T>(
   prisma: PrismaClient,
   input: { botId: string; runId: string; maxConcurrentRuns: number; now?: Date },
   claim: (tx: Prisma.TransactionClient) => Promise<T>,
-): Promise<{ queued: true } | { queued: false; result: T }> {
+): Promise<SlotClaim<T>> {
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`ext-bot-runs:${input.botId}`}, 0))`;
+    const now = input.now ?? new Date();
+    const run = await tx.run.findUnique({
+      where: { id: input.runId },
+      select: { status: true, leaseExpiresAt: true, createdAt: true },
+    });
+    const claimable =
+      run !== null &&
+      (CLAIMABLE_STATUSES.has(run.status) ||
+        ((RUN_SLOT_STATUSES as readonly string[]).includes(run.status) &&
+          run.leaseExpiresAt !== null &&
+          run.leaseExpiresAt <= now));
+    if (!claimable) {
+      await tx.extRunSlotWait.deleteMany({ where: { runId: input.runId } });
+      return { status: "gone" as const };
+    }
     const active = await tx.run.count({
       where: {
         botId: input.botId,
         id: { not: input.runId },
         status: { in: [...RUN_SLOT_STATUSES] },
-        leaseExpiresAt: { gt: input.now ?? new Date() },
+        leaseExpiresAt: { gt: now },
       },
     });
-    if (active >= input.maxConcurrentRuns) return { queued: true as const };
-    return { queued: false as const, result: await claim(tx) };
+    const wait = () =>
+      tx.extRunSlotWait.upsert({
+        where: { runId: input.runId },
+        create: {
+          runId: input.runId,
+          botId: input.botId,
+          runCreatedAt: run.createdAt,
+          seenAt: now,
+        },
+        update: { seenAt: now },
+      });
+    if (active >= input.maxConcurrentRuns) {
+      await wait();
+      return { status: "queued" as const };
+    }
+    await tx.extRunSlotWait.deleteMany({
+      where: { botId: input.botId, seenAt: { lt: new Date(now.getTime() - SLOT_WAIT_PRUNE_MS) } },
+    });
+    const older = await tx.extRunSlotWait.findFirst({
+      where: {
+        botId: input.botId,
+        runId: { not: input.runId },
+        runCreatedAt: { lt: run.createdAt },
+        seenAt: { gt: new Date(now.getTime() - SLOT_WAIT_FRESH_MS) },
+      },
+      orderBy: { runCreatedAt: "asc" },
+      select: { runId: true },
+    });
+    if (older) {
+      await wait();
+      return { status: "queued" as const, wake: older.runId };
+    }
+    const result = await claim(tx);
+    await tx.extRunSlotWait.deleteMany({ where: { runId: input.runId } });
+    return { status: "claimed" as const, result };
   });
 }
+
+/** Run states a claim can start from (besides a leased or running run whose lease expired). */
+const CLAIMABLE_STATUSES = new Set(["queued", "waiting_input", "waiting_takeover"]);
 
 /** The space's owner: the earliest member whose role includes "owner". */
 export async function spaceOwnerUserId(db: Db, spaceId: string): Promise<string | null> {

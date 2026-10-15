@@ -7,6 +7,7 @@ import type {
   SecretStore,
 } from "@rakazo/adapter-kit";
 import {
+  budgetBlockFor,
   formatCurrentTimeInstruction,
   matchesFailedOAuthSecret,
   resolveModelAuth,
@@ -130,6 +131,12 @@ export class ModelTeamChatEngagementJudge implements TeamChatEngagementJudge {
 
   async decide(input: TeamChatEngagementInput): Promise<TeamChatEngagementDecision> {
     try {
+      // Fork extension (EXT_BUDGETS): over a daily cap the ambient judge does not call the
+      // model; silence is its default answer.
+      if (
+        await budgetBlockFor(this.deps.prisma, { spaceId: input.bot.spaceId, botId: input.bot.id })
+      )
+        return { act: false };
       const resolved = await this.resolveModel(input.bot);
       if (!resolved) return { act: false };
       const prompt = renderTeamChatEngagementPrompt({

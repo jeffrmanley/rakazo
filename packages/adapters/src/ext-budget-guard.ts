@@ -5,13 +5,14 @@
  * - `claimRunWithinBotLimit` at run claim (concurrency: over the cap, the run stays queued);
  * - `refuseRunOverBudget` right after the claim (over a daily cap, the run is refused);
  * - `budgetAfterModelCall` after each priced model call (halt before the next one);
- * - `delegationLimitedTools` / `admitDelegation` at every delegation tool call.
+ * - `delegationLimiter` at every delegation tool call.
  *
  * Routines use `skipRoutineOverBudget` when they fire. With the policy not installed
  * (flag off) every hook is a pass-through that touches nothing.
  */
 import type { BackgroundJob, JobPublisher } from "@rakazo/adapter-kit";
 import { messagingDeliverJob, routineWakeupJob, runContinueJob } from "@rakazo/adapter-kit";
+import type { MessageBlock } from "@rakazo/contracts";
 import type { BudgetDefaults, BudgetNoticeKind } from "@rakazo/core";
 import {
   BUDGET_BLOCK_TEXT,
@@ -19,7 +20,6 @@ import {
   BUDGET_SPACE_BLOCK_TEXT,
   BUDGET_STOP_TEXT,
   budgetNoticeKey,
-  checkSpawnLimits,
   formatUsd,
   isBackgroundRunTrigger,
   isPremiumModelId,
@@ -28,10 +28,10 @@ import {
 } from "@rakazo/core";
 import type { BudgetStatus, Prisma, PrismaClient, ThreadEvents } from "@rakazo/db";
 import {
+  admitRunSpawn,
   appendEventInTransaction,
   claimBotRunSlot,
   claimBudgetNotice,
-  countRunSpawns,
   createThreadMessageInTransaction,
   getAuditWriter,
   homeMessagingIdentity,
@@ -96,8 +96,11 @@ export async function claimRunWithinBotLimit<T>(
     { botId: run.botId, runId: run.id, maxConcurrentRuns: limits.maxConcurrentRuns },
     claim,
   );
-  if (!slot.queued) return slot.result;
+  if (slot.status === "claimed") return slot.result;
+  // A run that can no longer be claimed (finished, cancelled, leased elsewhere) is left alone.
+  if (slot.status === "gone") return null;
   await deps.jobs.enqueue(delayed(runContinueJob(run.id), QUEUED_RUN_RETRY_MS));
+  if (slot.wake) await deps.jobs.enqueue(runContinueJob(slot.wake));
   return null;
 }
 
@@ -114,7 +117,7 @@ export type BudgetBlock = {
 /** The reason a new run of this bot may not start now, or null. */
 export async function budgetBlockFor(
   prisma: PrismaClient,
-  run: Pick<RunRef, "spaceId" | "botId" | "modelId">,
+  run: Pick<RunRef, "spaceId" | "botId">,
   now = new Date(),
 ): Promise<BudgetBlock | null> {
   const policy = installed;
@@ -125,10 +128,10 @@ export async function budgetBlockFor(
     now,
     defaults: policy,
   });
-  return blockFromStatus(status, run.modelId);
+  return blockFromStatus(status);
 }
 
-function blockFromStatus(status: BudgetStatus, modelId?: string | null): BudgetBlock | null {
+function blockFromStatus(status: BudgetStatus): BudgetBlock | null {
   if (status.space.level === "blocked") {
     return {
       scope: "space",
@@ -153,9 +156,6 @@ function blockFromStatus(status: BudgetStatus, modelId?: string | null): BudgetB
       },
     };
   }
-  if (isPremiumModelId(modelId) && !status.settings.premium) {
-    return { scope: "premium", text: PREMIUM_MODEL_REFUSAL, detail: { scope: "premium", modelId } };
-  }
   return null;
 }
 
@@ -166,25 +166,59 @@ function blockFromStatus(status: BudgetStatus, modelId?: string | null): BudgetB
  */
 export async function refuseRunOverBudget(
   deps: GuardDeps & { events: ThreadEvents },
-  input: {
-    run: RunRef & { taskId: string; sourceMessageId?: string | null };
-    workerId: string;
-    fence: number;
-    attemptId: string;
-  },
+  input: RefuseInput,
 ): Promise<boolean> {
   if (!installed) return false;
+  const block = await budgetBlockFor(deps.prisma, input.run);
+  if (!block) return false;
+  await refuseRun(deps, input, block);
+  return true;
+}
+
+type RefuseInput = {
+  run: RunRef & { taskId: string; sourceMessageId?: string | null };
+  workerId: string;
+  fence: number;
+  attemptId: string;
+};
+
+/**
+ * Premium hook, once the run's model is selected (bot, connection, space or deployment
+ * default): a Fable or Mythos class model on a non-premium bot refuses the run with the
+ * premium notice. `allows` also filters backups and sub-agent models for the run.
+ */
+export async function premiumModelGate(
+  prisma: PrismaClient,
+  run: Pick<RunRef, "spaceId" | "botId">,
+): Promise<{ allows: (modelId: string | null | undefined) => boolean }> {
+  const premium =
+    !installed || (await loadBotBudget(prisma, { spaceId: run.spaceId, botId: run.botId })).premium;
+  return { allows: (modelId) => premium || !isPremiumModelId(modelId) };
+}
+
+/** Refuses a run whose selected model the bot may not use. */
+export async function refuseRunForModel(
+  deps: GuardDeps & { events: ThreadEvents },
+  input: RefuseInput & { modelId: string },
+): Promise<void> {
+  await refuseRun(deps, input, {
+    scope: "premium",
+    text: PREMIUM_MODEL_REFUSAL,
+    detail: { scope: "premium", modelId: input.modelId },
+  });
+}
+
+/** Records the block first (fail closed), then finishes the run with its notice. */
+async function refuseRun(
+  deps: GuardDeps & { events: ThreadEvents },
+  input: RefuseInput,
+  block: BudgetBlock,
+): Promise<void> {
   const { run } = input;
   const bot = await deps.prisma.bot.findUniqueOrThrow({
     where: { id: run.botId },
-    select: { name: true, modelId: true },
+    select: { name: true },
   });
-  const block = await budgetBlockFor(deps.prisma, {
-    spaceId: run.spaceId,
-    botId: run.botId,
-    modelId: run.modelId ?? bot.modelId,
-  });
-  if (!block) return false;
   await recordBudgetBlock({
     spaceId: run.spaceId,
     botId: run.botId,
@@ -206,7 +240,6 @@ export async function refuseRunOverBudget(
     markUnread: true,
   });
   if (finished) await afterBudgetFinish(deps, run, bot.name, block.text, finished);
-  return true;
 }
 
 async function afterBudgetFinish(
@@ -283,7 +316,8 @@ export async function budgetAfterModelCall(
 
 /**
  * Finishes a run halted by `budgetAfterModelCall`: the model call that crossed the cap
- * is kept, nothing further runs, and the run completes with a short stop notice.
+ * is kept (its answer is delivered), nothing further runs, and the run completes with a
+ * short stop notice after it.
  */
 export async function haltRunForBudget(
   deps: GuardDeps & { events: ThreadEvents },
@@ -293,9 +327,12 @@ export async function haltRunForBudget(
     workerId: string;
     fence: number;
     attemptId: string;
+    /** What the run produced before the halt (redacted); the user paid for it. */
+    produced?: MessageBlock[];
   },
 ): Promise<void> {
   const { run } = input;
+  const produced = input.produced ?? [];
   await recordBudgetBlock({
     spaceId: run.spaceId,
     botId: run.botId,
@@ -313,10 +350,21 @@ export async function haltRunForBudget(
     leaseOwner: input.workerId,
     leaseFence: input.fence,
     outcome: "completed",
-    blocks: isBackgroundRunTrigger(run.trigger) ? [] : [{ kind: "text", text: BUDGET_STOP_TEXT }],
+    blocks: isBackgroundRunTrigger(run.trigger)
+      ? []
+      : [...produced, { kind: "text", text: BUDGET_STOP_TEXT }],
     markUnread: true,
   });
-  if (finished) await afterBudgetFinish(deps, run, input.botName, BUDGET_STOP_TEXT, finished);
+  const answer = produced.flatMap((block) => (block.kind === "text" ? [block.text] : []));
+  if (finished) {
+    await afterBudgetFinish(
+      deps,
+      run,
+      input.botName,
+      [...answer, BUDGET_STOP_TEXT].join("\n\n"),
+      finished,
+    );
+  }
 }
 
 /** Marks a halt requested by `budgetAfterModelCall`, so the executor can tell it from a failure. */
@@ -497,48 +545,54 @@ export async function admitDelegation(
 ): Promise<string | null> {
   const policy = installed;
   if (!policy || !DELEGATION_TOOLS.has(tool)) return null;
-  const [settings, parentDepth, started] = await Promise.all([
-    loadBotBudget(prisma, { spaceId: run.spaceId, botId: run.botId }),
-    runSpawnDepth(prisma, run.id),
-    countRunSpawns(prisma, run.id),
-  ]);
-  const check = checkSpawnLimits({ parentDepth, started }, resolveBotLimits(settings, policy));
-  if (!check.ok) return check.error;
-  if (IN_RUN_DELEGATIONS.has(tool)) {
-    await recordRunSpawn(prisma, {
-      spaceId: run.spaceId,
-      parentRunId: run.id,
-      childRunId: null,
-      tool,
-      depth: check.depth,
-    });
-  }
-  return null;
+  const settings = await loadBotBudget(prisma, { spaceId: run.spaceId, botId: run.botId });
+  const check = await admitRunSpawn(prisma, {
+    spaceId: run.spaceId,
+    parentRunId: run.id,
+    tool,
+    limits: resolveBotLimits(settings, policy),
+    record: IN_RUN_DELEGATIONS.has(tool),
+  });
+  return check.ok ? null : check.error;
 }
 
 /**
- * Wraps the executor's tool function: delegation tools pass `admitDelegation` first,
- * one at a time per run so parallel calls cannot overshoot the fan-out; after a budget
- * halt every tool is refused. A refusal is an ordinary tool error the model sees.
+ * One run's delegation gate. `wrap` guards the executor's tool function: delegation tools
+ * pass `admitDelegation` first, and after a budget halt every tool is refused. `admit` is
+ * the same check for delegations the runtime performs itself (run_subagent). Both share
+ * one queue, so a run's delegations are admitted one at a time and a check followed by
+ * the run it creates cannot interleave with another delegation. A refusal is an ordinary
+ * tool error the model sees.
  */
-export function delegationLimitedTools(
+export function delegationLimiter(
   prisma: PrismaClient,
   run: Pick<RunRef, "id" | "spaceId" | "botId">,
-  execute: ToolExecute,
   halted: () => boolean = () => false,
-): ToolExecute {
-  if (!installed) return execute;
+): {
+  wrap: (execute: ToolExecute) => ToolExecute;
+  admit: (tool: string) => Promise<string | null>;
+} {
   let queue: Promise<unknown> = Promise.resolve();
-  return async (name, args, executionId, route, observer) => {
-    if (halted()) return { error: BUDGET_STOP_TEXT };
-    if (!DELEGATION_TOOLS.has(name)) return execute(name, args, executionId, route, observer);
-    const turn = queue.then(async () => {
-      const refusal = await admitDelegation(prisma, run, name);
-      if (refusal) return { error: refusal };
-      return execute(name, args, executionId, route, observer);
-    });
+  const serialize = <T>(work: () => Promise<T>): Promise<T> => {
+    const turn = queue.then(work);
     queue = turn.catch(() => undefined);
     return turn;
+  };
+  return {
+    admit: (tool) =>
+      installed ? serialize(() => admitDelegation(prisma, run, tool)) : Promise.resolve(null),
+    wrap: (execute) => {
+      if (!installed) return execute;
+      return async (name, args, executionId, route, observer) => {
+        if (halted()) return { error: BUDGET_STOP_TEXT };
+        if (!DELEGATION_TOOLS.has(name)) return execute(name, args, executionId, route, observer);
+        return serialize(async () => {
+          const refusal = await admitDelegation(prisma, run, name);
+          if (refusal) return { error: refusal };
+          return execute(name, args, executionId, route, observer);
+        });
+      };
+    },
   };
 }
 
@@ -565,7 +619,6 @@ export async function skipRoutineOverBudget(
   input: {
     routine: { id: string; spaceId: string; crons: string[] };
     botId: string;
-    modelId?: string | null;
     scheduledAt: Date;
     nextRunAt: Date | null;
   },
@@ -574,7 +627,6 @@ export async function skipRoutineOverBudget(
   const block = await budgetBlockFor(deps.prisma, {
     spaceId: input.routine.spaceId,
     botId: input.botId,
-    modelId: input.modelId,
   });
   if (!block) return false;
   const skipped = await deps.prisma.$transaction(async (tx) => {

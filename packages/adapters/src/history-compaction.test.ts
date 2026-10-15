@@ -9,6 +9,7 @@ import type { MessageBlock } from "@rakazo/contracts";
 import type { PrismaClient } from "@rakazo/db";
 import { createLogger, createTestSink, installLogger, wrapJobPayload } from "@rakazo/logging";
 import { describe, expect, it, vi } from "vitest";
+import { installBudgetPolicy } from "./ext-budget-guard.js";
 import {
   compactHistory,
   formatCompactedSummary,
@@ -474,6 +475,39 @@ describe("recordHistoryCompactAttemptsExhausted", () => {
 });
 
 describe("compactHistory", () => {
+  it("defers while the bot or its space is over a daily budget, and runs once under it", async () => {
+    installBudgetPolicy({
+      budgetDefaultDailyUsd: 3,
+      budgetSpaceDailyUsd: 50,
+      maxConcurrentRunsPerBot: 2,
+      maxSpawnDepth: 2,
+      maxSpawnFanout: 5,
+    });
+    try {
+      let spentUsd = 3;
+      const harness = compactionHarness({ deploymentModelKey: "openrouter-key" });
+      Object.assign(harness.prisma as unknown as Record<string, unknown>, {
+        extBotBudget: { findFirst: vi.fn(async () => null) },
+        extSpaceBudget: { findUnique: vi.fn(async () => null) },
+        extBudgetTopUp: { aggregate: vi.fn(async () => ({ _sum: { amountUsd: null } })) },
+      });
+      (harness.prisma as unknown as { usageRecord: Record<string, unknown> }).usageRecord = {
+        ...(harness.prisma as unknown as { usageRecord?: object }).usageRecord,
+        aggregate: vi.fn(async () => ({ _sum: { costUsd: spentUsd } })),
+      };
+
+      await compactHistory(harness.deps, "thread-1");
+      expect(harness.runtime.run).not.toHaveBeenCalled();
+      expect(harness.prisma.thread.updateMany).not.toHaveBeenCalled();
+
+      spentUsd = 1;
+      await compactHistory(harness.deps, "thread-1");
+      expect(harness.runtime.run).toHaveBeenCalledOnce();
+    } finally {
+      installBudgetPolicy(null);
+    }
+  });
+
   it("summarizes the next batch, saves it through the provider, and advances the cursor", async () => {
     const harness = compactionHarness({ deploymentModelKey: "openrouter-key" });
 

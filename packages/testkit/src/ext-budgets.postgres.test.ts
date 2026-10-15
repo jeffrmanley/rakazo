@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import type { AgentRunRequest, AgentRuntime } from "@rakazo/adapter-kit";
 import { budgetAfterModelCall, ComposioEmulator } from "@rakazo/adapters";
 import {
   BUDGET_BLOCK_TEXT,
@@ -362,6 +363,110 @@ describeBudgets("fork extension: budgets end to end (scripted runtime)", () => {
     expect(alerts.map((row) => row.body)).toEqual(["This space has spent $400.00 this month."]);
   });
 
+  it("refuses to duplicate a bot onto a premium model the new bot may not use", async () => {
+    const owner = await newOwner("duplicate");
+    const botId = await newBot(owner, "Premium source");
+    await prisma.bot.update({
+      where: { id: botId },
+      data: { modelProvider: "anthropic", modelId: "claude-fable-5" },
+    });
+    const before = await prisma.bot.count({ where: { spaceId: owner.spaceId } });
+    await expect(rpc(app, owner.cookie, "bots/duplicate", { botId })).rejects.toThrow(
+      PREMIUM_MODEL_REFUSAL,
+    );
+    expect(await prisma.bot.count({ where: { spaceId: owner.spaceId } })).toBe(before);
+  });
+
+  it("lets a bot owner only lower a budget; raising it is for space owners", async () => {
+    const owner = await newOwner("roles-owner");
+    const member = await newOwner("roles-member");
+    const space = await prisma.space.findUniqueOrThrow({ where: { id: owner.spaceId } });
+    await prisma.member.create({
+      data: {
+        id: `m-${stamp}`,
+        organizationId: space.organizationId,
+        userId: member.userId,
+        role: "member",
+        createdAt: new Date(),
+      },
+    });
+    await prisma.spaceMember.upsert({
+      where: { spaceId_userId: { spaceId: owner.spaceId, userId: member.userId } },
+      create: {
+        id: `sm-${stamp}`,
+        spaceId: owner.spaceId,
+        organizationId: space.organizationId,
+        userId: member.userId,
+        role: "member",
+        createdAt: new Date(),
+      },
+      update: { role: "member" },
+    });
+    const bot = await prisma.bot.create({
+      data: {
+        spaceId: owner.spaceId,
+        userId: member.userId,
+        name: "Members bot",
+        color: "#000000",
+      },
+    });
+    const asMember = (method: string, body?: unknown) =>
+      app.request(`/api/v1/budgets/bots/${bot.id}`, {
+        method,
+        headers: {
+          "content-type": "application/json",
+          cookie: member.cookie,
+          origin,
+          "x-rakazo-space-id": owner.spaceId,
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+
+    const view = await asMember("GET");
+    expect(view.status).toBe(200);
+    expect(await view.json()).toMatchObject({ canRaise: false, canSetPremium: false });
+    for (const allowed of [
+      { profile: "worker" },
+      { profile: "assistant" },
+      { maxConcurrentRuns: 1, maxSpawnDepth: 0, maxSpawnFanout: 5 },
+      { maxSpawnFanout: null },
+    ]) {
+      expect((await asMember("PUT", allowed)).status).toBe(200);
+    }
+    for (const refused of [
+      { profile: "swarm" },
+      { profile: "custom", customDailyUsd: 1 },
+      { customDailyUsd: 1 },
+      { premium: true },
+      { maxConcurrentRuns: 3 },
+      { maxSpawnDepth: 3 },
+      { maxSpawnFanout: 6 },
+    ]) {
+      expect((await asMember("PUT", refused)).status).toBe(403);
+    }
+    expect(await prisma.extBotBudget.findUniqueOrThrow({ where: { botId: bot.id } })).toMatchObject(
+      {
+        profile: "assistant",
+        customDailyUsd: null,
+        premium: false,
+        maxConcurrentRuns: 1,
+        maxSpawnDepth: 0,
+        maxSpawnFanout: null,
+      },
+    );
+
+    const raised = await call(app, owner.cookie, "PUT", `/api/v1/budgets/bots/${bot.id}`, {
+      profile: "swarm",
+      maxConcurrentRuns: 5,
+      maxSpawnFanout: 10,
+    });
+    expect(raised.status).toBe(200);
+    expect(await raised.json()).toMatchObject({
+      canRaise: true,
+      settings: { profile: "swarm", maxConcurrentRuns: 5, maxSpawnFanout: 10 },
+    });
+  });
+
   it("keeps each space's budgets private and ignores a spoofed spaceId", async () => {
     const a = await newOwner("tenant-a");
     const b = await newOwner("tenant-b");
@@ -613,6 +718,48 @@ describeBudgets("fork extension: budgets end to end (Pi with priced usage)", () 
     }
   });
 
+  it("delivers the final answer of the call that crosses the cap, then the stop notice", async () => {
+    const env = await startPiApp([
+      {
+        expect: () => {},
+        usage: priced(1.5),
+        response: { type: "text", text: "Here is the answer you paid for." },
+      },
+    ]);
+    try {
+      const botId = await env.newBot("Answerer");
+      await env.handles.prisma.usageRecord.create({
+        data: {
+          spaceId: env.me.spaceId,
+          userId: env.me.userId,
+          botId,
+          provider: "fixture",
+          model: "fixture",
+          costUsd: 2,
+        },
+      });
+      const { runId } = await rpc<{ runId: string }>(env.handles.app, env.cookie, "threads/send", {
+        botId,
+        text: "Answer the question.",
+      });
+      await waitForRun(env.handles.prisma, runId);
+      expect(env.model.requests).toHaveLength(1);
+      const replies = await env.handles.prisma.message.findMany({
+        where: { runId, role: "bot" },
+        orderBy: { seq: "asc" },
+        select: { blocks: true },
+      });
+      const texts = replies.flatMap((reply) =>
+        (reply.blocks as Array<{ kind: string; text?: string }>)
+          .filter((block) => block.kind === "text")
+          .map((block) => block.text),
+      );
+      expect(texts).toEqual(["Here is the answer you paid for.", BUDGET_STOP_TEXT]);
+    } finally {
+      await env.stop();
+    }
+  });
+
   it("refuses delegations beyond fan-out and depth as tool errors and starts nothing", async () => {
     let targetId = "";
     const toolResult = (request: { messages: Array<{ role: string; content?: unknown }> }) => {
@@ -748,6 +895,173 @@ describeBudgets("fork extension: budgets end to end (Pi with priced usage)", () 
         }),
       ).toBe(0);
       expect(env.model.requests).toHaveLength(6);
+    } finally {
+      await env.stop();
+    }
+  });
+});
+
+describeBudgets("fork extension: premium models", () => {
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  /**
+   * The executor with a recording runtime: each request shows the model the run selected,
+   * its backups and its sub-agent model resolver, without calling a model.
+   */
+  async function startPremiumApp(connectedModelId: string) {
+    const model = await startModelEmulator({ steps: [], modelId: connectedModelId });
+    const requests: AgentRunRequest[] = [];
+    const runtime: AgentRuntime = {
+      describe: () => ({
+        id: "recording",
+        contractVersion: "1",
+        adapterVersion: "0.0.0",
+        capabilities: { streaming: true, compaction: false, tools: true, scripted: false },
+      }),
+      async *run(request) {
+        requests.push(request);
+        yield { type: "text", text: "Recorded." };
+        yield { type: "done", text: "Recorded." };
+      },
+      abort: async () => {},
+    };
+    const dataDir = mkdtempSync(path.join(tmpdir(), "rakazo-budgets-premium-"));
+    const { createApp } = await import("../../../apps/api/src/app.ts");
+    const handles = await createApp({
+      databaseUrl: process.env.DATABASE_URL!,
+      dataDir,
+      sandboxProvider: "fake",
+      agentRuntime: "pi",
+      runtime,
+      wakeupDriver: "memory",
+      composio: new ComposioEmulator(),
+      encryptionKey: "budgets-premium-encryption-key",
+      ext: budgetsOn,
+    });
+    const app = handles.app;
+    const cookie = await signup(app, `budget-premium-${Math.random()}-${stamp}@rakazo.test`, "Pr");
+    const me = await rpc<{ userId: string; spaceId: string }>(app, cookie, "me");
+    await rpc(app, cookie, "models/connect", {
+      provider: model.model.provider,
+      modelId: model.model.id,
+      baseUrl: model.baseUrl,
+    });
+    const newBot = async (withModel: boolean) => {
+      const bot = await rpc<{ id: string }>(app, cookie, "bots/create", {
+        name: "Thrifty",
+        title: "",
+        description: "",
+        instructions: "",
+        notifyOnFinish: false,
+      });
+      await discardBotIntroRun(handles, cookie, bot.id);
+      if (withModel) {
+        await rpc(app, cookie, "bots/update", {
+          botId: bot.id,
+          modelProvider: model.model.provider,
+          modelId: model.model.id,
+        });
+      }
+      requests.length = 0;
+      return bot.id;
+    };
+    const send = async (botId: string, text: string) => {
+      const { runId } = await rpc<{ runId: string }>(app, cookie, "threads/send", { botId, text });
+      await waitForRun(handles.prisma, runId);
+      return runId;
+    };
+    const makePremium = async (botId: string) => {
+      const res = await call(app, cookie, "PUT", `/api/v1/budgets/bots/${botId}`, {
+        premium: true,
+      });
+      expect(res.status).toBe(200);
+    };
+    const stop = async () => {
+      await handles.stop();
+      await model.close();
+      rmSync(dataDir, { recursive: true, force: true });
+    };
+    return { app, cookie, me, handles, model, requests, newBot, send, makePremium, stop };
+  }
+
+  it("refuses a premium model a non-premium bot asks for as a sub-agent model", async () => {
+    const env = await startPremiumApp("offline-fixture");
+    try {
+      const botId = await env.newBot(true);
+      await env.send(botId, "Use a premium helper.");
+      const resolveModel = env.requests[0]?.resolveModel;
+      expect(resolveModel).toBeDefined();
+      await expect(resolveModel!("openai-compatible", "claude-fable-fixture")).rejects.toThrow(
+        PREMIUM_MODEL_REFUSAL,
+      );
+      // The bot's own, non-premium model still resolves for a sub-agent.
+      await expect(resolveModel!("openai-compatible", "offline-fixture")).resolves.toMatchObject({
+        id: "offline-fixture",
+      });
+    } finally {
+      await env.stop();
+    }
+  });
+
+  it("refuses a run whose selected model is a premium space default, until the bot is premium", async () => {
+    const env = await startPremiumApp("claude-fable-fixture");
+    try {
+      await rpc(env.app, env.cookie, "models/setDefault", {
+        provider: env.model.model.provider,
+        modelId: env.model.model.id,
+      });
+      const botId = await env.newBot(false);
+      const refused = await env.send(botId, "Answer with the default model.");
+      expect(env.requests).toHaveLength(0);
+      const reply = await env.handles.prisma.message.findFirst({
+        where: { runId: refused, role: "bot" },
+        orderBy: { seq: "desc" },
+      });
+      expect(JSON.stringify(reply?.blocks)).toContain(PREMIUM_MODEL_REFUSAL);
+      const block = await env.handles.prisma.extAuditEvent.findFirst({
+        where: { kind: "budget.block", runId: refused },
+      });
+      expect(block?.detail).toMatchObject({ scope: "premium", modelId: "claude-fable-fixture" });
+
+      await env.makePremium(botId);
+      await env.send(botId, "Now answer.");
+      expect(env.requests.map((request) => request.model.id)).toEqual(["claude-fable-fixture"]);
+    } finally {
+      await env.stop();
+    }
+  });
+
+  it("drops premium backup models for a non-premium bot", async () => {
+    const env = await startPremiumApp("offline-fixture");
+    try {
+      const botId = await env.newBot(true);
+      await env.handles.prisma.spaceBackupModel.createMany({
+        data: [
+          {
+            spaceId: env.me.spaceId,
+            userId: env.me.userId,
+            provider: "openai-compatible",
+            modelId: "claude-fable-fixture",
+            position: 0,
+          },
+          {
+            spaceId: env.me.spaceId,
+            userId: env.me.userId,
+            provider: "openai-compatible",
+            modelId: "backup-fixture",
+            position: 1,
+          },
+        ],
+      });
+      await env.send(botId, "Answer with backups.");
+      expect(env.requests[0]?.fallbackModels?.map((model) => model.id)).toEqual(["backup-fixture"]);
+
+      await env.makePremium(botId);
+      await env.send(botId, "Answer again.");
+      expect(env.requests[1]?.fallbackModels?.map((model) => model.id)).toEqual([
+        "claude-fable-fixture",
+        "backup-fixture",
+      ]);
     } finally {
       await env.stop();
     }

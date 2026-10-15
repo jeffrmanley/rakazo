@@ -8,6 +8,7 @@ import { getLogger, unwrapJobPayload } from "@rakazo/logging";
 import { COMPACTED_CONTEXT_PREFIX } from "./compacted-context.js";
 import { formatCurrentTimeInstruction } from "./current-time.js";
 import { resolveDeploymentModel } from "./deployment-model.js";
+import { budgetBlockFor } from "./ext-budget-guard.js";
 import type {
   ConfiguredMemoryProvider,
   MemoryProviderResolver,
@@ -223,6 +224,12 @@ export interface CompactHistoryDeps {
 export async function compactHistory(deps: CompactHistoryDeps, threadId: string): Promise<void> {
   const thread = await deps.prisma.thread.findUniqueOrThrow({ where: { id: threadId } });
   if (!thread.botId) return;
+  // Fork extension (EXT_BUDGETS): over a daily cap the summary waits; the cursor stays put
+  // and the next finished run enqueues compaction again.
+  if (await budgetBlockFor(deps.prisma, { spaceId: thread.spaceId, botId: thread.botId })) {
+    getLogger().info(`history.compact deferred for thread ${threadId}: daily budget reached`);
+    return;
+  }
   const previousCursor = thread.historyCompactedUpToSeq;
   const previousGeneration = thread.historyCompactionGeneration;
   const previousSummary = thread.historyCompactionSummary?.trim() || null;

@@ -1625,6 +1625,12 @@ export function createRouter(deps: RouterDeps) {
       }),
       duplicate: authed.bots.duplicate.handler(async ({ context, input }) => {
         const source = await repos.getBot(context.actor, input.botId);
+        // Fork extension (EXT_BUDGETS): the copy is a new, non-premium bot.
+        await assertPremiumModelAllowed(deps.prisma, {
+          spaceId: context.actor.spaceId,
+          botId: null,
+          modelId: source.modelId,
+        });
         const duplicate = await repos
           .createBot(context.actor, {
             name: duplicateBotName(source.name),

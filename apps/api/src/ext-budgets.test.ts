@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseBotPatch } from "./ext-budgets.js";
+import { parseBotPatch, raisesBudget } from "./ext-budgets.js";
 
 describe("parseBotPatch", () => {
   it("keeps only known fields, so a spaceId or botId in the body is ignored", () => {
@@ -27,5 +27,41 @@ describe("parseBotPatch", () => {
     expect(() => parseBotPatch({ maxSpawnDepth: -1 })).toThrow("whole number");
     expect(() => parseBotPatch({ maxSpawnFanout: 2.5 })).toThrow("whole number");
     expect(() => parseBotPatch({})).toThrow("Nothing to change");
+  });
+});
+
+describe("raisesBudget (a bot owner who is not a space owner)", () => {
+  const defaults = {
+    budgetDefaultDailyUsd: 3,
+    budgetSpaceDailyUsd: 50,
+    maxConcurrentRunsPerBot: 2,
+    maxSpawnDepth: 2,
+    maxSpawnFanout: 5,
+  };
+
+  it("allows the assistant and worker profiles and limits at or below the defaults", () => {
+    for (const patch of [
+      { profile: "assistant" as const },
+      { profile: "worker" as const },
+      { maxConcurrentRuns: 2, maxSpawnDepth: 0, maxSpawnFanout: 5 },
+      { maxConcurrentRuns: null },
+    ]) {
+      expect(raisesBudget(patch, defaults)).toBeNull();
+    }
+  });
+
+  it("refuses swarm, custom amounts, premium and limits above the defaults", () => {
+    for (const patch of [
+      { profile: "swarm" as const },
+      { profile: "custom" as const, customDailyUsd: 1 },
+      { customDailyUsd: 1 },
+      { premium: true },
+      { premium: false },
+      { maxConcurrentRuns: 3 },
+      { maxSpawnDepth: 3 },
+      { maxSpawnFanout: 6 },
+    ]) {
+      expect(raisesBudget(patch, defaults)).toMatch(/Only a space owner/);
+    }
   });
 });

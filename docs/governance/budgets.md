@@ -16,9 +16,15 @@ compared in micro-dollars, so float sums cannot flip them.
 | --- | --- | --- |
 | Bot, profile `assistant` | `EXT_BUDGET_DEFAULT_DAILY_USD` ($3) | bot owner or space owner |
 | Bot, profile `worker` | $15 | bot owner or space owner |
-| Bot, profile `swarm` | $40 | bot owner or space owner |
-| Bot, profile `custom` | the amount given ($0.01 to $10,000) | bot owner or space owner |
+| Bot, profile `swarm` | $40 | space owner |
+| Bot, profile `custom` | the amount given ($0.01 to $10,000) | space owner |
 | Space | `EXT_BUDGET_SPACE_DAILY_USD` ($50), or a custom amount | space owner |
+
+**Who may change what.** A bot's owner who is not a space owner may only keep the bot at or
+below the deployment defaults: the `assistant` or `worker` profile, and concurrency, delegation
+depth and fan-out no higher than the defaults (or the default itself). The `swarm` profile, custom
+amounts, premium, and any limit above its default need a space owner. The API refuses anything
+else with 403; the settings show those choices disabled.
 
 A **top-up** raises today's cap for one bot or for the space by an amount ($0.01 to $10,000). It
 is stored against the UTC day and expires when that day ends. Only space owners can top up.
@@ -37,9 +43,12 @@ and 100% in one call sends one notice.
   settings.", or the space variant). Messaging runs mirror that notice back to Slack or Teams like
   any reply; bot-to-bot requests get it back as a status. Background runs (routines, webhooks)
   post nothing.
-- **Mid-run:** the model call that crossed the cap finishes and is accounted; the run then halts
-  before any further tool call or model call and completes with "Stopped: daily budget reached."
-  A `budget.block` event with `reason: "halted"` is written.
+- **Mid-run:** the model call that crossed the cap finishes and is accounted, and what it produced
+  (a final answer included) is delivered; the run then halts before any further tool call or model
+  call and completes with "Stopped: daily budget reached." after that answer. A `budget.block`
+  event with `reason: "halted"` is written.
+- **Background model calls** stop too: the team-chat ambient judge stays silent without calling
+  the model, and history compaction is deferred until a later run (its cursor does not move).
 - **Routines** that fire over budget are skipped: the schedule advances to the next occurrence
   (no retry) and a `budget.block` event with `reason: "routine_skipped"` records why.
 
@@ -47,9 +56,12 @@ and 100% in one call sends one notice.
 notified once that month, through the same channel as the 80% notice.
 
 **Premium models.** Model ids containing `fable` or `mythos` (the most expensive tier) may be used
-only by bots marked premium. Choosing one for a non-premium bot (bot model, routine model) is
-refused by the API, and a run whose model is one of them on a non-premium bot is refused at claim.
-Only a space owner can mark a bot premium.
+only by bots marked premium. Choosing one for a non-premium bot (bot model, routine model, or
+duplicating a bot that uses one) is refused by the API. At run time the rule is applied to the
+model the run actually selected (the bot's model, else the connection, space or deployment
+default): such a run is refused with a notice and a `budget.block` event. Premium backup models are
+left out of a non-premium bot's fallbacks, and a premium `model_id` asked for by `run_subagent` is
+returned to the model as the tool's error. Only a space owner can mark a bot premium.
 
 **Delegation limits.** A delegation is `message_bot`, `spawn_bot` with a first task,
 `handoff_to_bot`, `run_subagent` or `cloud_agent_launch`. Depth is the number of delegations
@@ -61,7 +73,11 @@ counted toward them.
 
 **Concurrency.** Runs of one bot (chat, routines, delegated) above `maxConcurrentRuns` stay
 `queued` instead of starting and retry every two seconds until a slot frees; the job reconciler is
-the backstop. Runs whose lease has expired (a dead worker) do not hold a slot. Bots on a shared
+the backstop. A freed slot goes to the run that has waited longest (oldest first), so a stream of
+new chat runs cannot starve an older routine run; a newer run that finds the slot free yields and
+wakes the oldest waiter. A waiter that has not retried for 15 seconds is skipped, so a stalled run
+cannot block its bot. A run that can no longer start (finished or cancelled) stops retrying. Runs
+whose lease has expired (a dead worker) do not hold a slot. Bots on a shared
 Team computer were already limited to one run at a time by the computer lease; the cap matters for
 bots on their own computer.
 
@@ -74,7 +90,8 @@ asserts no tool name or argument refers to budgets, premium, top-ups or limits).
 - Bot settings, for the bot's owner and space owners: today's spend against the cap, the profile
   select and custom amount, "Premium models" (space owners), "Top up today" (space owners, once
   the bot is at 80%), and a collapsed "Limits" disclosure for runs at once, delegation depth and
-  delegations per run (blank uses the deployment default).
+  delegations per run (blank uses the deployment default). For a bot owner who is not a space
+  owner, `swarm` and `custom` are disabled and the limits stop at the defaults.
 - Settings, Budget section, for every member: today's space spend against the cap; space owners
   can set the daily cap (blank uses the default) and top up today.
 - The settings are web and desktop only; mobile shows no budget UI.
@@ -94,12 +111,20 @@ if that write fails, the change is not made.
 | `PUT /api/v1/budgets/space` | `{ "dailyUsd": number \| null }` | space owner |
 | `POST /api/v1/budgets/space/top-up` | `{ "amountUsd": number }` | space owner |
 | `GET /api/v1/budgets/bots/:botId` | | bot owner, space owner |
-| `PUT /api/v1/budgets/bots/:botId` | any of `profile`, `customDailyUsd`, `premium`, `maxConcurrentRuns`, `maxSpawnDepth`, `maxSpawnFanout` | bot owner, space owner (`premium`: space owner) |
+| `PUT /api/v1/budgets/bots/:botId` | any of `profile`, `customDailyUsd`, `premium`, `maxConcurrentRuns`, `maxSpawnDepth`, `maxSpawnFanout` | bot owner (lowering only, see above), space owner |
 | `POST /api/v1/budgets/bots/:botId/top-up` | `{ "amountUsd": number }` | space owner |
 
 Limits are whole numbers from 0 to 50, or `null` for the default. `customDailyUsd` implies the
 `custom` profile. The bot view returns today's bot and space spend, caps, top-ups and levels
-(`ok`, `warn`, `blocked`), the stored settings, the effective limits and the defaults.
+(`ok`, `warn`, `blocked`), the stored settings, the effective limits, the defaults, and what the
+caller may do (`canRaise`, `canSetPremium`, `canTopUp`).
+
+## Deployment notes
+
+- Migration `20261015120000_ext_budgets` builds two indexes on `usage_records`. Prisma runs
+  migrations in a transaction, so they cannot use `CREATE INDEX CONCURRENTLY`; the build locks
+  writes to `usage_records` (model usage accounting) until it finishes. On a large table, apply
+  the migration in a quiet window.
 
 ## Configuration
 
@@ -123,9 +148,10 @@ the executor:
    transaction claims nothing and a delayed `run.continue` job is queued. The lock serializes every
    claimer of one bot across worker processes, and the count and the claim commit together, so two
    workers cannot both take the last slot (the database test fails without the lock).
-2. **After the claim** (`refuseRunOverBudget`): the daily caps and the premium rule are checked
-   once the run holds its lease and attempt, so it can be finished through the normal
-   `finalizeRun` path with its notice.
+2. **After the claim** (`refuseRunOverBudget`): the daily caps are checked once the run holds its
+   lease and attempt, so it can be finished through the normal `finalizeRun` path with its notice.
+   Once the run's model is selected, `premiumModelGate` applies the premium rule to that model,
+   its backups and its sub-agent model resolver (`refuseRunForModel` refuses the run).
 3. **After each model call** (`budgetAfterModelCall`, from the usage hook that records the call's
    cost): sends due notices and, at 100%, aborts the run; the executor finishes it with the stop
    notice instead of a failure, and the tool wrapper refuses any tool call after the halt.
@@ -141,7 +167,8 @@ Routines are checked when they fire (`skipRoutineOverBudget` in `wakeRoutine`).
 Tables (migration `20261015120000_ext_budgets`), FK-free like the audit tables so deleting a bot
 or space never cascades into spend history: `ext_bot_budgets`, `ext_space_budgets`,
 `ext_budget_topups`, `ext_budget_notices` (unique `kind, subjectId, period`: the cross-worker
-de-duplication) and `ext_run_spawns`. Two indexes on `usage_records` (`spaceId, createdAt` and
+de-duplication), `ext_run_spawns` and `ext_run_slot_waits` (runs waiting for a slot; migration
+`20261016120000_ext_run_slot_waits`). Two indexes on `usage_records` (`spaceId, createdAt` and
 `spaceId, botId, createdAt`) keep today's sums cheap.
 
 ## Limitations
@@ -151,7 +178,8 @@ de-duplication) and `ext_run_spawns`. Two indexes on `usage_records` (`spaceId, 
   cap. Calls without a provider price count as zero.
 - `budget.block` and `policy.change` events are written only when `EXT_AUDIT_LOG=1`; with the
   audit log off, blocks are logged and changes are not recorded.
-- A queued run waits by polling (every two seconds) rather than being woken when a slot frees.
+- A queued run waits by polling (every two seconds); it is woken early only when a newer run
+  yields the slot to it, not when a running run finishes.
 - Notices to a person with no bot in the space are not delivered (and are retried at the next
   crossing).
 - Auto-review judge calls are counted in spend but never halt a run themselves.

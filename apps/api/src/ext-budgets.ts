@@ -157,8 +157,9 @@ export function mountBudgetRoutes(app: Hono, deps: Deps): void {
     route(async (c, actor) => {
       const access = await botAccess(deps.prisma, actor, c.req.param("botId") ?? "");
       const patch = parseBotPatch(await readBody(c));
-      if (patch.premium !== undefined && !access.spaceOwner) {
-        throw new HttpError(403, "Only a space owner can change premium");
+      if (!access.spaceOwner) {
+        const refusal = raisesBudget(patch, deps.defaults);
+        if (refusal) throw new HttpError(403, refusal);
       }
       if (patch.profile === "custom" && patch.customDailyUsd === undefined) {
         const current = await loadBotBudget(deps.prisma, {
@@ -257,6 +258,7 @@ async function botView(deps: Deps, access: BotAccess, now: Date) {
       maxSpawnFanout: deps.defaults.maxSpawnFanout,
     },
     profiles: BUDGET_PROFILES,
+    canRaise: access.spaceOwner,
     canSetPremium: access.spaceOwner,
     canTopUp: access.spaceOwner,
   };
@@ -279,6 +281,37 @@ async function readBody(c: Context): Promise<Record<string, unknown>> {
 function unwrap<T>(parsed: Parsed<T>): T {
   if (!parsed.ok) throw new HttpError(400, parsed.error);
   return parsed.value;
+}
+
+/** Profiles a bot owner who is not a space owner may choose. */
+export const OWNER_PROFILES = ["assistant", "worker"] as const;
+
+/**
+ * A bot owner who is not a space owner may only keep a budget at or below the deployment
+ * defaults: the assistant or worker profile, and limits no higher than the defaults (or
+ * the default itself). The reason for a refusal, or null.
+ */
+export function raisesBudget(patch: BotBudgetPatch, defaults: BudgetDefaults): string | null {
+  if (
+    patch.profile !== undefined &&
+    !(OWNER_PROFILES as readonly string[]).includes(patch.profile)
+  ) {
+    return "Only a space owner can choose this budget";
+  }
+  if (patch.customDailyUsd !== undefined) return "Only a space owner can set a custom budget";
+  if (patch.premium !== undefined) return "Only a space owner can change premium";
+  const ceilings = {
+    maxConcurrentRuns: defaults.maxConcurrentRunsPerBot,
+    maxSpawnDepth: defaults.maxSpawnDepth,
+    maxSpawnFanout: defaults.maxSpawnFanout,
+  } as const;
+  for (const key of ["maxConcurrentRuns", "maxSpawnDepth", "maxSpawnFanout"] as const) {
+    const value = patch[key];
+    if (value != null && value > ceilings[key]) {
+      return "Only a space owner can raise a limit above the default";
+    }
+  }
+  return null;
 }
 
 /** Known fields only; anything else in the body (a spaceId included) is ignored. */
@@ -323,13 +356,17 @@ async function recordPolicyChange(
 
 /**
  * Server-side premium rule for model selection: with budgets on, a Fable or Mythos class
- * model can be chosen only for a bot marked premium.
+ * model can be chosen only for a bot marked premium (bot model, routine model, and the
+ * model a duplicate copies; a new bot starts without one).
  */
 export async function assertPremiumModelAllowed(
   prisma: PrismaClient,
-  input: { spaceId: string; botId: string; modelId: string | null | undefined },
+  /** botId null: a bot not created yet, which is never premium. */
+  input: { spaceId: string; botId: string | null; modelId: string | null | undefined },
 ): Promise<void> {
   if (!getBudgetPolicy() || !isPremiumModelId(input.modelId)) return;
-  const settings = await loadBotBudget(prisma, input);
-  if (!settings.premium) throw new ORPCError("BAD_REQUEST", { message: PREMIUM_MODEL_REFUSAL });
+  const premium = input.botId
+    ? (await loadBotBudget(prisma, { spaceId: input.spaceId, botId: input.botId })).premium
+    : false;
+  if (!premium) throw new ORPCError("BAD_REQUEST", { message: PREMIUM_MODEL_REFUSAL });
 }
