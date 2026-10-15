@@ -96,8 +96,11 @@ export async function claimRunWithinBotLimit<T>(
     { botId: run.botId, runId: run.id, maxConcurrentRuns: limits.maxConcurrentRuns },
     claim,
   );
-  if (!slot.queued) return slot.result;
+  if (slot.status === "claimed") return slot.result;
+  // A run that can no longer be claimed (finished, cancelled, leased elsewhere) is left alone.
+  if (slot.status === "gone") return null;
   await deps.jobs.enqueue(delayed(runContinueJob(run.id), QUEUED_RUN_RETRY_MS));
+  if (slot.wake) await deps.jobs.enqueue(runContinueJob(slot.wake));
   return null;
 }
 

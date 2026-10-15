@@ -103,7 +103,9 @@ describePostgres("ext budgets (PostgreSQL)", () => {
 
   async function seedRun(
     bot: { id: string; threadId: string; spaceId: string; userId: string },
-    state: { status: string; leaseExpiresAt?: Date } = { status: "queued" },
+    state: { status: string; leaseExpiresAt?: Date; trigger?: string; createdAt?: Date } = {
+      status: "queued",
+    },
   ) {
     const task = await prisma.task.create({
       data: {
@@ -122,8 +124,8 @@ describePostgres("ext budgets (PostgreSQL)", () => {
         threadId: bot.threadId,
         taskId: task.id,
         userId: bot.userId,
-        trigger: "user",
         ...state,
+        trigger: state.trigger ?? "user",
       },
     });
   }
@@ -294,8 +296,8 @@ describePostgres("ext budgets (PostgreSQL)", () => {
         ),
       ),
     );
-    expect(results.filter((result) => !result.queued)).toHaveLength(2);
-    const queuedIndex = results.findIndex((result) => result.queued);
+    expect(results.filter((result) => result.status === "claimed")).toHaveLength(2);
+    const queuedIndex = results.findIndex((result) => result.status === "queued");
     expect(queuedIndex).toBeGreaterThanOrEqual(0);
     const waiting = runs[queuedIndex]!;
     expect((await prisma.run.findUniqueOrThrow({ where: { id: waiting.id } })).status).toBe(
@@ -310,7 +312,59 @@ describePostgres("ext budgets (PostgreSQL)", () => {
       { botId: seed.bot.id, runId: waiting.id, maxConcurrentRuns: 2 },
       lease(waiting.id),
     );
-    expect(retried).toMatchObject({ queued: false, result: { count: 1 } });
+    expect(retried).toMatchObject({ status: "claimed", result: { count: 1 } });
+  });
+
+  it("gives a freed slot to the oldest waiting run, so newer chat runs cannot starve a routine", async () => {
+    const seed = await seedSpace("fifo");
+    const t = Date.now();
+    const holder = await seedRun(seed.bot, {
+      status: "running",
+      leaseExpiresAt: new Date(t + 60_000),
+      createdAt: new Date(t - 4_000),
+    });
+    const routine = await seedRun(seed.bot, {
+      status: "queued",
+      trigger: "routine",
+      createdAt: new Date(t - 3_000),
+    });
+    const chatA = await seedRun(seed.bot, { status: "queued", createdAt: new Date(t - 2_000) });
+    const chatB = await seedRun(seed.bot, { status: "queued", createdAt: new Date(t - 1_000) });
+    const claim = (runId: string) =>
+      claimBotRunSlot(prisma, { botId: seed.bot.id, runId, maxConcurrentRuns: 1 }, (tx) =>
+        tx.run.updateMany({
+          where: { id: runId, status: "queued" },
+          data: {
+            status: "leased",
+            leaseOwner: "w",
+            leaseExpiresAt: new Date(Date.now() + 60_000),
+          },
+        }),
+      );
+
+    expect(await claim(routine.id)).toEqual({ status: "queued" });
+    expect(await claim(chatA.id)).toEqual({ status: "queued" });
+    await prisma.run.update({ where: { id: holder.id }, data: { status: "completed" } });
+    // The slot is free, but newer chat runs yield to the routine waiting longest and wake it.
+    expect(await claim(chatB.id)).toEqual({ status: "queued", wake: routine.id });
+    expect(await claim(chatA.id)).toEqual({ status: "queued", wake: routine.id });
+    expect(await claim(routine.id)).toMatchObject({ status: "claimed", result: { count: 1 } });
+    expect(await claim(chatA.id)).toEqual({ status: "queued" });
+  });
+
+  it("does not keep retrying a run that can no longer be claimed", async () => {
+    const seed = await seedSpace("gone");
+    await seedRun(seed.bot, { status: "running", leaseExpiresAt: new Date(Date.now() + 60_000) });
+    const cancelled = await seedRun(seed.bot, { status: "cancelled" });
+    const completed = await seedRun(seed.bot, { status: "completed" });
+    for (const run of [cancelled, completed]) {
+      const result = await claimBotRunSlot(
+        prisma,
+        { botId: seed.bot.id, runId: run.id, maxConcurrentRuns: 1 },
+        async () => "claimed",
+      );
+      expect(result).toEqual({ status: "gone" });
+    }
   });
 
   it("does not count an expired lease against the cap", async () => {
@@ -322,7 +376,7 @@ describePostgres("ext budgets (PostgreSQL)", () => {
       { botId: seed.bot.id, runId: fresh.id, maxConcurrentRuns: 1 },
       async () => "claimed",
     );
-    expect(result).toEqual({ queued: false, result: "claimed" });
+    expect(result).toEqual({ status: "claimed", result: "claimed" });
   });
 
   it("admits exactly the fan-out when ten delegations race on one run across two clients", async () => {
