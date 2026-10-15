@@ -1,5 +1,6 @@
 import type { MessageBlock } from "@rakazo/contracts";
 import { redactSecrets } from "@rakazo/core";
+import { redactAuditText } from "@rakazo/db";
 
 const MAX_APPROVAL_SUMMARY_LENGTH = 500;
 const MAX_APPROVAL_DETAIL_LENGTH = 4_000;
@@ -15,11 +16,13 @@ export function buildApprovalAskBlock(
 ): MessageBlock {
   const summary = describeApprovalAction(toolName, args);
   if (options?.detail !== undefined) {
+    // A gated call's summary is scrubbed like its detail and the chat cards: known run
+    // secrets and token-shaped values, since the model chose the arguments it quotes.
     return {
       kind: "ask",
       approvalEffectId: effectId,
       text: truncate(
-        redactSecrets(`Review before ${summary}`, secrets),
+        redactAuditText(`Review before ${summary}`, secrets),
         MAX_APPROVAL_SUMMARY_LENGTH,
       ),
       detail: redactSecrets(options.detail, secrets),

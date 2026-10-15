@@ -91,4 +91,20 @@ describe("buildApprovalAskBlock", () => {
     expect(block.detail).not.toContain("s3cr3t-run-value");
     expect(block.actions?.map((action) => action.id)).toEqual(["allow", "deny"]);
   });
+
+  it("scrubs token-shaped values from a gated call's summary line (EXT_APPROVALS)", () => {
+    // The model controls the title; a key it was never given is scrubbed by its shape.
+    const shaped = "sk-test-FAKE-summary-0000000000000000";
+    const block = buildApprovalAskBlock(
+      "effect-4",
+      "destination.write",
+      { collection: "outbox", title: `${shaped} and s3cr3t-run-value` },
+      ["s3cr3t-run-value"],
+      { offerAlways: false, detail: "Call a1b2c3d4" },
+    );
+    if (block.kind !== "ask") throw new Error("expected ask block");
+    expect(block.text).not.toContain(shaped);
+    expect(block.text).not.toContain("s3cr3t-run-value");
+    expect(block.text).toContain("[redacted]");
+  });
 });
