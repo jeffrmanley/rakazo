@@ -827,6 +827,12 @@ export interface MessagingCard {
   title: string;
   blocks: Array<{ kind: "text" | "muted" | "code"; text: string }>;
   actions?: Array<{ id: string; label: string; value: string; style?: "primary" | "danger" }>;
+  /**
+   * When the platform cannot show every text and code block in full: the notice to show
+   * (`{hidden}` becomes the number of hidden characters) and the actions to remove, so
+   * nobody can act on a card that does not show everything. Muted blocks are always kept.
+   */
+  overflow?: { notice: string; dropActions: string[] };
 }
 
 /** A button click on a card the surface posted. */

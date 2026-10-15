@@ -219,6 +219,8 @@ function fixture({
     },
     actionAutoReviewPreference: { findUnique: vi.fn(async () => ({ enabled: autoReview })) },
     externalEffect,
+    // Fork extension (EXT_APPROVALS): checked before any effect runs; none exist here.
+    extApproval: { findUnique: vi.fn(async () => null) },
   };
   const pauseRunForInput = vi.fn(async () => {
     run.status = "waiting_input";

@@ -20,40 +20,83 @@ export function escapeTeamsMarkdown(text: string): string {
   return text.replace(TEAMS_MARKDOWN, (char) => `\\${char}`);
 }
 
-/** Card emoji placeholders (`{{emoji:name}}`) are expanded by the adapters; keep them literal. */
-function neutralizeEmojiPlaceholders(text: string): string {
-  return text.replaceAll("{{", "{\u200b{");
+/**
+ * Per-character Slack escaping, so a cut never splits an entity: the mrkdwn entities, and a
+ * zero-width space after `{` (card emoji placeholders) and after a backtick (no text can
+ * close the code fence it sits in).
+ */
+function escapeSlackChar(char: string): string {
+  if (char === "{" || char === "`") return `${char}\u200b`;
+  return escapeSlackMrkdwn(char);
 }
 
-/** Plain text inside a Slack code block: a fence in the text must not close the block. */
-function slackCodeBlock(text: string): string {
-  const body = escapeSlackMrkdwn(text).replaceAll("```", "`\u200b`\u200b`");
-  return `\`\`\`\n${body}\n\`\`\``;
-}
+/**
+ * Size per section and for the whole card, in escaped characters. Slack rejects a section
+ * over 3,000 characters (the adapter would cut it silently) and a message over 50 blocks;
+ * an Adaptive Card must stay under about 28 KB.
+ */
+const PLATFORM_LIMITS = {
+  slack: { section: 2_900, budget: 12_000 },
+  teams: { section: 4_000, budget: 15_000 },
+} as const;
 
 /**
  * Translate a provider-neutral card into a Chat SDK card for one platform. All card text is
  * plain; it is escaped here for the platform's markup, so nothing a model or a tool wrote
- * can mention people, add links or change formatting.
+ * can mention people, add links or change formatting. Text and code that do not fit the
+ * platform are cut where the budget ends, never silently: the card says how many characters
+ * are hidden and loses the actions its `overflow` names.
  */
 export function toChatCard(provider: string, card: MessagingCard): CardElement {
   const slack = provider === "slack";
-  const inline = (text: string) =>
-    neutralizeEmojiPlaceholders(slack ? escapeSlackMrkdwn(text) : escapeTeamsMarkdown(text));
-  const children: CardChild[] = card.blocks.map((block) => {
-    if (block.kind === "code") {
-      return CardText(
-        neutralizeEmojiPlaceholders(
-          slack ? slackCodeBlock(block.text) : escapeTeamsMarkdown(block.text),
-        ),
-      );
+  const limits = slack ? PLATFORM_LIMITS.slack : PLATFORM_LIMITS.teams;
+  const escapeChar = slack ? escapeSlackChar : escapeTeamsMarkdown;
+  const escapeAll = (text: string) => Array.from(text, escapeChar).join("");
+  const children: CardChild[] = [];
+  let used = 0;
+  let hidden = 0;
+  for (const block of card.blocks) {
+    if (block.kind === "muted") {
+      children.push(CardText(escapeAll(block.text), { style: "muted" }));
+      continue;
     }
-    return CardText(inline(block.text), block.kind === "muted" ? { style: "muted" } : undefined);
-  });
-  if (card.actions?.length) {
+    const code = block.kind === "code";
+    const fence = slack && code ? 8 : 0;
+    let piece = "";
+    let pieceLength = 0;
+    const flush = () => {
+      if (!piece) return;
+      children.push(CardText(slack && code ? `\`\`\`\n${piece}\n\`\`\`` : piece));
+      piece = "";
+      pieceLength = 0;
+    };
+    for (const char of block.text) {
+      const escaped = escapeChar(char);
+      if (hidden > 0 || used + escaped.length > limits.budget) {
+        hidden += char.length;
+        continue;
+      }
+      if (pieceLength + escaped.length + fence > limits.section) flush();
+      piece += escaped;
+      pieceLength += escaped.length;
+      used += escaped.length;
+    }
+    flush();
+  }
+  let actions = card.actions ?? [];
+  if (hidden > 0) {
+    const notice = (card.overflow?.notice ?? "{hidden} characters hidden.").replace(
+      "{hidden}",
+      hidden.toLocaleString("en-US"),
+    );
+    children.push(CardText(escapeAll(notice), { style: "muted" }));
+    const dropped = new Set(card.overflow?.dropActions ?? []);
+    actions = actions.filter((action) => !dropped.has(action.id));
+  }
+  if (actions.length) {
     children.push(
       Actions(
-        card.actions.map((action) =>
+        actions.map((action) =>
           Button({ id: action.id, label: action.label, value: action.value, style: action.style }),
         ),
       ),
@@ -61,7 +104,7 @@ export function toChatCard(provider: string, card: MessagingCard): CardElement {
   }
   // Slack renders the title as a plain_text header; Teams renders it as markdown.
   return Card({
-    title: slack ? neutralizeEmojiPlaceholders(card.title) : inline(card.title),
+    title: slack ? card.title.replaceAll("{{", "{\u200b{") : escapeAll(card.title),
     children,
   });
 }

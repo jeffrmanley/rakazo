@@ -96,6 +96,7 @@ import {
   parsePositiveInteger,
   provisionMessagingIdentity,
   pushSessionExpiresAt,
+  recordApprovalsFlag,
   requireMembership,
 } from "@rakazo/db";
 import type { Logger } from "@rakazo/logging";
@@ -584,6 +585,8 @@ export async function createApp(
   // Fork extension: EXT_APPROVALS=1 makes gated tool calls wait for a listed approver, with
   // cards in Slack and Teams and the expiry sweep in this process.
   installApprovals(env.ext.approvals ? createApprovalModule({ prisma, messaging }) : null);
+  // Workers compare their own EXT_APPROVALS with this one and refuse to start on a mismatch.
+  await recordApprovalsFlag(prisma, env.ext.approvals);
   const approvals = env.ext.approvals
     ? createApprovalService({ prisma, events, jobs, messaging })
     : undefined;

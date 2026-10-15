@@ -10,9 +10,29 @@ export function buildApprovalAskBlock(
   args: Record<string, unknown>,
   secrets: string[],
   /** offerAlways false (a call an approval policy gates) leaves out "Always allow". */
-  options?: { reviewReason?: string; offerAlways?: boolean },
+  /** detail: the full call, already redacted, shown uncut (EXT_APPROVALS). */
+  options?: { reviewReason?: string; offerAlways?: boolean; detail?: string },
 ): MessageBlock {
   const summary = describeApprovalAction(toolName, args);
+  if (options?.detail !== undefined) {
+    return {
+      kind: "ask",
+      approvalEffectId: effectId,
+      text: truncate(
+        redactSecrets(`Review before ${summary}`, secrets),
+        MAX_APPROVAL_SUMMARY_LENGTH,
+      ),
+      detail: redactSecrets(options.detail, secrets),
+      status: "pending",
+      actions: [
+        { id: "allow", label: "Allow once" },
+        ...(options.offerAlways === false
+          ? []
+          : [{ id: "always", label: "Always allow this tool" }]),
+        { id: "deny", label: "Deny" },
+      ],
+    };
+  }
   const detail = formatApprovalDetail(toolName, args, options?.reviewReason);
   const safeDetail = detail ? redactSecrets(detail, secrets) : undefined;
   return {

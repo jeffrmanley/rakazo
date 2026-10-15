@@ -105,6 +105,7 @@ import type { McpServer, Prisma, PrismaClient, ThreadEvents } from "@rakazo/db";
 import {
   AuditWriteError,
   appendEventInTransaction,
+  checkApprovedCall,
   createSpaceForMember,
   createThreadMessageInTransaction,
   effectiveMemoryScope,
@@ -242,6 +243,7 @@ import { checkpointRunComputerWorkspace } from "./computer-workspace.js";
 import { redactConnectorPayload, sanitizeConnectorError } from "./connector-safety.js";
 import { formatCurrentTimeInstruction } from "./current-time.js";
 import { resolveDeploymentModel } from "./deployment-model.js";
+import { approvalWebDetail } from "./ext-approval-card.js";
 import { getApprovals } from "./ext-approvals.js";
 import { auditedToolExecution } from "./ext-audit-tools.js";
 import {
@@ -4130,7 +4132,25 @@ export function createRunExecutor(deps: ExecutorDeps) {
           runAbortController?.abort(budgetStop);
         };
         const delegations = delegationLimiter(deps.prisma, run, () => budgetStop !== undefined);
+        // Fork extension (EXT_APPROVALS): a gated read-only tool runs on a claimed effect, but its
+        // handler returns without recording a result; record it once the call returns.
+        const gatedReadEffects = new Map<string, string>();
         const executeToolUnaudited = async (
+          name: string,
+          args: Record<string, unknown>,
+          executionId: string,
+          route?: unknown,
+          observer?: AgentToolExecutionObserver,
+        ) => {
+          const result = await executeToolCall(name, args, executionId, route, observer);
+          const effectId = gatedReadEffects.get(executionId);
+          if (effectId) {
+            gatedReadEffects.delete(executionId);
+            await completeEffect(deps, effectId, "executing", result);
+          }
+          return result;
+        };
+        const executeToolCall = async (
           name: string,
           args: Record<string, unknown>,
           executionId: string,
@@ -4349,17 +4369,21 @@ export function createRunExecutor(deps: ExecutorDeps) {
             toolRequiresApproval(name, viaConnector, declaredReadOnly);
           // Fork extension (EXT_APPROVALS): a call in a risk class the bot's policy gates waits
           // for a listed approver; no rule, auto review or "always allow" can skip it.
+          // Conversation tools are exempt in the module; reads wait too when Reads is gated.
           const approvals = getApprovals();
-          const extRiskClass =
-            approvals && !READ_ONLY_AGENT_TOOLS.has(name) && name !== "request_secret"
-              ? await approvals.gate({
-                  spaceId: run.spaceId,
-                  botId: bot.id,
-                  toolName: name,
-                  viaConnector,
-                  readOnly: declaredReadOnly,
-                })
-              : null;
+          const toolRoute = viaConnector
+            ? (resolvedTool ?? connectorTools.get(name))?.route
+            : undefined;
+          const extRiskClass = approvals
+            ? await approvals.gate({
+                spaceId: run.spaceId,
+                botId: bot.id,
+                toolName: name,
+                viaConnector,
+                readOnly: declaredReadOnly,
+                mcpServerId: toolRoute?.connectorId === "mcp" ? toolRoute.resourceId : undefined,
+              })
+            : null;
           const requiresMandatoryApproval =
             requiresUnattendedApproval ||
             toolRequiresExplicitApproval(name) ||
@@ -4427,17 +4451,19 @@ export function createRunExecutor(deps: ExecutorDeps) {
               ? approvalEffectKey(runId, replayEffectToolName, args)
               : toolEffectIdempotencyKey(runId, replayEffectToolName, args, occurrence);
           // Connector read-only hints must not bypass approval, review, or replay decisions.
-          const applied = READ_ONLY_AGENT_TOOLS.has(name)
-            ? undefined
-            : await recordEffect(
-                deps,
-                run,
-                replayEffectToolName,
-                effectKey,
-                effectRequest,
-                executionId,
-                consumedEffectIds,
-              );
+          // A gated read gets an effect row like any write, so it can wait for approval.
+          const applied =
+            READ_ONLY_AGENT_TOOLS.has(name) && !extRiskClass
+              ? undefined
+              : await recordEffect(
+                  deps,
+                  run,
+                  replayEffectToolName,
+                  effectKey,
+                  effectRequest,
+                  executionId,
+                  consumedEffectIds,
+                );
 
           const runAutoReview = async () => {
             if (!injectedReview && !checker) return;
@@ -4602,10 +4628,33 @@ export function createRunExecutor(deps: ExecutorDeps) {
             if (stop) throw new EmergencyStopError(stop);
           };
 
+          // Fork extension (EXT_APPROVALS): before any effect is claimed for execution, in every
+          // process whatever its flag: an effect with an approval request runs only when that
+          // request was approved for this exact call; with the module on, a gated call never
+          // runs on an upstream approval alone. The stop state is read fresh, not cached.
+          const extApprovalRefusal = async (): Promise<string | null> => {
+            if (!applied) return null;
+            const ext = await checkApprovedCall(deps.prisma, {
+              effectId: applied.effect.id,
+              callHash: approvalCallHash(replayEffectToolName, args),
+            });
+            if (ext.gated || extRiskClass) {
+              getEmergencyStop()?.invalidate(run.spaceId);
+              await haltIfStopped();
+            }
+            if (ext.refusal) return ext.refusal;
+            if (extRiskClass && !ext.gated) {
+              return "This action needs approval under this bot's approval policy. Do not retry it.";
+            }
+            return null;
+          };
+
           const claimOrReturn = async (
             from: "approved" | "intended",
           ): Promise<unknown | undefined> => {
             await haltIfStopped();
+            const refusal = await extApprovalRefusal();
+            if (refusal) return { error: refusal };
             const claim = from === "approved" ? claimApprovedEffect : claimIntendedEffect;
             if (await claim(deps.prisma, applied!.effect.id)) {
               claimedEffect = true;
@@ -4633,6 +4682,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
             // Fork extension (EXT_APPROVALS): the request and its audit record come before the
             // card. A failed audit write fails closed: no card, no execution, the run halts.
             let extApprovalId: string | undefined;
+            let extDetail: string | undefined;
             if (approvals && extRiskClass) {
               try {
                 const request = await approvals.request({
@@ -4653,6 +4703,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
                   return { error: "This action was not approved. Do not retry it." };
                 }
                 extApprovalId = request.id;
+                extDetail = approvalWebDetail({ ...request, secrets: runSecrets });
               } catch (error) {
                 if (error instanceof AuditWriteError) {
                   auditFailure ??= error;
@@ -4674,6 +4725,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
                 buildApprovalAskBlock(applied!.effect.id, name, args, runSecrets, {
                   reviewReason,
                   offerAlways: !extRiskClass,
+                  detail: extDetail,
                 }),
               ],
             });
@@ -4753,18 +4805,6 @@ export function createRunExecutor(deps: ExecutorDeps) {
             } else if (gate.action === "uncertain") {
               return settleUncertainEffect(deps.prisma, applied.effect.id, gate.toolName);
             } else if (gate.action === "execute") {
-              // Fork extension (EXT_APPROVALS): a gated call runs only under an approved request
-              // for this exact call (tool name and canonical arguments), and never once its bot
-              // is stopped: the stop state is read fresh here, not from the one second cache.
-              if (approvals) {
-                getEmergencyStop()?.invalidate(run.spaceId);
-                await haltIfStopped();
-              }
-              const refusal = await approvals?.checkExecution({
-                effectId: applied.effect.id,
-                callHash: approvalCallHash(replayEffectToolName, args),
-              });
-              if (refusal) return { error: refusal };
               const early = await claimOrReturn("approved");
               if (early !== undefined) return early;
             }
@@ -4773,6 +4813,9 @@ export function createRunExecutor(deps: ExecutorDeps) {
           } else if (bypassApproval && applied) {
             const early = await claimOrReturn("intended");
             if (early !== undefined) return early;
+          }
+          if (claimedEffect && applied && READ_ONLY_AGENT_TOOLS.has(name)) {
+            gatedReadEffects.set(executionId, applied.effect.id);
           }
           if (!claimedEffect) await haltIfStopped();
           const persistEffectResult = (result: unknown) =>
@@ -5677,6 +5720,9 @@ export function createRunExecutor(deps: ExecutorDeps) {
                   data: {
                     spaceId: run.spaceId,
                     userId: run.userId,
+                    // Fork extension (EXT_APPROVALS): a server the model added is never trusted
+                    // by its tool names.
+                    addedByBotId: bot.id,
                     slug: parsed.slug,
                     name: parsed.name,
                     description: parsed.description,

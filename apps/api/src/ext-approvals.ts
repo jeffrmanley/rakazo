@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ORPCError } from "@orpc/server";
 import type { JobPublisher, MessagingAction, MessagingSurface } from "@rakazo/adapter-kit";
 import { runContinueJob } from "@rakazo/adapter-kit";
-import { APPROVAL_ACTIONS, APPROVAL_ALLOW_ACTION, refreshApprovalCard } from "@rakazo/adapters";
+import { APPROVAL_ACTIONS, APPROVAL_ALLOW_ACTION, refreshApprovalCards } from "@rakazo/adapters";
 import type { Actor, MessageBlock } from "@rakazo/contracts";
 import { DEFAULT_GATED_CLASSES, parseApprovalPolicyPatch, RISK_CLASSES } from "@rakazo/core";
 import type {
@@ -79,7 +79,7 @@ export function createApprovalService(deps: {
         getLogger().error("approval resume enqueue", error);
       });
     }
-    await refreshApprovalCard(
+    await refreshApprovalCards(
       { prisma: deps.prisma, messaging: deps.messaging },
       result.approval,
       deciderName,

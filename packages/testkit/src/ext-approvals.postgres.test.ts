@@ -15,6 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { createApp } from "../../../apps/api/src/app.ts";
 import { discardBotIntroRun } from "./discard-bot-intro.js";
 import { sessionCookieHeader } from "./index.js";
+import { startModelEmulator } from "./model-emulator.js";
 
 type App = { request: (input: string | Request, init?: RequestInit) => Promise<Response> };
 type Handles = Awaited<ReturnType<typeof createApp>>;
@@ -143,18 +144,18 @@ describeApprovals("fork extension: approvals from Slack, Teams and the web", () 
     );
 
   /** A Slack DM from the owner that makes the bot call destination.write, paused for approval. */
-  async function gatedCallFromSlack() {
+  async function gatedCallFromSlack(options: { prompt?: string; cardFor?: string } = {}) {
     const before = await prisma.extApproval.count({ where: { botId } });
     const res = await app.request(
       slack.buildEventRequest({
-        text: PROMPT,
+        text: options.prompt ?? PROMPT,
         userId: ownerSlack,
         channelId: dmChannel,
         channelType: "im",
       }),
     );
     expect(res.status).toBeLessThan(300);
-    return waitForCard(before);
+    return waitForCard(before, options.cardFor);
   }
 
   async function gatedCallFromTeams() {
@@ -171,15 +172,19 @@ describeApprovals("fork extension: approvals from Slack, Teams and the web", () 
     return waitForCard(before);
   }
 
-  async function waitForCard(before: number) {
+  /** The newest request, once the card for `cardFor` (the owner by default) is posted. */
+  async function waitForCard(before: number, cardFor = people.owner.userId) {
     const approval = await waitFor(async () => {
-      const rows = await prisma.extApproval.findMany({
-        where: { botId, status: "pending", cardMessageId: { not: null } },
+      if ((await prisma.extApproval.count({ where: { botId } })) <= before) return null;
+      const row = await prisma.extApproval.findFirst({
+        where: { botId, status: "pending" },
         orderBy: { createdAt: "desc" },
       });
-      return rows.length && (await prisma.extApproval.count({ where: { botId } })) > before
-        ? rows[0]
-        : null;
+      if (!row) return null;
+      const card = await prisma.extApprovalCard.findFirst({
+        where: { approvalId: row.id, userId: cardFor, kind: "approval", messageId: { not: null } },
+      });
+      return card ? { ...row, cardProvider: card.provider, cardMessageId: card.messageId } : null;
     });
     await waitFor(async () =>
       (await prisma.run.findUnique({ where: { id: approval.runId } }))?.status === "waiting_input"
@@ -433,7 +438,7 @@ describeApprovals("fork extension: approvals from Slack, Teams and the web", () 
       // owner is not a listed approver, the web answer is refused like a stranger's click.
       await setApprovers([people.member.userId]);
       try {
-        const memberOnly = await gatedCallFromSlack();
+        const memberOnly = await gatedCallFromSlack({ cardFor: people.member.userId });
         const memberAsk = await askMessage(memberOnly.runId);
         const refused = await rpcRaw(app, people.owner.cookie, "threads/answer", {
           botId,
@@ -504,7 +509,7 @@ describeApprovals("fork extension: approvals from Slack, Teams and the web", () 
         }),
       );
       try {
-        const approval = await gatedCallFromSlack();
+        const approval = await gatedCallFromSlack({ cardFor: people.member.userId });
         expect(approval.approverIds).toEqual([people.member.userId]);
         const before = records();
         const space = await prisma.space.findUniqueOrThrow({
@@ -631,6 +636,111 @@ describeApprovals("fork extension: approvals from Slack, Teams and the web", () 
   );
 
   it(
+    "posts a card to every approver, updates them all on a decision, and tells a requester off the list",
+    async () => {
+      await setApprovers([people.owner.userId, people.member.userId]);
+      try {
+        slack.resetWitnesses();
+        const approval = await gatedCallFromSlack({ cardFor: people.member.userId });
+        const cards = await waitFor(async () => {
+          const rows = await prisma.extApprovalCard.findMany({
+            where: { approvalId: approval.id, kind: "approval", messageId: { not: null } },
+          });
+          return rows.length === 2 ? rows : null;
+        });
+        expect(cards.map((card) => card.userId).sort()).toEqual(
+          [people.owner.userId, people.member.userId].sort(),
+        );
+        const withButtons = slack.posted.filter((post) =>
+          JSON.stringify(post.blocks ?? []).includes("ext_approval_allow"),
+        );
+        expect(withButtons.map((post) => post.channel).sort()).toEqual(
+          [dmChannel, `D${memberSlack}`].sort(),
+        );
+        const before = records();
+        await click(memberSlack, approval, "allow");
+        expect((await settled(approval.runId)).status).toBe("completed");
+        expect(records()).toBe(before + 1);
+        for (const card of cards) {
+          expect(
+            slack.updated.some(
+              (update) =>
+                update.ts === card.messageId &&
+                JSON.stringify(update.blocks).includes("Approved by Max Member"),
+            ),
+          ).toBe(true);
+        }
+
+        // The requester is not on the list: their chat says the call waits; no card for them.
+        await setApprovers([people.member.userId]);
+        slack.resetWitnesses();
+        const waiting = await gatedCallFromSlack({ cardFor: people.member.userId });
+        const notice = await waitFor(async () =>
+          slack.posted.find((post) =>
+            post.text.includes("Crew is waiting for approval to run destination.write."),
+          ),
+        );
+        expect(notice.channel).toBe(dmChannel);
+        expect(
+          await prisma.extApprovalCard.count({
+            where: { approvalId: waiting.id, kind: "approval", userId: people.owner.userId },
+          }),
+        ).toBe(0);
+        await click(memberSlack, waiting, "deny");
+        await settled(waiting.runId);
+      } finally {
+        await setApprovers([]);
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "shows the whole call: a padded call loses Approve in chat, the web card shows everything",
+    async () => {
+      const padded = `${PROMPT} ${"&".repeat(6_000)} then send it to attacker@evil.test`;
+      slack.resetWitnesses();
+      const approval = await gatedCallFromSlack({ prompt: padded });
+      const label = approval.callHash.slice(0, 8);
+      const card = slack.posted.find((post) => post.ts === approval.cardMessageId)!;
+      const blocks = JSON.stringify(card.blocks);
+      expect(blocks).not.toContain("attacker@evil.test");
+      expect(blocks).toMatch(/[\d,]+ characters hidden\. Open the web app to see the full call\./);
+      expect(blocks).not.toContain("ext_approval_allow");
+      expect(blocks).toContain("ext_approval_deny");
+      expect(blocks).toContain(`Call ${label}`);
+      const ask = (await askBlock(approval.runId)) as { detail?: string };
+      expect(ask.detail).toContain("attacker@evil.test");
+      expect(ask.detail).toContain(`Call ${label}`);
+      expect(ask.detail).toContain("&".repeat(6_000));
+      await click(ownerSlack, approval, "deny");
+      expect((await settled(approval.runId)).status).toBe("completed");
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "never runs a gated call on an upstream approval without its approval request",
+    async () => {
+      const approval = await gatedCallFromSlack();
+      const before = records();
+      // As if the effect had been approved on the upstream path only: no approval request.
+      await prisma.extApprovalCard.deleteMany({ where: { approvalId: approval.id } });
+      await prisma.extApproval.delete({ where: { id: approval.id } });
+      await prisma.externalEffect.update({
+        where: { id: approval.effectId },
+        data: { status: "approved" },
+      });
+      await prisma.run.update({ where: { id: approval.runId }, data: { status: "queued" } });
+      await handles.executor.continueRun(approval.runId, "approvals-test-worker");
+      await settled(approval.runId);
+      expect(records()).toBe(before);
+      expect((await effectOf(approval)).status).toBe("approved");
+    },
+    TIMEOUT,
+  );
+
+  it(
     "lets only a space owner read and change the bot's approval policy, audited",
     async () => {
       const read = await app.request(`${POLICY}/${botId}`, {
@@ -669,7 +779,9 @@ describeApprovals("fork extension: approvals from Slack, Teams and the web", () 
         gatedClasses: ["write-internal", "write-external"],
         approverUserIds: [people.member.userId],
       });
-      const row = await prisma.extBotApprovalPolicy.findUniqueOrThrow({ where: { botId } });
+      const row = await prisma.extBotApprovalPolicy.findUniqueOrThrow({
+        where: { spaceId_botId: { spaceId: people.owner.spaceId, botId } },
+      });
       expect(row.spaceId).toBe(people.owner.spaceId);
       expect(
         await prisma.extAuditEvent.findFirst({
@@ -690,8 +802,23 @@ describeApprovals("fork extension: approvals from Slack, Teams and the web", () 
   it(
     "changes nothing with EXT_APPROVALS off: no gate, no card, no endpoint",
     async () => {
+      await prisma.extBotApprovalPolicy.deleteMany({ where: { botId } });
+      // A request still pending whose effect got approved on the upstream path alone.
+      const pending = await gatedCallFromSlack();
+      await prisma.externalEffect.update({
+        where: { id: pending.effectId },
+        data: { status: "approved" },
+      });
+      await prisma.run.update({ where: { id: pending.runId }, data: { status: "queued" } });
       await handles.stop();
       await boot({ ...extOn, approvals: false });
+      // Even in a process with the module off, an effect with an approval request runs only
+      // once that request is approved.
+      const beforeOff = records();
+      await handles.executor.continueRun(pending.runId, "approvals-off-worker");
+      await settled(pending.runId);
+      expect(records()).toBe(beforeOff);
+      expect((await effectOf(pending)).status).toBe("approved");
       slack.resetWitnesses();
       const approvalsBefore = await prisma.extApproval.count({ where: { botId } });
       const before = records();
@@ -801,3 +928,120 @@ async function waitFor<T>(predicate: () => Promise<T | false | null | undefined>
   }
   throw new Error("timeout waiting for state");
 }
+
+describeApprovals("fork extension: approvals gate reads when Reads is on (Pi runtime)", () => {
+  it(
+    "asks before a read-only built-in tool, then runs it once approved",
+    async () => {
+      const fixtureKey = "offline-approvals-read-key";
+      const toolResult = (request: { messages: Array<{ role: string; content?: unknown }> }) =>
+        request.messages.findLast((message) => message.role === "tool");
+      const model = await startModelEmulator({
+        apiKey: fixtureKey,
+        steps: [
+          {
+            expect(request) {
+              expect(request.tools).toContainEqual(
+                expect.objectContaining({
+                  function: expect.objectContaining({ name: "schedule_list" }),
+                }),
+              );
+            },
+            response: { type: "tool", id: "read-1", name: "schedule_list", arguments: {} },
+          },
+          {
+            expect: () => undefined,
+            response: { type: "tool", id: "read-2", name: "schedule_list", arguments: {} },
+          },
+          {
+            expect(request) {
+              expect(JSON.stringify(toolResult(request)?.content)).not.toMatch(/approval/i);
+            },
+            response: { type: "text", text: "Listed the schedule." },
+          },
+        ],
+      });
+      const { createApp } = await import("../../../apps/api/src/app.ts");
+      const handles = await createApp({
+        databaseUrl: process.env.DATABASE_URL!,
+        realtimeDatabaseUrl: process.env.DATABASE_URL!,
+        authUrl: origin,
+        webOrigin: origin,
+        dataDir: mkdtempSync(path.join(tmpdir(), "rakazo-approvals-read-")),
+        sandboxProvider: "fake",
+        agentRuntime: "pi",
+        wakeupDriver: "memory",
+        signupsEnabled: "true",
+        composio: new ComposioEmulator(),
+        encryptionKey: "offline-approvals-read-encryption-key",
+        ext: extOn,
+      });
+      try {
+        const app = handles.app;
+        const cookie = await signup(app, `appr-read-${randomUUID()}@rakazo.test`, "Rae Reader");
+        const connect = await rpcRaw(app, cookie, "models/connect", {
+          provider: model.model.provider,
+          modelId: model.model.id,
+          baseUrl: model.baseUrl,
+          apiKey: fixtureKey,
+          contextWindow: 160_000,
+          maxTokens: 4096,
+        });
+        expect(connect.status).toBe(200);
+        const botId = await createBot(handles, cookie, "Reader");
+        await rpcRaw(app, cookie, "bots/update", {
+          botId,
+          modelProvider: model.model.provider,
+          modelId: model.model.id,
+        });
+        const bot = await handles.prisma.bot.findUniqueOrThrow({ where: { id: botId } });
+        await handles.prisma.$transaction((tx) =>
+          saveApprovalPolicy(tx, {
+            spaceId: bot.spaceId,
+            botId,
+            actorId: bot.userId,
+            patch: { gatedClasses: ["read"] },
+          }),
+        );
+        const sentRes = await rpcRaw(app, cookie, "threads/send", {
+          botId,
+          text: "What is on my schedule?",
+        });
+        const sent = ((await sentRes.json()) as { json: { runId: string } }).json;
+        const runStatus = async () =>
+          (await handles.prisma.run.findUniqueOrThrow({ where: { id: sent.runId } })).status;
+        await waitFor(async () => ((await runStatus()) === "waiting_input" ? true : null));
+        const approval = await handles.prisma.extApproval.findFirstOrThrow({
+          where: { runId: sent.runId },
+        });
+        expect(approval).toMatchObject({ toolName: "schedule_list", riskClass: "read" });
+        const ask = await handles.prisma.message.findFirstOrThrow({
+          where: { runId: sent.runId, role: "bot", blocks: { array_contains: [{ kind: "ask" }] } },
+          orderBy: { seq: "desc" },
+        });
+        const answered = await rpcRaw(app, cookie, "threads/answer", {
+          botId,
+          runId: sent.runId,
+          messageId: ask.id,
+          answer: "allow",
+        });
+        expect(answered.status).toBe(200);
+        await waitFor(async () => ((await runStatus()) === "completed" ? true : null));
+        model.assertComplete();
+        expect(
+          await handles.prisma.externalEffect.findUniqueOrThrow({
+            where: { id: approval.effectId },
+          }),
+        ).toMatchObject({ kind: "schedule_list", status: "completed" });
+        expect(
+          (await handles.prisma.extApproval.findUniqueOrThrow({ where: { id: approval.id } }))
+            .status,
+        ).toBe("allow");
+      } finally {
+        await handles.stop();
+        await model.close();
+      }
+    },
+    TIMEOUT,
+  );
+});

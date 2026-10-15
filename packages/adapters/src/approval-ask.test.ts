@@ -78,4 +78,17 @@ describe("buildApprovalAskBlock", () => {
     if (block.kind !== "ask") throw new Error("expected ask block");
     expect(block.actions?.map((action) => action.id)).toEqual(["allow", "deny"]);
   });
+
+  it("shows a gated call's full detail uncut (EXT_APPROVALS), still scrubbing run secrets", () => {
+    const detail = `Call a1b2c3d4\n\n${JSON.stringify({ body: "x".repeat(10_000), to: "a", key: "s3cr3t-run-value" })}`;
+    const block = buildApprovalAskBlock("effect-3", "gmail_send_email", {}, ["s3cr3t-run-value"], {
+      offerAlways: false,
+      detail,
+    });
+    if (block.kind !== "ask") throw new Error("expected ask block");
+    expect(block.detail?.length).toBeGreaterThan(10_000);
+    expect(block.detail).toContain("Call a1b2c3d4");
+    expect(block.detail).not.toContain("s3cr3t-run-value");
+    expect(block.actions?.map((action) => action.id)).toEqual(["allow", "deny"]);
+  });
 });

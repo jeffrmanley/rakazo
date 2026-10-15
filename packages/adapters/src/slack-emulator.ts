@@ -225,12 +225,14 @@ export class SlackEmulator {
         const ts = `${Math.floor(Date.now() / 1000)}.${String(this.counter).padStart(6, "0")}`;
         this.posted.push({
           channel: String(args.channel),
-          text: String(args.text ?? ""),
+          text: String(args.text ?? args.markdown_text ?? ""),
           ts,
           ...(Array.isArray(args.blocks) ? { blocks: args.blocks } : {}),
         });
         return { ok: true, channel: args.channel, ts };
       },
+      // A 1:1 conversation with the app, as Slack opens it for a user (D + their id).
+      "conversations.open": (args) => ({ ok: true, channel: { id: `D${String(args.users)}` } }),
       "chat.update": (args) => {
         this.updated.push({
           channel: String(args.channel),

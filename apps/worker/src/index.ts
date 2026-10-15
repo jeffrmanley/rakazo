@@ -53,6 +53,7 @@ import {
 } from "@rakazo/adapters";
 import { loadExtEnv, resolveEncryptionKey, resolveSupervisorToken } from "@rakazo/core";
 import {
+  assertApprovalsFlag,
   createAuditWriter,
   createBoardEvents,
   createBrandReader,
@@ -165,6 +166,9 @@ async function main() {
     : undefined;
   // Fork extension: EXT_APPROVALS=1 makes gated tool calls wait for a listed approver; this
   // process posts the approval card when one of its runs pauses.
+  // A worker whose EXT_APPROVALS differs from the API's would run gated calls without
+  // approval (or wait on approvals nobody serves): refuse to start.
+  await assertApprovalsFlag(prisma, ext.approvals);
   installApprovals(ext.approvals ? createApprovalModule({ prisma, messaging }) : null);
   const integrationSettings = new IntegrationProviderSettings(
     prisma,
