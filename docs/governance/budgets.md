@@ -43,9 +43,12 @@ and 100% in one call sends one notice.
   settings.", or the space variant). Messaging runs mirror that notice back to Slack or Teams like
   any reply; bot-to-bot requests get it back as a status. Background runs (routines, webhooks)
   post nothing.
-- **Mid-run:** the model call that crossed the cap finishes and is accounted; the run then halts
-  before any further tool call or model call and completes with "Stopped: daily budget reached."
-  A `budget.block` event with `reason: "halted"` is written.
+- **Mid-run:** the model call that crossed the cap finishes and is accounted, and what it produced
+  (a final answer included) is delivered; the run then halts before any further tool call or model
+  call and completes with "Stopped: daily budget reached." after that answer. A `budget.block`
+  event with `reason: "halted"` is written.
+- **Background model calls** stop too: the team-chat ambient judge stays silent without calling
+  the model, and history compaction is deferred until a later run (its cursor does not move).
 - **Routines** that fire over budget are skipped: the schedule advances to the next occurrence
   (no retry) and a `budget.block` event with `reason: "routine_skipped"` records why.
 
@@ -53,9 +56,12 @@ and 100% in one call sends one notice.
 notified once that month, through the same channel as the 80% notice.
 
 **Premium models.** Model ids containing `fable` or `mythos` (the most expensive tier) may be used
-only by bots marked premium. Choosing one for a non-premium bot (bot model, routine model) is
-refused by the API, and a run whose model is one of them on a non-premium bot is refused at claim.
-Only a space owner can mark a bot premium.
+only by bots marked premium. Choosing one for a non-premium bot (bot model, routine model, or
+duplicating a bot that uses one) is refused by the API. At run time the rule is applied to the
+model the run actually selected (the bot's model, else the connection, space or deployment
+default): such a run is refused with a notice and a `budget.block` event. Premium backup models are
+left out of a non-premium bot's fallbacks, and a premium `model_id` asked for by `run_subagent` is
+returned to the model as the tool's error. Only a space owner can mark a bot premium.
 
 **Delegation limits.** A delegation is `message_bot`, `spawn_bot` with a first task,
 `handoff_to_bot`, `run_subagent` or `cloud_agent_launch`. Depth is the number of delegations
@@ -113,6 +119,13 @@ Limits are whole numbers from 0 to 50, or `null` for the default. `customDailyUs
 (`ok`, `warn`, `blocked`), the stored settings, the effective limits, the defaults, and what the
 caller may do (`canRaise`, `canSetPremium`, `canTopUp`).
 
+## Deployment notes
+
+- Migration `20261015120000_ext_budgets` builds two indexes on `usage_records`. Prisma runs
+  migrations in a transaction, so they cannot use `CREATE INDEX CONCURRENTLY`; the build locks
+  writes to `usage_records` (model usage accounting) until it finishes. On a large table, apply
+  the migration in a quiet window.
+
 ## Configuration
 
 | Variable | Default | Meaning |
@@ -135,9 +148,10 @@ the executor:
    transaction claims nothing and a delayed `run.continue` job is queued. The lock serializes every
    claimer of one bot across worker processes, and the count and the claim commit together, so two
    workers cannot both take the last slot (the database test fails without the lock).
-2. **After the claim** (`refuseRunOverBudget`): the daily caps and the premium rule are checked
-   once the run holds its lease and attempt, so it can be finished through the normal
-   `finalizeRun` path with its notice.
+2. **After the claim** (`refuseRunOverBudget`): the daily caps are checked once the run holds its
+   lease and attempt, so it can be finished through the normal `finalizeRun` path with its notice.
+   Once the run's model is selected, `premiumModelGate` applies the premium rule to that model,
+   its backups and its sub-agent model resolver (`refuseRunForModel` refuses the run).
 3. **After each model call** (`budgetAfterModelCall`, from the usage hook that records the call's
    cost): sends due notices and, at 100%, aborts the run; the executor finishes it with the stop
    notice instead of a failure, and the tool wrapper refuses any tool call after the halt.
