@@ -265,6 +265,8 @@ export class PiAgentRuntime implements AgentRuntime {
           depth: 0,
           pausePending: false,
           pendingShells: [],
+          auditedCalls: new Set(),
+          issuedCalls: new Map(),
           statedReason: "",
         };
         resumeHost = host;
@@ -491,11 +493,8 @@ export class PiAgentRuntime implements AgentRuntime {
         // it counts as the final reply, including when the completed message omits it.
         let streamedBeforePendingFinal = 0;
         agent.subscribe(async (event) => {
-          // Fork extension (EXT_APPROVALS): the message's text is the stated reason of the
-          // calls it issues (its tools run after this listener).
-          if (event.type === "message_end" && event.message.role === "assistant") {
-            host.statedReason = assistantText(event.message).trim();
-          }
+          const auditing = auditToolLifecycle(host, event);
+          if (auditing) await auditing;
           if (event.type === "message_end") {
             await piSession?.appendMessage(event.message);
           }
@@ -1190,7 +1189,7 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
       let result: unknown;
       let failure: unknown;
       try {
-        result = await (async () => {
+        const settle = async (): Promise<unknown> => {
           if (tool.name === "request_takeover") {
             host.pausePending = true;
             host.queue.push({
@@ -1232,6 +1231,7 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
           }
           if (tool.name === "request_secret") {
             if (host.request.executeTool) {
+              host.auditedCalls.add(toolCallId);
               const result = await host.request.executeTool(tool.name, args, executionId);
               if (isAgentToolExecutionResult(result)) {
                 if (isToolPauseResult(result)) host.pausePending = true;
@@ -1274,6 +1274,7 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
             };
           }
           if (host.request.executeTool) {
+            host.auditedCalls.add(toolCallId);
             const result = await host.request.executeTool(
               tool.name,
               args,
@@ -1309,7 +1310,19 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
             ],
             details: { error: "no executor" },
           };
-        })();
+        };
+        // Fork extension (EXT_AUDIT_LOG): a tool this runtime runs itself is audited here,
+        // fail closed, like the executor audits the rest.
+        const audit = host.request.auditToolCall;
+        if (audit && (!host.request.executeTool || RUNTIME_SETTLED_TOOLS.has(tool.name))) {
+          host.auditedCalls.add(toolCallId);
+          await audit(tool.name, args, executionId, async () => {
+            result = await settle();
+            return auditedResultView(result);
+          });
+        } else {
+          result = await settle();
+        }
         return boundAgentToolResult(result as AgentToolResult<unknown>);
       } catch (error) {
         failure = error;
@@ -1422,6 +1435,8 @@ async function executeSubagent(host: ToolHost, executionId: string, args: Record
     depth: 1,
     agentNamespace: agentId,
     pendingShells: [],
+    auditedCalls: new Set(),
+    issuedCalls: new Map(),
     statedReason: "",
   };
   const contextPolicy = createRuntimeContextPolicy(
@@ -1517,9 +1532,7 @@ async function executeSubagent(host: ToolHost, executionId: string, args: Record
   let streamed = "";
   let lastPush = 0;
   nested.subscribe((event) => {
-    if (event.type === "message_end" && event.message.role === "assistant") {
-      nestedHost.statedReason = assistantText(event.message).trim();
-    }
+    const auditing = auditToolLifecycle(nestedHost, event);
     if (event.type === "tool_execution_start") {
       if (host.toolCallBudget.exceeded) return;
       const toolName = "toolName" in event && event.toolName ? String(event.toolName) : "a tool";
@@ -1554,6 +1567,7 @@ async function executeSubagent(host: ToolHost, executionId: string, args: Record
       const text = assistantText(event.message);
       if (text && !streamed) streamed = text;
     }
+    return auditing;
   });
 
   try {
@@ -2080,6 +2094,79 @@ function assistantText(message: unknown): string {
     .join("");
 }
 
+/** Tools this runtime settles itself, without the executor. */
+const RUNTIME_SETTLED_TOOLS = new Set(["request_takeover", "ask_user", "run_subagent"]);
+
+/** A Pi tool result as the audit log reads results (shape and error only). */
+function auditedResultView(result: unknown): unknown {
+  if (!result || typeof result !== "object" || !("content" in result)) return result;
+  const { content, details } = result as { content?: unknown; details?: unknown };
+  return { kind: "agent_tool_result", content: Array.isArray(content) ? content : [], details };
+}
+
+type PiAgentEvent = Parameters<Parameters<Agent["subscribe"]>[0]>[0];
+
+/**
+ * Fork extensions, from Pi's own lifecycle events (awaited before the tool runs and before
+ * its result reaches the model):
+ * - the text of each assistant message becomes the stated reason of the calls it issues;
+ * - EXT_AUDIT_LOG: a call that ends without reaching a tool (unknown name, invalid arguments,
+ *   blocked, aborted, over the tool-call limit) and the calls of a turn that ended before its
+ *   tools ran are audited as refused, so every model-issued call has a tool.call event.
+ */
+function auditToolLifecycle(host: ToolHost, event: PiAgentEvent): Promise<void> | undefined {
+  const audit = host.request.auditToolCall;
+  // Synchronous unless there is something to record: listeners stay in step with the loop.
+  const refuse = async (
+    calls: Array<{ name: string; args: unknown; id: string; error: string }>,
+  ) => {
+    for (const call of calls) {
+      const executionId = JSON.stringify(["pi-tool", host.agentNamespace ?? "main", call.id]);
+      await audit?.(call.name, call.args, executionId, async () => ({ error: call.error }));
+    }
+  };
+  if (event.type === "message_end" && event.message.role === "assistant") {
+    host.statedReason = assistantText(event.message).trim();
+    const { stopReason } = event.message as { stopReason?: string };
+    if (!audit || (stopReason !== "aborted" && stopReason !== "error")) return;
+    const calls = toolCallsOf(event.message).map((call) => ({
+      ...call,
+      args: call.arguments,
+      error: "Not run: the turn ended before its tool calls ran.",
+    }));
+    return calls.length ? refuse(calls) : undefined;
+  }
+  if (event.type === "tool_execution_start") {
+    host.issuedCalls.set(event.toolCallId, { name: event.toolName, args: event.args });
+    return;
+  }
+  if (event.type === "tool_execution_end") {
+    const issued = host.issuedCalls.get(event.toolCallId);
+    host.issuedCalls.delete(event.toolCallId);
+    if (host.auditedCalls.delete(event.toolCallId) || !audit) return;
+    const error = assistantText(event.result).trim() || "Tool call refused.";
+    return refuse([
+      { name: event.toolName, args: issued?.args ?? {}, id: event.toolCallId, error },
+    ]);
+  }
+}
+
+function toolCallsOf(message: unknown): Array<{ id: string; name: string; arguments: unknown }> {
+  const content = (message as { content?: unknown } | null)?.content;
+  if (!Array.isArray(content)) return [];
+  return content.flatMap((part) =>
+    part && typeof part === "object" && (part as { type?: unknown }).type === "toolCall"
+      ? [
+          {
+            id: String((part as { id?: unknown }).id ?? ""),
+            name: String((part as { name?: unknown }).name ?? "unknown"),
+            arguments: (part as { arguments?: unknown }).arguments ?? {},
+          },
+        ]
+      : [],
+  );
+}
+
 function messageHasToolCall(message: unknown): boolean {
   if (!message || typeof message !== "object" || !("content" in message)) return false;
   const content = (message as { content?: unknown }).content;
@@ -2210,6 +2297,10 @@ interface ToolHost {
   pausePending: boolean;
   /** Shell commands that returned output and are still running. */
   pendingShells: Array<Promise<FinishedShellCommand>>;
+  /** Fork extension (EXT_AUDIT_LOG): Pi call ids already audited by the executor or here. */
+  auditedCalls: Set<string>;
+  /** Calls the model issued, by Pi call id, until they end. */
+  issuedCalls: Map<string, { name: string; args: unknown }>;
   /** Fork extension (EXT_APPROVALS): text of the message whose tool calls are running. */
   statedReason: string;
 }

@@ -6524,18 +6524,35 @@ export function createRunExecutor(deps: ExecutorDeps) {
           return finish({ error: `unknown tool ${name}` });
         };
 
-        const applyTool = stopGuard.wrapTool(
-          auditedToolExecution({
-            audit: getAuditWriter(),
-            target: { spaceId: run.spaceId, botId: bot.id, runId },
-            secrets: () => runSecrets,
-            execute: delegations.wrap(executeToolUnaudited),
-            onAuditFailure: (error) => {
-              auditFailure ??= error;
-              runAbortController?.abort(error);
-            },
-          }),
-        );
+        // Fork extension (EXT_AUDIT_LOG): the audit wrapper is outermost, so a call the stop
+        // guard or a budget halt refuses is still on record as a call and its result.
+        const toolAudit = {
+          audit: getAuditWriter(),
+          target: { spaceId: run.spaceId, botId: bot.id, runId },
+          secrets: () => runSecrets,
+          onAuditFailure: (error: AuditWriteError) => {
+            auditFailure ??= error;
+            runAbortController?.abort(error);
+          },
+        };
+        const applyTool = auditedToolExecution({
+          ...toolAudit,
+          execute: stopGuard.wrapTool(delegations.wrap(executeToolUnaudited)),
+        });
+        /** Calls the runtime settles itself (sub-agents, refused calls), audited the same way. */
+        const auditRuntimeToolCall = (
+          name: string,
+          args: unknown,
+          executionId: string,
+          settle: () => Promise<unknown>,
+        ) =>
+          auditedToolExecution({ ...toolAudit, execute: () => settle() })(
+            name,
+            args && typeof args === "object" && !Array.isArray(args)
+              ? (args as Record<string, unknown>)
+              : { value: args },
+            executionId,
+          );
         const pluginLine =
           connectedPlugins.length > 0
             ? `Connected plugins: ${connectedPlugins.map((row) => `${row.displayName} (${row.connectorId}:${row.provider})`).join(", ")}. Prefer those plugin tools over the computer browser or web search when reading app data (repos, releases, mail, calendar, and similar).`
@@ -6821,6 +6838,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
               allowSilentEmpty: allowSilentEmptyRun,
               emptyResponseText,
               executeTool: scripted ? undefined : applyTool,
+              auditToolCall: scripted ? undefined : auditRuntimeToolCall,
               resolveModel: scripted
                 ? undefined
                 : async (provider, modelId) => {

@@ -499,6 +499,19 @@ export interface AgentRunRequest {
    * refusal the model sees as the tool's error; nothing is started.
    */
   admitDelegation?: (tool: string) => Promise<string | null>;
+  /**
+   * Fork extension (EXT_AUDIT_LOG): audit a model-issued call the runtime settles without
+   * `executeTool`: a tool it runs itself (run_subagent, ask_user, ...) or a call it refuses
+   * (unknown name, invalid arguments, aborted, over a limit; `run` then returns `{ error }`).
+   * Records the call, runs `run`, records the result; a failed record rejects and `run` does
+   * not run. Absent when the audit log is off.
+   */
+  auditToolCall?: (
+    name: string,
+    args: unknown,
+    executionId: string,
+    run: () => Promise<unknown>,
+  ) => Promise<unknown>;
   /** Called after a tool returns; implementations must not persist raw result contents. */
   onToolCompleted?: (completion: AgentToolCompletion) => Promise<void> | void;
   /** Atomically claim durable user steering at the runtime's next safe turn boundary. */

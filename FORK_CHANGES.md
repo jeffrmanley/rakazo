@@ -210,6 +210,7 @@ Relative to upstream commit `2d666c4`.
 - `packages/adapters/src/pi-models.ts` (modified)
 - `packages/adapters/src/pi-oauth.ts` (modified)
 - `packages/adapters/src/pi-runtime-computer.test.ts` (modified)
+- `packages/adapters/src/pi-runtime-tool-dispatch.test.ts` (modified)
 - `packages/adapters/src/pi-runtime.ts` (modified)
 - `packages/adapters/src/runtime-context.test.ts` (modified)
 - `packages/adapters/src/runtime-context.ts` (modified)
@@ -306,4 +307,5 @@ Relative to upstream commit `2d666c4`.
 - `packages/testkit/src/messaging-multi-identity.test.ts` (added)
 - `packages/testkit/src/model-emulator.test.ts` (modified)
 - `packages/testkit/src/model-emulator.ts` (modified)
+- `packages/testkit/src/pi-offline-governance.test.ts` (added)
 - `packages/testkit/src/teams-team-chat.test.ts` (added)

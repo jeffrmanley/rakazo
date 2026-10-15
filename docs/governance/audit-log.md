@@ -12,8 +12,8 @@ Every event belongs to one space and is appended to that space's chain:
 | --- | --- | --- |
 | `message.in` | A user-role message is written to a thread: web, mobile, desktop, a messaging webhook (Slack, Teams, Telegram, …), a webhook routine, or a bot-to-bot delivery. | The sending person, or the sending bot for bot-to-bot deliveries. |
 | `message.out` | A bot-role message is written to a thread: the final reply, mid-turn narration, or the sending bot's own copy of a bot-to-bot message. | The bot. |
-| `tool.call` | The run executor is asked to run a tool, before anything executes. | The bot. |
-| `tool.result` | The tool returned, threw, or paused for approval, before the result reaches the model. | The bot. |
+| `tool.call` | The model issues a tool call, before anything executes: every call, including tools the model runtime runs itself (`run_subagent`, `ask_user`, `request_takeover`, a sub-agent's own calls) and calls that never run (an unknown tool name, invalid arguments, the tool-call limit, a turn that was aborted, or a refusal by the emergency stop, a budget halt or an approval). | The bot. |
+| `tool.result` | The tool returned, threw, paused for approval, or the call was refused, before the result reaches the model. A refused call's result is `outcome: "error"` with the refusal. | The bot. |
 
 System notes (`role: "system"`) are not chat messages and are not recorded. The remaining kinds
 in the type (`credential.use`, `approval.request`, `approval.decision`, `verifier.verdict`,
@@ -69,7 +69,11 @@ Fail closed:
   failed audit insert rolls the whole write back: no message, no run, no event.
 - Tool calls audit before execution; a failed insert means the tool does not run. Tool results
   audit before the result is returned; a failed insert withholds the result. Either failure aborts
-  the run, which ends `failed` with the generic message below.
+  the run, which ends `failed` with the generic message below. The executor's audit wrapper sits
+  outside the emergency stop and budget guards, so their refusals are recorded too; calls the
+  model runtime settles itself go through the same writer (`AgentRunRequest.auditToolCall`),
+  with the same rules. A call refused before any tool runs is recorded as its call and its
+  refusal once the runtime has refused it.
 - Every failure is an `AuditWriteError`. Its message is `Internal error (error_id: <uuid>)`; the
   cause is logged once with `error.id` and never reaches a client, a chat line or a tool result.
   RPC callers get that message and `{ error_id }` in the error data; a chat sender whose message
@@ -148,6 +152,11 @@ Programmatic access: `verifyAuditChain(prisma, { spaceId })` in `@rakazo/db`.
   `packages/testkit/src/ext-audit-log.postgres.test.ts` (a full chat turn with a tool call on
   one chain, the API's space scoping against spoofed query, header and body, fail-closed
   rejection with an error id, and no writes with the flag off).
+- `packages/testkit/src/pi-offline-governance.test.ts` (in `pnpm test`) checks that the Pi
+  runtime offers every call the executor never sees to the audit hook once, and runs no
+  in-process tool whose record failed; the red-team case `audit-coverage`
+  (`docs/governance/evals.md`) drives unknown, invalid, sub-agent, gated and stop-refused calls
+  end to end.
 
 ## Limitations
 
