@@ -6,7 +6,6 @@ import type {
   TeamChatSendResult,
 } from "@rakazo/adapter-kit";
 import { cloudAgentPollJob, computerSleepJob, routineWakeupJob } from "@rakazo/adapter-kit";
-import type { MessageBlock } from "@rakazo/contracts";
 import {
   ACTIVE_RUN_STATUSES,
   formatPausedReply,
@@ -14,12 +13,7 @@ import {
   nextCronDateAcross,
 } from "@rakazo/core";
 import type { ActiveStop, EmergencyStopReader, PrismaClient, ThreadEvents } from "@rakazo/db";
-import {
-  appendEventInTransaction,
-  cancelRunsForStop,
-  createThreadMessageInTransaction,
-  getEmergencyStop,
-} from "@rakazo/db";
+import { cancelRunsForStop, getEmergencyStop } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { cancelComputerRunWork } from "./computer-idle.js";
 import { toComputerRef } from "./computer-support.js";
@@ -92,13 +86,15 @@ export function createRunStopGuard(options: {
     fired = true;
     onStop(stopped);
   };
+  // Every read replaces the last one: a stop lifted while a tool call was running clears it.
+  // The reader confirms "stopped" against the database, so a stale cache never halts a run.
   const observe = (stop: ActiveStop | null) => {
-    if (!stop) return;
-    stopped ??= stop;
+    if (fired) return;
+    stopped = stop;
     fire();
   };
   const check = async () => {
-    if (stopped) return stopped;
+    if (fired) return stopped;
     observe(await reader.check(target));
     return stopped;
   };
@@ -123,9 +119,11 @@ export function createRunStopGuard(options: {
         return await execute(name, args, executionId, route, observer);
       } finally {
         toolsInFlight -= 1;
-        fire();
-        // Re-read before the result goes back to the model, so the next model call never starts.
-        await check().catch(() => undefined);
+        // Re-read before the result goes back to the model: halt now if still stopped.
+        await check().catch(() => {
+          // Unreadable: act on what was last seen; the watcher keeps checking.
+          fire();
+        });
       }
     },
     dispose: () => clearInterval(timer),
@@ -145,11 +143,14 @@ export async function cancelStoppedRun(
     sandbox?: Pick<SandboxProvider, "execute">;
   },
   run: { id: string; computerId?: string | null },
+  notice?: string,
 ): Promise<void> {
-  const cancelled = await cancelRunsForStop(deps.prisma, {
-    runIds: [run.id],
-    statuses: ACTIVE_RUN_STATUSES,
-  });
+  const cancelled = await cancelRunsForStop(
+    deps.prisma,
+    { runIds: [run.id], statuses: ACTIVE_RUN_STATUSES },
+    new Date(),
+    { notice },
+  );
   await notifyStoppedThreads(deps.events, cancelled.threads);
   if (!run.computerId || !deps.jobs || !deps.sandbox) return;
   const computer = await deps.prisma.computer.findUnique({
@@ -174,46 +175,21 @@ export async function haltRunIfStopped(
   if (!reader) return false;
   const stop = await reader.check({ spaceId: run.spaceId, botId: run.botId });
   if (!stop) return false;
-  await cancelStoppedRun(deps, run);
-  if (run.trigger === "user") {
-    await postPausedNotice(deps, run, stop).catch((error) =>
-      getLogger().error("emergency stop paused notice failed", error),
-    );
-  }
+  // A message someone sent gets the reason in its thread, committed with the cancellation.
+  const notice = run.trigger === "user" ? await pausedNoticeText(deps.prisma, stop) : undefined;
+  await cancelStoppedRun(deps, run, notice);
   return true;
 }
 
-async function postPausedNotice(
-  deps: { prisma: PrismaClient; events: Pick<ThreadEvents, "notify"> },
-  run: { id: string; spaceId: string; botId: string; threadId: string },
+async function pausedNoticeText(
+  prisma: Pick<PrismaClient, "user">,
   stop: ActiveStop,
-): Promise<void> {
-  const user = await deps.prisma.user.findUnique({
+): Promise<string> {
+  const user = await prisma.user.findUnique({
     where: { id: stop.stoppedBy },
     select: { name: true },
   });
-  const blocks: MessageBlock[] = [
-    { kind: "meta", text: formatPausedReply({ name: user?.name ?? "", at: stop.stoppedAt }) },
-  ];
-  const event = await deps.prisma.$transaction(async (tx) => {
-    const message = await createThreadMessageInTransaction(tx, {
-      threadId: run.threadId,
-      role: "system",
-      blocks,
-      botId: run.botId,
-      // One notice per halted run, even if the halt is retried.
-      clientNonce: `ext-stop-paused:${run.id}`,
-      markUnread: true,
-    });
-    return appendEventInTransaction(tx, {
-      spaceId: run.spaceId,
-      threadId: run.threadId,
-      botId: run.botId,
-      type: "thread.message.created",
-      payload: { messageId: message.id, role: "system", blocks },
-    });
-  });
-  await notifyStoppedThreads(deps.events, [{ threadId: run.threadId, seq: event.seq }]);
+  return formatPausedReply({ name: user?.name ?? "", at: stop.stoppedAt });
 }
 
 /**

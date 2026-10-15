@@ -103,6 +103,35 @@ describe("createEmergencyStopReader", () => {
     expect(findMany).toHaveBeenCalledTimes(3);
   });
 
+  it("trusts the cache only for 'running': a cached stop is confirmed by a fresh read", async () => {
+    let rows: ActiveStop[] = [stop({})];
+    const { prisma, findMany } = fakePrisma(() => rows);
+    // A long TTL stands in for another process's cache that was never invalidated.
+    const reader = createEmergencyStopReader(prisma as never, { ttlMs: 60_000 });
+    expect(await reader.check({ spaceId: "space-a", botId: "bot-1" })).toMatchObject({
+      id: "stop-1",
+    });
+    // Resumed elsewhere: the very next check sees it, despite the cached stop.
+    rows = [];
+    expect(await reader.check({ spaceId: "space-a", botId: "bot-1" })).toBeNull();
+    const reads = findMany.mock.calls.length;
+    // "Running" answers come from the cache.
+    expect(await reader.check({ spaceId: "space-a", botId: "bot-1" })).toBeNull();
+    expect(findMany).toHaveBeenCalledTimes(reads);
+  });
+
+  it("confirms a cached stop for one bot without forgetting a stop that is still active", async () => {
+    const rows: ActiveStop[] = [stop({})];
+    const { prisma, findMany } = fakePrisma(() => rows);
+    const reader = createEmergencyStopReader(prisma as never, { ttlMs: 60_000 });
+    await reader.check({ spaceId: "space-a", botId: "bot-1" });
+    expect(await reader.check({ spaceId: "space-a", botId: "bot-1" })).toMatchObject({
+      id: "stop-1",
+    });
+    // The first read was fresh already; the second, cached stop was confirmed by one more read.
+    expect(findMany).toHaveBeenCalledTimes(2);
+  });
+
   it("drops the cache on invalidate so this process sees its own change at once", async () => {
     let rows: ActiveStop[] = [];
     const { prisma } = fakePrisma(() => rows);
@@ -111,6 +140,27 @@ describe("createEmergencyStopReader", () => {
     rows = [stop({})];
     reader.invalidate();
     expect(await reader.check({ spaceId: "space-a", botId: "bot-1" })).not.toBeNull();
+  });
+
+  it("does not keep a read that started before an invalidation", async () => {
+    let release!: (rows: ActiveStop[]) => void;
+    const findMany = vi
+      .fn()
+      // A watcher's read, taken before the stop committed, still in flight.
+      .mockImplementationOnce(() => new Promise<ActiveStop[]>((resolve) => (release = resolve)))
+      .mockImplementation(async () => [stop({})]);
+    const reader = createEmergencyStopReader({ extControlStop: { findMany } } as never, {
+      ttlMs: 60_000,
+    });
+    const early = reader.check({ spaceId: "space-a", botId: "bot-1" });
+    // The stop commits and this process drops its cache.
+    reader.invalidate("space-a");
+    release([]);
+    expect(await early).toBeNull();
+    // The pre-stop answer was not kept: the next check reads again and sees the stop.
+    expect(await reader.check({ spaceId: "space-a", botId: "bot-1" })).toMatchObject({
+      id: "stop-1",
+    });
   });
 
   it("shares one read between concurrent checks", async () => {

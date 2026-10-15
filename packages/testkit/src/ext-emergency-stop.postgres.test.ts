@@ -21,8 +21,10 @@ import type { PrismaClient } from "@rakazo/db";
 import {
   AuditWriteError,
   createAuditWriter,
+  createEmergencyStopReader,
   getEmergencyStop,
   installAuditWriter,
+  installEmergencyStop,
   provisionMessagingIdentity,
 } from "@rakazo/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -261,13 +263,15 @@ describeStop("fork extension: emergency stop through the API", () => {
     await expect.poll(() => runStatus(prisma, sent.runId), { timeout: 5_000 }).toBe("cancelled");
     expect(await prisma.message.count({ where: { runId: sent.runId, role: "bot" } })).toBe(0);
     // The sender sees why in the thread, like a chat sender gets the paused reply.
-    const notice = await prisma.message.findFirstOrThrow({
-      where: {
-        threadId: aliceThread.id,
-        role: "system",
-        clientNonce: `ext-stop-paused:${sent.runId}`,
-      },
-    });
+    const notice = await waitFor(() =>
+      prisma.message.findFirst({
+        where: {
+          threadId: aliceThread.id,
+          role: "system",
+          clientNonce: `ext-stop-paused:${sent.runId}`,
+        },
+      }),
+    );
     expect(notice.blocks).toEqual([
       {
         kind: "meta",
@@ -342,6 +346,65 @@ describeStop("fork extension: emergency stop through the API", () => {
     expect(
       await prisma.extControlStop.count({ where: { botId: alice, resumedAt: { not: null } } }),
     ).toBe(1);
+  });
+
+  it("runs a message sent right after a resume, even where a cache still says stopped", async () => {
+    // Two bots, so the back-to-back sends start two runs instead of steering one.
+    const alba = await createBot(handles, users.ownerA.cookie, "Alba");
+    // Another process's reader (the worker's) that saw the stop and is never invalidated here.
+    const original = getEmergencyStop()!;
+    const stale = createEmergencyStopReader(prisma, { ttlMs: 60_000 });
+    installEmergencyStop(stale);
+    try {
+      expect(
+        (await post(app, users.ownerA.cookie, STOP, { scope: "space", reason: "x" })).status,
+      ).toBe(200);
+      for (const botId of [alice, alba]) {
+        await expect(stale.check({ spaceId: users.ownerA.spaceId, botId })).resolves.not.toBeNull();
+      }
+      const resumedAt = Date.now();
+      expect(
+        (await post(app, users.ownerA.cookie, RESUME, { scope: "space", reason: "x" })).status,
+      ).toBe(200);
+      // Same tick as the resume answer, and again within 100 ms.
+      const [first, second] = await Promise.all([
+        rpc<{ runId: string }>(app, users.ownerA.cookie, "threads/send", {
+          botId: alice,
+          text: "remember the first thing after the resume",
+        }),
+        new Promise((resolve) => setTimeout(resolve, 50)).then(() =>
+          rpc<{ runId: string }>(app, users.ownerA.cookie, "threads/send", {
+            botId: alba,
+            text: "remember the second thing after the resume",
+          }),
+        ),
+      ]);
+      expect(Date.now() - resumedAt).toBeLessThan(5_000);
+      for (const sent of [first, second]) {
+        await expect
+          .poll(() => runStatus(prisma, sent.runId), { timeout: 30_000 })
+          .toBe("completed");
+        expect(
+          await prisma.message.count({ where: { clientNonce: `ext-stop-paused:${sent.runId}` } }),
+        ).toBe(0);
+      }
+    } finally {
+      installEmergencyStop(original);
+    }
+    // The inverse still holds: right after a stop, the next message is paused.
+    expect(
+      (await post(app, users.ownerA.cookie, STOP, { scope: "bot", botId: alice, reason: "y" }))
+        .status,
+    ).toBe(200);
+    const paused = await rpc<{ runId: string }>(app, users.ownerA.cookie, "threads/send", {
+      botId: alice,
+      text: "remember this while stopped again",
+    });
+    await expect.poll(() => runStatus(prisma, paused.runId), { timeout: 5_000 }).toBe("cancelled");
+    expect(
+      await prisma.message.count({ where: { clientNonce: `ext-stop-paused:${paused.runId}` } }),
+    ).toBe(1);
+    await post(app, users.ownerA.cookie, RESUME, { scope: "bot", botId: alice, reason: "y" });
   });
 
   it("holds the brake when the stop's audit insert fails, but refuses an unaudited resume", async () => {
@@ -814,6 +877,63 @@ describeStop("fork extension: emergency stop from Slack and Teams", () => {
     );
     await waitForSent(teams.sent, (post) => post.text === "Resumed this space.");
     expect(await stops()).toEqual([]);
+  });
+
+  it("answers Slack and Teams messages normally right after a resume, even with a stale cache", async () => {
+    const original = getEmergencyStop()!;
+    const stale = createEmergencyStopReader(prisma, { ttlMs: 60_000 });
+    installEmergencyStop(stale);
+    const runOf = async (handle: string) => {
+      const row = await waitFor(async () => {
+        const message = await prisma.externalMessage.findFirst({
+          where: { providerEventId: handle },
+          select: { status: true, runId: true },
+        });
+        return message?.status === "delivered" ? message : null;
+      });
+      return prisma.run.findUniqueOrThrow({ where: { id: row.runId! } });
+    };
+    try {
+      slack.resetWitnesses();
+      teams.resetWitnesses();
+      await slackSays("/stop");
+      await waitForSent(slack.sent, (post) => post.body === "Stopped every bot in this space.");
+      await expect(
+        stale.check({ spaceId: owner.spaceId, botId: owner.botId }),
+      ).resolves.not.toBeNull();
+      await slackSays("/resume");
+      await waitForSent(slack.sent, (post) => post.body === "Resumed this space.");
+      const slackHandle = `slack-after-resume-${stamp}`;
+      const teamsHandle = `teams-after-resume-${stamp}`;
+      await Promise.all([
+        app.request(
+          slack.buildInboundRequest({
+            isDirect: false,
+            from: ownerSlack,
+            threadId: `slack:C-resume-${stamp}`,
+            content: "@crew remember the launch moved",
+            kind: "mention",
+            handle: slackHandle,
+          }),
+        ),
+        app.request(
+          teams.buildInboundRequest({
+            conversationType: "groupChat",
+            conversationId: groupId,
+            from: ownerTeams,
+            text: "remember the venue changed",
+            mentionBot: true,
+            handle: teamsHandle,
+          }),
+        ),
+      ]);
+      expect((await runOf(slackHandle)).status).toBe("completed");
+      expect((await runOf(teamsHandle)).status).toBe("completed");
+      expect(slack.sent.some((post) => post.body.startsWith("Paused by"))).toBe(false);
+      expect(teams.sent.some((post) => post.text.startsWith("Paused by"))).toBe(false);
+    } finally {
+      installEmergencyStop(original);
+    }
   });
 
   it("treats /stop as ordinary text when EXT_EMERGENCY_STOP is off", async () => {
