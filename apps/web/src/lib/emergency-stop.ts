@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { extModuleEnabled } from "./ext-modules";
 import { withSpaceHeaders } from "./rpc";
 
 /**
@@ -46,6 +47,7 @@ export async function fetchControlState(
   spaceId: string | null,
   signal?: AbortSignal,
 ): Promise<ControlState | null> {
+  if (!(await extModuleEnabled("emergencyStop"))) return null;
   const res = await fetch(STATE_PATH, {
     headers: withSpaceHeaders(undefined, spaceId),
     credentials: "include",

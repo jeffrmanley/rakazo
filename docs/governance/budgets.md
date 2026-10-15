@@ -2,7 +2,8 @@
 
 Fork extension, milestone M2c. Off by default; `EXT_BUDGETS=1` turns it on for the API and the
 worker. With the flag off nothing changes: no run is gated, no lineage or notice rows are written,
-the `/api/v1/budgets` routes are not mounted (404), and the settings UI shows nothing.
+the `/api/v1/budgets` routes are not mounted (404), and the settings UI shows nothing (it reads
+`GET /api/v1/ext/modules` and does not request them).
 
 ## Behaviour
 

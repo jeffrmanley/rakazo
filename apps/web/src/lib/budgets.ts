@@ -1,6 +1,7 @@
 import { t } from "@lingui/core/macro";
 import type { BudgetLevel, BudgetProfile } from "@rakazo/core";
 import { readBoundedJsonResponse } from "@rakazo/core";
+import { extModuleEnabled } from "./ext-modules";
 import { withSpaceHeaders } from "./rpc";
 
 /** Spend against one cap today (UTC day). */
@@ -47,10 +48,12 @@ export type BotBudgetPatch = Partial<BotBudgetView["settings"]>;
 const BASE = "/api/v1/budgets";
 
 /**
- * Budgets are an optional server module. A 404 means it is off (or the bot is not
- * reachable), and the caller shows nothing: null, never an error.
+ * Budgets are an optional server module. Reads skip it when the server says it is off;
+ * a 404 means the same (or the bot is not reachable), and the caller shows nothing:
+ * null, never an error.
  */
 async function budgetRequest<T>(path: string, init?: { method: string; body: unknown }) {
+  if (!init && !(await extModuleEnabled("budgets"))) return null;
   const response = await fetch(`${BASE}${path}`, {
     method: init?.method ?? "GET",
     credentials: "include",
