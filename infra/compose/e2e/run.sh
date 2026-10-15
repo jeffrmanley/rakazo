@@ -29,6 +29,9 @@ done
 # The model guard treats non-IP hostnames as public, so use the echo model's
 # private compose-network address (allowed without any override).
 model_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$("${compose[@]}" ps -q echo-model)")"
+# The sign-up heading names the configured brand.
+PUBLIC_BRAND_NAME="$(grep -E '^PUBLIC_BRAND_NAME=' .env | cut -d= -f2- || true)"
+export PUBLIC_BRAND_NAME
 STACK_MODEL_URL="http://${model_ip}:8080/v1" \
 STACK_E2E=1 PLAYWRIGHT_BASE_URL="http://127.0.0.1:${E2E_WEB_PORT}" AGENT_RUNTIME=pi \
   pnpm --filter @rakazo/web exec playwright test e2e/stack-smoke.spec.ts "$@"

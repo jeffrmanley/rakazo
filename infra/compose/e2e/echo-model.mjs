@@ -41,9 +41,22 @@ createServer(async (req, res) => {
   for await (const c of req) chunks.push(c);
   const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   const text = lastUserText(body.messages ?? []).trim();
-  // Strip any harness/system wrapping and keep the reply short and deterministic.
-  const reply = `echo: ${text.split("\n").at(-1)?.slice(0, 200) ?? ""}`;
-  calls.push({ at: new Date().toISOString(), model: body.model, text });
+  // The runtime may append context (such as the current time) after the user's
+  // words; echo the first line so replies are deterministic.
+  const firstLine = text.split("\n").find((line) => line.trim()) ?? "";
+  const reply = `echo: ${firstLine.trim().slice(0, 200)}`;
+  calls.push({
+    at: new Date().toISOString(),
+    model: body.model,
+    text,
+    messages: (body.messages ?? []).map((m) => ({
+      role: m.role,
+      content:
+        typeof m.content === "string"
+          ? m.content.slice(0, 160)
+          : JSON.stringify(m.content).slice(0, 160),
+    })),
+  });
   if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
   const usage = {
     prompt_tokens: 1000,
