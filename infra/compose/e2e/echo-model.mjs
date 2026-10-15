@@ -44,7 +44,24 @@ createServer(async (req, res) => {
   // The runtime may append context (such as the current time) after the user's
   // words; echo the first line so replies are deterministic.
   const firstLine = text.split("\n").find((line) => line.trim()) ?? "";
-  const reply = `echo: ${firstLine.trim().slice(0, 200)}`;
+  let reply = `echo: ${firstLine.trim().slice(0, 200)}`;
+  // "call <tool> <json args>" makes the model request that tool once; the turn
+  // after the tool result answers with what the tool returned.
+  let toolCall = null;
+  const messages = body.messages ?? [];
+  const last = messages.at(-1);
+  if (last?.role === "tool") {
+    const result = typeof last.content === "string" ? last.content : JSON.stringify(last.content);
+    reply = `echo: tool result ${result.replace(/\s+/g, " ").slice(0, 160)}`;
+  } else {
+    const match = /^call (\S+) (\{.*\})$/.exec(firstLine.trim());
+    const offered = new Set((body.tools ?? []).map((tool) => tool.function?.name));
+    if (match && offered.has(match[1])) {
+      toolCall = { id: `call_${Date.now()}`, name: match[1], arguments: match[2] };
+    } else if (match) {
+      reply = `echo: tool ${match[1]} not offered`;
+    }
+  }
   calls.push({
     at: new Date().toISOString(),
     model: body.model,
@@ -87,8 +104,31 @@ createServer(async (req, res) => {
   res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
   const emit = (o) => res.write(`data: ${JSON.stringify(o)}\n\n`);
   emit({ ...base, choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }] });
-  emit({ ...base, choices: [{ index: 0, delta: { content: reply }, finish_reason: null }] });
-  emit({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }] });
+  if (toolCall) {
+    emit({
+      ...base,
+      choices: [
+        {
+          index: 0,
+          delta: {
+            tool_calls: [
+              {
+                index: 0,
+                id: toolCall.id,
+                type: "function",
+                function: { name: toolCall.name, arguments: toolCall.arguments },
+              },
+            ],
+          },
+          finish_reason: null,
+        },
+      ],
+    });
+    emit({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] });
+  } else {
+    emit({ ...base, choices: [{ index: 0, delta: { content: reply }, finish_reason: null }] });
+    emit({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }] });
+  }
   emit({ ...base, choices: [], usage });
   res.end("data: [DONE]\n\n");
 }).listen(port, "0.0.0.0", () => console.log(`echo model on :${port}`));

@@ -5,7 +5,7 @@ import { activeBotId, completeOnboarding, rpc, signup } from "./helpers";
 /**
  * Runs only against the production-like compose stack started by
  * infra/compose/e2e/run.sh (STACK_E2E=1, with EXT_AUDIT_LOG, EXT_EMERGENCY_STOP
- * and EXT_BUDGETS on). The echo model answers "echo: <text>" from inside the
+ * EXT_BUDGETS and EXT_APPROVALS on). The echo model answers "echo: <text>" from inside the
  * compose network and reports a fixed cost per call.
  */
 const enabled = process.env.STACK_E2E === "1";
@@ -65,7 +65,9 @@ test.describe("compose stack", () => {
   test.skip(!enabled, "set STACK_E2E=1 and run infra/compose/e2e/run.sh");
   test.setTimeout(300_000);
 
-  test("owner journey: chat, audit, branding, emergency stop, budgets", async ({ page }) => {
+  test("owner journey: chat, audit, branding, emergency stop, budgets, approvals", async ({
+    page,
+  }) => {
     const stamp = Date.now();
     const transcript = page.getByTestId("transcript");
 
@@ -178,6 +180,36 @@ test.describe("compose stack", () => {
       await expect(transcript.getByText(`echo: after top-up ${stamp}`)).toBeVisible({
         timeout: 60_000,
       });
+    });
+
+    await test.step("a gated action waits for an approver, then runs once", async () => {
+      const policy = await page.request.put(`/api/v1/approvals/bots/${botId}`, {
+        data: { gatedClasses: ["write-internal", "write-external"] },
+      });
+      expect(policy.ok()).toBe(true);
+
+      const title = `stack approval ${stamp}`;
+      await send(page, `call scratchpad_add {"title":"${title}"}`);
+      const allowOnce = page.getByRole("button", { name: "Allow once", exact: true });
+      await expect(allowOnce).toBeVisible({ timeout: 60_000 });
+      // A mandatory approval offers no standing exceptions, and shows the call it binds to.
+      await expect(page.getByRole("button", { name: "Always allow this tool" })).toHaveCount(0);
+      await expect(transcript.getByText(/Call [0-9a-f]{8}/).last()).toBeVisible();
+      await expect(transcript.getByText(title).last()).toBeVisible();
+      await expect(transcript.getByText(/^echo: tool result/)).toHaveCount(0);
+      await allowOnce.click();
+      await expect(transcript.getByText(/^echo: tool result/).last()).toBeVisible({
+        timeout: 60_000,
+      });
+
+      await send(page, `call scratchpad_add {"title":"denied ${stamp}"}`);
+      const deny = page.getByRole("button", { name: "Deny", exact: true });
+      await expect(deny).toBeVisible({ timeout: 60_000 });
+      await deny.click();
+      await expect(page.getByText("Denied", { exact: true }).last()).toBeVisible();
+      const kinds = await auditKinds(page);
+      expect(kinds.has("approval.request")).toBe(true);
+      expect(kinds.has("approval.decision")).toBe(true);
     });
   });
 });
