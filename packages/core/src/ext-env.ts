@@ -12,6 +12,12 @@ export interface ExtEnv {
   budgets: boolean;
   /** Human approval of risky tool calls from web, Slack and Teams (docs/governance/approvals.md). */
   approvals: boolean;
+  /**
+   * Red-team evals (docs/governance/evals.md). Read only by the scheduled entry point,
+   * `pnpm test:redteam --live`, which may then use this deployment's model configuration.
+   * It never touches the deployment's database, and the app does not read it.
+   */
+  evals: boolean;
   budgetDefaultDailyUsd: number;
   budgetSpaceDailyUsd: number;
   maxConcurrentRunsPerBot: number;
@@ -26,6 +32,7 @@ export const EXT_FLAG_NAMES = [
   "EXT_EMERGENCY_STOP",
   "EXT_BUDGETS",
   "EXT_APPROVALS",
+  "EXT_EVALS",
 ] as const;
 
 export function loadExtEnv(source: NodeJS.ProcessEnv = process.env): ExtEnv {
@@ -43,6 +50,7 @@ function readExtEnv(source: NodeJS.ProcessEnv): ExtEnv {
     emergencyStop: flag(source, "EXT_EMERGENCY_STOP"),
     budgets: flag(source, "EXT_BUDGETS"),
     approvals: flag(source, "EXT_APPROVALS"),
+    evals: flag(source, "EXT_EVALS"),
     budgetDefaultDailyUsd: amount(source, "EXT_BUDGET_DEFAULT_DAILY_USD", 3),
     budgetSpaceDailyUsd: amount(source, "EXT_BUDGET_SPACE_DAILY_USD", 50),
     maxConcurrentRunsPerBot: count(source, "EXT_MAX_CONCURRENT_RUNS_PER_BOT", 2),
