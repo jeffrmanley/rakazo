@@ -7,6 +7,7 @@ describe("loadExtEnv", () => {
       auditLog: false,
       emergencyStop: false,
       budgets: false,
+      approvals: false,
       budgetDefaultDailyUsd: 3,
       budgetSpaceDailyUsd: 50,
       maxConcurrentRunsPerBot: 2,
@@ -29,6 +30,8 @@ describe("loadExtEnv", () => {
     expect(loadExtEnv({ EXT_AUDIT_LOG: "0" }).auditLog).toBe(false);
     expect(loadExtEnv({ EXT_EMERGENCY_STOP: "1" }).emergencyStop).toBe(true);
     expect(loadExtEnv({ EXT_BUDGETS: "1" }).budgets).toBe(true);
+    expect(loadExtEnv({ EXT_APPROVALS: "1" }).approvals).toBe(true);
+    expect(loadExtEnv({ EXT_APPROVALS: "0" }).approvals).toBe(false);
   });
 
   it("fails startup on an unknown flag value instead of guessing", () => {
@@ -36,10 +39,16 @@ describe("loadExtEnv", () => {
       expect(() => loadExtEnv({ EXT_AUDIT_LOG: value })).toThrow("EXT_AUDIT_LOG must be 0 or 1");
     }
     expect(() => loadExtEnv({ EXT_BUDGETS: "false" })).toThrow("EXT_BUDGETS must be 0 or 1");
+    expect(() => loadExtEnv({ EXT_APPROVALS: "on" })).toThrow("EXT_APPROVALS must be 0 or 1");
   });
 
   it("names every module flag with the EXT_ prefix so upstream variables never collide", () => {
-    expect(EXT_FLAG_NAMES).toEqual(["EXT_AUDIT_LOG", "EXT_EMERGENCY_STOP", "EXT_BUDGETS"]);
+    expect(EXT_FLAG_NAMES).toEqual([
+      "EXT_AUDIT_LOG",
+      "EXT_EMERGENCY_STOP",
+      "EXT_BUDGETS",
+      "EXT_APPROVALS",
+    ]);
     for (const name of EXT_FLAG_NAMES) expect(name.startsWith("EXT_")).toBe(true);
   });
 

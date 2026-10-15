@@ -818,6 +818,37 @@ export interface MessagingCommand {
   respond(body: string): Promise<void>;
 }
 
+/**
+ * A card with buttons (Slack Block Kit, Teams Adaptive Card). Every string is plain text:
+ * the surface escapes it for the platform's markup, so card content can never format,
+ * mention or link on its own.
+ */
+export interface MessagingCard {
+  title: string;
+  blocks: Array<{ kind: "text" | "muted" | "code"; text: string }>;
+  actions?: Array<{ id: string; label: string; value: string; style?: "primary" | "danger" }>;
+}
+
+/** A button click on a card the surface posted. */
+export interface MessagingAction {
+  provider: string;
+  actionId: string;
+  /** The button's value. Card content, so never an identity claim. */
+  value: string;
+  /**
+   * Who clicked, from the verified request (Slack: the signed payload's user id; Teams: the
+   * JWT-validated activity's sender id), the same address linked identities use.
+   */
+  from: string;
+  threadId: string;
+  /** The card's message id. */
+  messageId: string;
+  /** Per-interaction id; a repeated delivery of the same click is dropped. */
+  handle: string;
+  /** Reply only the clicker sees (Slack ephemeral; Teams: the 1:1 chat the card is in). */
+  respond(body: string): Promise<void>;
+}
+
 export interface WebSearchCapabilities {
   search: boolean;
   /** True when results come from the active model’s native search, not a third-party API. */

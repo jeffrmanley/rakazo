@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  approvalCallHash,
   approvalEffectKey,
   isToolEffectIdempotencyKey,
   legacyScopedToolEffectIdempotencyKey,
@@ -90,5 +91,30 @@ describe("toolEffectIdempotencyKey", () => {
         "computer_act",
       ),
     ).toBe(false);
+  });
+});
+
+describe("approvalCallHash", () => {
+  it("binds one exact call: the same tool and arguments in any key order hash alike", () => {
+    const first = approvalCallHash("destination.write", { title: "Q3", body: { a: 1, b: 2 } });
+    expect(first).toMatch(/^[0-9a-f]{64}$/);
+    expect(approvalCallHash("destination.write", { body: { b: 2, a: 1 }, title: "Q3" })).toBe(
+      first,
+    );
+  });
+
+  it("does not match different arguments or another tool", () => {
+    const approved = approvalCallHash("gmail_send_email", { to: "a@example.test", body: "hi" });
+    expect(approvalCallHash("gmail_send_email", { to: "b@example.test", body: "hi" })).not.toBe(
+      approved,
+    );
+    expect(approvalCallHash("gmail_send_email", { to: "a@example.test" })).not.toBe(approved);
+    expect(approvalCallHash("outlook_send_email", { to: "a@example.test", body: "hi" })).not.toBe(
+      approved,
+    );
+  });
+
+  it("cannot be confused by a tool name that looks like part of the arguments", () => {
+    expect(approvalCallHash("a", { b: 1 })).not.toBe(approvalCallHash("a:b", {}));
   });
 });

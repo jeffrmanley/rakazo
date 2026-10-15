@@ -20,6 +20,18 @@ export interface SlackEmulatorEvent {
   ts?: string;
 }
 
+export interface SlackEmulatorAction {
+  /** The clicking user, as Slack signs it into the payload. */
+  userId: string;
+  actionId: string;
+  value: string;
+  channelId: string;
+  /** The card's message ts. */
+  messageTs?: string;
+  triggerId?: string;
+  responseUrl?: string;
+}
+
 export interface SlackEmulatorSignOptions {
   /** False sends no signature headers at all. */
   sign?: boolean;
@@ -42,8 +54,10 @@ export class SlackEmulator {
   readonly botUserId = "U-EMULATED-BOT";
   /** Ephemeral command replies (response_url posts). */
   readonly responses: Array<{ responseUrl: string; text: string; responseType: string }> = [];
-  /** Messages posted through the Web API (chat.postMessage). */
-  readonly posted: Array<{ channel: string; text: string }> = [];
+  /** Messages posted through the Web API (chat.postMessage), with Block Kit blocks for cards. */
+  readonly posted: Array<{ channel: string; text: string; ts: string; blocks?: unknown[] }> = [];
+  /** Messages edited through the Web API (chat.update). */
+  readonly updated: Array<{ channel: string; ts: string; text: string; blocks?: unknown[] }> = [];
   private readonly recordResponses: boolean;
   private counter = 0;
 
@@ -93,6 +107,47 @@ export class SlackEmulator {
     return this.request(body, "application/x-www-form-urlencoded", options);
   }
 
+  /** A signed interactivity payload: a Block Kit button click (block_actions). */
+  buildActionRequest(input: SlackEmulatorAction, options: SlackEmulatorSignOptions = {}): Request {
+    this.counter += 1;
+    const messageTs = input.messageTs ?? `1700000000.${String(this.counter).padStart(6, "0")}`;
+    const payload = {
+      type: "block_actions",
+      team: { id: this.teamId, domain: "emulated" },
+      user: {
+        id: input.userId,
+        username: input.userId.toLowerCase(),
+        name: input.userId.toLowerCase(),
+        team_id: this.teamId,
+      },
+      api_app_id: "A-EMULATED",
+      token: "deprecated-verification-token",
+      container: {
+        type: "message",
+        message_ts: messageTs,
+        channel_id: input.channelId,
+        is_ephemeral: false,
+      },
+      trigger_id: input.triggerId ?? `trigger-${this.counter}-${randomUUID()}`,
+      channel: { id: input.channelId, name: "directmessage" },
+      message: { type: "message", ts: messageTs, user: this.botUserId, text: "" },
+      response_url:
+        input.responseUrl ?? `https://hooks.slack.com/actions/${this.teamId}/${this.counter}/x`,
+      actions: [
+        {
+          type: "button",
+          action_id: input.actionId,
+          block_id: "approval",
+          value: input.value,
+          action_ts: `${Math.floor(Date.now() / 1000)}.${String(this.counter).padStart(6, "0")}`,
+          text: { type: "plain_text", text: "Approve" },
+        },
+      ],
+    };
+    const body = new URLSearchParams({ payload: JSON.stringify(payload) }).toString();
+    return this.request(body, "application/x-www-form-urlencoded", options);
+  }
+
   /** A signed Events API message event. */
   buildEventRequest(input: SlackEmulatorEvent, options: SlackEmulatorSignOptions = {}): Request {
     this.counter += 1;
@@ -122,6 +177,7 @@ export class SlackEmulator {
   resetWitnesses(): void {
     this.responses.length = 0;
     this.posted.length = 0;
+    this.updated.length = 0;
   }
 
   private request(body: string, contentType: string, options: SlackEmulatorSignOptions): Request {
@@ -165,8 +221,24 @@ export class SlackEmulator {
         channel: { id: args.channel, name: "general", is_im: String(args.channel).startsWith("D") },
       }),
       "chat.postMessage": (args) => {
-        this.posted.push({ channel: String(args.channel), text: String(args.text ?? "") });
-        return { ok: true, channel: args.channel, ts: `${Date.now() / 1000}` };
+        this.counter += 1;
+        const ts = `${Math.floor(Date.now() / 1000)}.${String(this.counter).padStart(6, "0")}`;
+        this.posted.push({
+          channel: String(args.channel),
+          text: String(args.text ?? ""),
+          ts,
+          ...(Array.isArray(args.blocks) ? { blocks: args.blocks } : {}),
+        });
+        return { ok: true, channel: args.channel, ts };
+      },
+      "chat.update": (args) => {
+        this.updated.push({
+          channel: String(args.channel),
+          ts: String(args.ts),
+          text: String(args.text ?? ""),
+          ...(Array.isArray(args.blocks) ? { blocks: args.blocks } : {}),
+        });
+        return { ok: true, channel: args.channel, ts: args.ts };
       },
     };
     return new Proxy(

@@ -10,6 +10,8 @@ export interface ExtEnv {
   emergencyStop: boolean;
   /** Spend, concurrency and delegation caps (docs/governance/budgets.md). */
   budgets: boolean;
+  /** Human approval of risky tool calls from web, Slack and Teams (docs/governance/approvals.md). */
+  approvals: boolean;
   budgetDefaultDailyUsd: number;
   budgetSpaceDailyUsd: number;
   maxConcurrentRunsPerBot: number;
@@ -19,13 +21,19 @@ export interface ExtEnv {
   auditExportDir: string | undefined;
 }
 
-export const EXT_FLAG_NAMES = ["EXT_AUDIT_LOG", "EXT_EMERGENCY_STOP", "EXT_BUDGETS"] as const;
+export const EXT_FLAG_NAMES = [
+  "EXT_AUDIT_LOG",
+  "EXT_EMERGENCY_STOP",
+  "EXT_BUDGETS",
+  "EXT_APPROVALS",
+] as const;
 
 export function loadExtEnv(source: NodeJS.ProcessEnv = process.env): ExtEnv {
   return {
     auditLog: flag(source, "EXT_AUDIT_LOG"),
     emergencyStop: flag(source, "EXT_EMERGENCY_STOP"),
     budgets: flag(source, "EXT_BUDGETS"),
+    approvals: flag(source, "EXT_APPROVALS"),
     budgetDefaultDailyUsd: amount(source, "EXT_BUDGET_DEFAULT_DAILY_USD", 3),
     budgetSpaceDailyUsd: amount(source, "EXT_BUDGET_SPACE_DAILY_USD", 50),
     maxConcurrentRunsPerBot: count(source, "EXT_MAX_CONCURRENT_RUNS_PER_BOT", 2),

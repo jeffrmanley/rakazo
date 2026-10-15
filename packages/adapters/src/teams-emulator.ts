@@ -19,12 +19,33 @@ export interface TeamsEmulatorSentActivity {
   conversationId: string;
   text: string;
   textFormat: string | undefined;
+  /** Adaptive Card attachments of a card post. */
+  attachments?: unknown[];
+}
+
+export interface TeamsEmulatorInvoke {
+  /** The clicking user's Teams id, as the validated activity carries it. */
+  from: string;
+  actionId: string;
+  value: string;
+  conversationId?: string;
+  /** The card's activity id. */
+  replyToId?: string;
+  /** Activity id of the invoke itself (a retry repeats it). */
+  handle?: string;
 }
 
 /** Pinned-SDK internals the emulator reaches into (same as the conformance tests). */
 interface TeamsInternals {
   app: {
     send: (conversationId: string, activity: unknown) => Promise<{ id?: string }>;
+    api: {
+      conversations: {
+        activities: (conversationId: string) => {
+          update: (activityId: string, activity: unknown) => Promise<{ id?: string }>;
+        };
+      };
+    };
     server: {
       serviceTokenValidator?: {
         jwtValidator: {
@@ -51,6 +72,9 @@ export class TeamsEmulator {
   readonly serviceUrl = "https://smba.trafficmanager.net/emulated/";
   readonly botAccountId = `28:${this.appId}`;
   readonly sent: TeamsEmulatorSentActivity[] = [];
+  /** Activities replaced through Bot Connector (card updates). */
+  readonly updated: Array<{ conversationId: string; activityId: string; attachments?: unknown[] }> =
+    [];
   private readonly key: { privateKey: KeyObject; publicKey: KeyObject };
   private counter = 0;
 
@@ -78,16 +102,69 @@ export class TeamsEmulator {
       validator.jwtValidator.getSigningKey = (_header, callback) => callback(null, pem);
     };
     internals.app.send = async (conversationId, activity) => {
-      const record = activity as { text?: string; textFormat?: string };
+      const record = activity as { text?: string; textFormat?: string; attachments?: unknown[] };
       this.sent.push({
         conversationId,
         text: record.text ?? "",
         textFormat: record.textFormat,
+        ...(record.attachments?.length ? { attachments: record.attachments } : {}),
       });
       this.counter += 1;
       return { id: `sent-${this.counter}` };
     };
+    internals.app.api.conversations.activities = (conversationId) => ({
+      update: async (activityId, activity) => {
+        const record = activity as { attachments?: unknown[] };
+        this.updated.push({ conversationId, activityId, attachments: record.attachments });
+        return { id: activityId };
+      },
+    });
     return platform;
+  }
+
+  /** The adapter's thread id for a conversation of this emulated tenant. */
+  threadId(conversationId: string): string {
+    const encode = (value: string) => Buffer.from(value).toString("base64url");
+    return `teams:${encode(conversationId)}:${encode(this.serviceUrl)}`;
+  }
+
+  /** A signed Adaptive Card button click (invoke `adaptiveCard/action`). */
+  buildInvokeRequest(input: TeamsEmulatorInvoke, token = this.token()): Request {
+    const conversationId = input.conversationId ?? "a:emulated-personal";
+    const activity = {
+      type: "invoke",
+      name: "adaptiveCard/action",
+      id: input.handle ?? `invoke-${1700000000000 + randomInt(1_000_000_000)}`,
+      timestamp: new Date().toISOString(),
+      serviceUrl: this.serviceUrl,
+      channelId: "msteams",
+      from: { id: input.from, name: "Test User" },
+      conversation: {
+        id: conversationId,
+        conversationType: "personal",
+        isGroup: false,
+        tenantId: this.tenantId,
+      },
+      recipient: { id: this.botAccountId, name: "Rakazo" },
+      ...(input.replyToId ? { replyToId: input.replyToId } : {}),
+      value: {
+        action: {
+          type: "Action.Execute",
+          verb: input.actionId,
+          data: { actionId: input.actionId, value: input.value },
+        },
+        trigger: "manual",
+      },
+      channelData: { tenant: { id: this.tenantId } },
+    };
+    return new Request("https://rakazo.test/api/v1/messaging/webhook/teams", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(activity),
+    });
   }
 
   /** A Bot Connector token for this app, bound to the emulated service URL. */
@@ -165,5 +242,6 @@ export class TeamsEmulator {
 
   resetWitnesses(): void {
     this.sent.length = 0;
+    this.updated.length = 0;
   }
 }

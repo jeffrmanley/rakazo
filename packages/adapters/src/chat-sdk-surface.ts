@@ -3,7 +3,9 @@ import { createMemoryState } from "@chat-adapter/state-memory";
 import type {
   AdapterContext,
   AdapterDescriptor,
+  MessagingAction,
   MessagingCapabilities,
+  MessagingCard,
   MessagingCommand,
   MessagingInboundEvent,
   MessagingInboundMessage,
@@ -14,8 +16,9 @@ import type {
   MessagingSurface,
 } from "@rakazo/adapter-kit";
 import { getLogger } from "@rakazo/logging";
-import type { Adapter, Message, SlashCommandEvent, Thread } from "chat";
+import type { ActionEvent, Adapter, Message, SlashCommandEvent, Thread } from "chat";
 import { Chat } from "chat";
+import { CARD_PROVIDERS, toChatCard } from "./messaging-card.js";
 
 /** Per-webhook drain of Chat SDK waitUntil work + inbound sink failures. */
 const webhookDrain = new AsyncLocalStorage<{
@@ -74,6 +77,8 @@ export class ChatSdkMessagingSurface implements MessagingSurface {
   private initialized: Promise<void> | undefined;
   private readonly seenCommands = new Map<string, number>();
   private readonly pendingCommands = new Set<Promise<void>>();
+  private readonly seenActions = new Map<string, number>();
+  private readonly pendingActions = new Set<Promise<void>>();
 
   constructor(platforms: MessagingPlatform[], options: { userName?: string } = {}) {
     if (platforms.length === 0) throw new Error("ChatSdkMessagingSurface needs >=1 platform");
@@ -139,7 +144,9 @@ export class ChatSdkMessagingSurface implements MessagingSurface {
       commands.map((command) => command.toLowerCase()),
       (event: SlashCommandEvent) => {
         const command = this.toCommand(event);
-        if (!command || this.isRepeatedCommand(command)) return;
+        if (!command || isRepeated(this.seenCommands, `${command.provider}:${command.handle}`)) {
+          return;
+        }
         // Acknowledge the webhook now (Slack allows three seconds); the
         // handler replies through the command's own response channel.
         const task = handler(command)
@@ -153,6 +160,61 @@ export class ChatSdkMessagingSurface implements MessagingSurface {
   /** Wait for slash command handlers still running (tests and shutdown). */
   async drainCommands(): Promise<void> {
     while (this.pendingCommands.size > 0) await Promise.all([...this.pendingCommands]);
+  }
+
+  onAction(actionIds: string[], handler: (action: MessagingAction) => Promise<void>): void {
+    this.chat.onAction(actionIds, (event: ActionEvent) => {
+      const action = this.toAction(event);
+      if (!action || isRepeated(this.seenActions, `${action.provider}:${action.handle}`)) return;
+      // Acknowledge the webhook now (Slack allows three seconds); the handler answers the
+      // clicker through the action's own reply channel.
+      const task = handler(action)
+        .catch((error) => getLogger().error("card action handler failed", error))
+        .finally(() => this.pendingActions.delete(task));
+      this.pendingActions.add(task);
+    });
+  }
+
+  /** Wait for card action handlers still running (tests and shutdown). */
+  async drainActions(): Promise<void> {
+    while (this.pendingActions.size > 0) await Promise.all([...this.pendingActions]);
+  }
+
+  cardProviders(): string[] {
+    return CARD_PROVIDERS.filter((provider) => this.byProvider.has(provider));
+  }
+
+  async sendCard(
+    threadId: string,
+    card: MessagingCard,
+    _context: AdapterContext,
+  ): Promise<MessagingSendResult> {
+    const provider = this.cardProvider(threadId);
+    await this.ensureInitialized();
+    const sent = await this.chat.thread(threadId).post(toChatCard(provider, card));
+    const handle = "id" in sent && typeof sent.id === "string" ? sent.id : "";
+    return { handle };
+  }
+
+  async updateCard(
+    threadId: string,
+    handle: string,
+    card: MessagingCard,
+    _context: AdapterContext,
+  ): Promise<void> {
+    const provider = this.cardProvider(threadId);
+    await this.ensureInitialized();
+    await this.byProvider
+      .get(provider)!
+      .adapter.editMessage(threadId, handle, toChatCard(provider, card));
+  }
+
+  private cardProvider(threadId: string): string {
+    const provider = providerOfThreadId(threadId);
+    if (!this.cardProviders().includes(provider)) {
+      throw new Error(`${provider || "This provider"} cannot show cards`);
+    }
+    return provider;
   }
 
   handleWebhook(provider: string, request: Request): Promise<Response> | null {
@@ -220,6 +282,7 @@ export class ChatSdkMessagingSurface implements MessagingSurface {
     this.initialized = undefined;
     if (pending) await pending.catch(() => undefined);
     await this.drainCommands();
+    await this.drainActions();
     await this.stopPollingAdapters();
     const chat = this.chat as { shutdown?: () => Promise<void> };
     await chat.shutdown?.().catch(() => undefined);
@@ -316,19 +379,41 @@ export class ChatSdkMessagingSurface implements MessagingSurface {
     };
   }
 
-  private isRepeatedCommand(command: MessagingCommand): boolean {
-    const now = Date.now();
-    const key = `${command.provider}:${command.handle}`;
-    if (this.seenCommands.size >= COMMAND_DEDUPE_MAX) {
-      for (const [seen, at] of this.seenCommands) {
-        if (now - at > COMMAND_DEDUPE_MS) this.seenCommands.delete(seen);
-      }
-      if (this.seenCommands.size >= COMMAND_DEDUPE_MAX) this.seenCommands.clear();
-    }
-    const previous = this.seenCommands.get(key);
-    if (previous !== undefined && now - previous <= COMMAND_DEDUPE_MS) return true;
-    this.seenCommands.set(key, now);
-    return false;
+  private toAction(event: ActionEvent): MessagingAction | null {
+    const platform = [...this.byProvider.values()].find((p) => p.adapter === event.adapter);
+    if (!platform || event.user.isBot || event.user.isMe) return null;
+    if (!this.cardProviders().includes(platform.provider)) return null;
+    const raw = (event.raw ?? {}) as Record<string, unknown>;
+    // Slack: one trigger per click. Teams: the activity id of the invoke or submit.
+    const interaction =
+      platform.provider === "slack"
+        ? stringField(raw.trigger_id) || slackActionTs(raw)
+        : stringField(raw.id);
+    if (!interaction || !event.user.userId) return null;
+    const thread = event.thread;
+    return {
+      provider: platform.provider,
+      actionId: event.actionId,
+      value: event.value ?? "",
+      from: event.user.userId,
+      threadId: event.threadId,
+      messageId: event.messageId,
+      handle: interaction,
+      respond: async (body) => {
+        if (platform.respondToCommand) {
+          await platform.respondToCommand(event.raw, body);
+          return;
+        }
+        // Teams has no ephemeral messages; answer only inside a 1:1 chat.
+        if (thread && platform.adapter.isDM?.(event.threadId)) {
+          await thread.post({ markdown: body });
+          return;
+        }
+        getLogger().warn("card action reply skipped outside a direct chat", {
+          "messaging.provider": platform.provider,
+        });
+      },
+    };
   }
 
   private toInbound(thread: Thread, message: Message): MessagingInboundMessage | null {
@@ -357,6 +442,31 @@ export class ChatSdkMessagingSurface implements MessagingSurface {
     const enrichment = platform.enrichTeamRoom?.(message.raw, base) ?? {};
     return { ...base, ...enrichment };
   }
+}
+
+/** Remember per-invocation ids for a while so a repeated delivery is dropped. */
+function isRepeated(seen: Map<string, number>, key: string): boolean {
+  const now = Date.now();
+  if (seen.size >= COMMAND_DEDUPE_MAX) {
+    for (const [entry, at] of seen) {
+      if (now - at > COMMAND_DEDUPE_MS) seen.delete(entry);
+    }
+    if (seen.size >= COMMAND_DEDUPE_MAX) seen.clear();
+  }
+  const previous = seen.get(key);
+  if (previous !== undefined && now - previous <= COMMAND_DEDUPE_MS) return true;
+  seen.set(key, now);
+  return false;
+}
+
+function stringField(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function slackActionTs(raw: Record<string, unknown>): string {
+  const actions = Array.isArray(raw.actions) ? (raw.actions as Array<{ action_ts?: unknown }>) : [];
+  const ts = stringField(actions[0]?.action_ts);
+  return ts ? `action:${ts}` : "";
 }
 
 export function providerOfThreadId(threadId: string): string {

@@ -54,6 +54,16 @@ export function approvalEffectKey(
 }
 
 /**
+ * Fork extension (EXT_APPROVALS): the hash an approval binds to. One exact call: the tool
+ * name and its canonical arguments; any other name or argument yields another hash.
+ */
+export function approvalCallHash(toolName: string, args: Record<string, unknown>): string {
+  return createHash("sha256")
+    .update(stableJsonValue({ tool: toolName, args }))
+    .digest("hex");
+}
+
+/**
  * Stable mutating-tool key for a run, tool, args, and live occurrence.
  * Model tool-call ids change on replay, so they must not be part of the key.
  * Occurrence 0 keeps the unsuffixed form so existing rows still match.

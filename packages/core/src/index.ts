@@ -24,6 +24,7 @@ export * from "./computer-updates.js";
 export * from "./cron.js";
 export * from "./echo.js";
 export * from "./events.js";
+export * from "./ext-approvals.js";
 export * from "./ext-budget.js";
 export * from "./ext-emergency-stop.js";
 export * from "./ext-env.js";

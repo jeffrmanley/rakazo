@@ -46,6 +46,8 @@ import type {
   MemorySearchRequest,
   MemorySearchResult,
   MemorySnapshot,
+  MessagingAction,
+  MessagingCard,
   MessagingCommand,
   MessagingInboundEvent,
   MessagingPlatformDescriptor,
@@ -401,6 +403,26 @@ export interface MessagingSurface {
     request: MessagingSendRequest,
     context: AdapterContext,
   ): Promise<MessagingSendResult>;
+  /**
+   * Card button clicks for these action ids on platforms with cards (Slack, Teams). The
+   * webhook is acknowledged before the handler finishes; a repeated click is dropped.
+   */
+  onAction?(actionIds: string[], handler: (action: MessagingAction) => Promise<void>): void;
+  /** Providers that can show cards with buttons. */
+  cardProviders?(): string[];
+  /** Post a card with buttons; the handle is the message id an update needs. */
+  sendCard?(
+    threadId: string,
+    card: MessagingCard,
+    context: AdapterContext,
+  ): Promise<MessagingSendResult>;
+  /** Replace a posted card (for example with its outcome and no buttons). */
+  updateCard?(
+    threadId: string,
+    handle: string,
+    card: MessagingCard,
+    context: AdapterContext,
+  ): Promise<void>;
   /** Resolve (or create) the 1:1 thread for a provider address. */
   openDirectThread(provider: string, address: string, context: AdapterContext): Promise<string>;
   /**
