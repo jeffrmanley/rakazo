@@ -30,8 +30,8 @@ export async function loadApprovalPolicy(
   db: Db,
   input: { spaceId: string; botId: string },
 ): Promise<ApprovalPolicy> {
-  const row = await db.extBotApprovalPolicy.findFirst({
-    where: { botId: input.botId, spaceId: input.spaceId },
+  const row = await db.extBotApprovalPolicy.findUnique({
+    where: { spaceId_botId: { spaceId: input.spaceId, botId: input.botId } },
     select: { gatedClasses: true, approverUserIds: true },
   });
   return resolveApprovalPolicy(row);
@@ -44,7 +44,7 @@ export async function saveApprovalPolicy(
   const current = await loadApprovalPolicy(tx, input);
   const next = { ...current, ...input.patch };
   await tx.extBotApprovalPolicy.upsert({
-    where: { botId: input.botId },
+    where: { spaceId_botId: { spaceId: input.spaceId, botId: input.botId } },
     create: {
       botId: input.botId,
       spaceId: input.spaceId,
@@ -66,25 +66,80 @@ export interface SpaceRoster {
   members: Array<{ userId: string; name: string; owner: boolean }>;
 }
 
-export async function loadSpaceRoster(db: Db, spaceId: string): Promise<SpaceRoster> {
-  const rows = await db.spaceMember.findMany({
-    where: { spaceId },
-    select: { userId: true, role: true, member: { select: { user: { select: { name: true } } } } },
-    orderBy: { createdAt: "asc" },
-    take: 500,
-  });
-  return {
-    members: rows.map((row) => ({
-      userId: row.userId,
-      name: row.member.user.name,
-      owner: isOwnerRole(row.role),
-    })),
-  };
+/** Every member of a space, read page by page (no cap). */
+export async function loadSpaceRoster(
+  db: Db,
+  spaceId: string,
+  options: { batchSize?: number } = {},
+): Promise<SpaceRoster> {
+  const batchSize = options.batchSize ?? 500;
+  const members: SpaceRoster["members"] = [];
+  let cursor: string | undefined;
+  for (;;) {
+    const rows = await db.spaceMember.findMany({
+      where: { spaceId, ...(cursor ? { id: { gt: cursor } } : {}) },
+      select: {
+        id: true,
+        userId: true,
+        role: true,
+        member: { select: { user: { select: { name: true } } } },
+      },
+      orderBy: { id: "asc" },
+      take: batchSize,
+    });
+    for (const row of rows) {
+      members.push({
+        userId: row.userId,
+        name: row.member.user.name,
+        owner: isOwnerRole(row.role),
+      });
+    }
+    if (rows.length < batchSize) break;
+    cursor = rows.at(-1)!.id;
+  }
+  return { members };
 }
 
-async function memberIds(db: Db, spaceId: string): Promise<string[]> {
-  const rows = await db.spaceMember.findMany({ where: { spaceId }, select: { userId: true } });
-  return rows.map((row) => row.userId);
+/**
+ * Who may approve this bot's requests right now: the bot's configured approvers, else the
+ * space owners plus the requester, and only current members. Queried by user id, so the
+ * size of the space does not matter.
+ */
+export async function eligibleApprovers(
+  db: Db,
+  input: { spaceId: string; botId: string; requestedBy: string },
+): Promise<string[]> {
+  const policy = await loadApprovalPolicy(db, input);
+  const owners = (
+    await db.spaceMember.findMany({
+      where: { spaceId: input.spaceId, role: { contains: "owner" } },
+      select: { userId: true, role: true },
+    })
+  )
+    .filter((row) => isOwnerRole(row.role))
+    .map((row) => row.userId);
+  const candidates = [...new Set([...policy.approverUserIds, ...owners, input.requestedBy])];
+  const members = (
+    await db.spaceMember.findMany({
+      where: { spaceId: input.spaceId, userId: { in: candidates } },
+      select: { userId: true },
+    })
+  ).map((row) => row.userId);
+  return resolveApprovers({
+    configured: policy.approverUserIds,
+    owners,
+    requesterId: input.requestedBy,
+    members,
+  });
+}
+
+async function isMember(db: Db, spaceId: string, userId: string): Promise<boolean> {
+  return Boolean(
+    await db.spaceMember.findUnique({
+      where: { spaceId_userId: { spaceId, userId } },
+      select: { id: true },
+    }),
+  );
 }
 
 export interface ApprovalRequestInput {
@@ -114,19 +169,16 @@ export async function createApprovalRequest(
   input: ApprovalRequestInput,
 ): Promise<ApprovalRow> {
   const now = input.now ?? new Date();
-  const args = redactAuditValue(input.args, { secrets: input.secrets }) as Prisma.InputJsonValue;
-  const reason = redactAuditText(input.reason, input.secrets).trim().slice(0, 2_000);
+  // Stored in full (redacted, never cut): approvers must see the whole call.
+  const args = redactAuditValue(input.args, {
+    secrets: input.secrets,
+    full: true,
+  }) as Prisma.InputJsonValue;
+  const reason = redactAuditText(input.reason, input.secrets).trim();
   return prisma.$transaction(async (tx) => {
     const existing = await tx.extApproval.findUnique({ where: { effectId: input.effectId } });
     if (existing) return existing;
-    const policy = await loadApprovalPolicy(tx, input);
-    const roster = await loadSpaceRoster(tx, input.spaceId);
-    const approverIds = resolveApprovers({
-      configured: policy.approverUserIds,
-      owners: roster.members.filter((member) => member.owner).map((member) => member.userId),
-      requesterId: input.requestedBy,
-      members: roster.members.map((member) => member.userId),
-    });
+    const approverIds = await eligibleApprovers(tx, input);
     const row = await tx.extApproval.create({
       data: {
         id: randomUUID(),
@@ -191,7 +243,7 @@ export interface DecideApprovalInput {
 export type DecideApprovalResult =
   | { status: "decided"; outcome: ApprovalOutcome; approval: ApprovalRow; resumed: boolean }
   | { status: "already_decided"; approval: ApprovalRow }
-  | { status: "not_allowed"; reason: "not_listed" | "left"; approval: ApprovalRow }
+  | { status: "not_allowed"; reason: "not_listed" | "left" | "removed"; approval: ApprovalRow }
   | { status: "not_found" };
 
 /**
@@ -223,12 +275,14 @@ export async function decideApproval(
     await tx.$queryRaw`SELECT id FROM ext_approvals WHERE id = ${located.id} FOR UPDATE`;
     const row = await tx.extApproval.findUniqueOrThrow({ where: { id: located.id } });
     if (row.status !== "pending") return { status: "already_decided" as const, approval: row };
-    const members = await memberIds(tx, row.spaceId);
+    const eligible = await eligibleApprovers(tx, row);
     if (input.decider.type === "human") {
+      const userId = input.decider.userId;
       const standing = approverStanding({
         approvers: row.approverIds,
-        members,
-        userId: input.decider.userId,
+        members: (await isMember(tx, row.spaceId, userId)) ? [userId] : [],
+        eligible,
+        userId,
       });
       if (standing !== "approver") {
         return { status: "not_allowed" as const, reason: standing, approval: row };
@@ -239,7 +293,7 @@ export async function decideApproval(
     if (isApprovalExpired(row.expiresAt, now)) {
       outcome = "expired";
       note = null;
-    } else if (activeApprovers(row.approverIds, members).length === 0) {
+    } else if (activeApprovers(row.approverIds, eligible).length === 0) {
       outcome = "invalid";
       note = "No approver is left in the space";
     } else if (stopped) {
@@ -339,56 +393,63 @@ export const CLOSE_NOTES: Record<Exclude<CloseReason, "expired">, string> = {
 };
 
 /**
- * Requests that must end without a person: past their deadline, with every approver gone
- * from the space, or whose run already ended (cancelled by a stop, for example). Bounded
- * per sweep; the next sweep takes the rest.
+ * Requests that must end without a person: past their deadline, with nobody on their list
+ * still eligible (left the space or taken off the bot's approvers), or whose run already
+ * ended (cancelled by a stop, for example). Reads every pending request page by page.
  */
 export async function findApprovalsToClose(
   prisma: PrismaClient,
   now: Date,
-  limit = 100,
+  options: { batchSize?: number } = {},
 ): Promise<Array<{ id: string; reason: CloseReason }>> {
-  const expired = await prisma.extApproval.findMany({
-    where: { status: "pending", expiresAt: { lte: now } },
-    select: { id: true },
-    orderBy: { expiresAt: "asc" },
-    take: limit,
-  });
-  const pending = await prisma.extApproval.findMany({
-    where: { status: "pending", expiresAt: { gt: now } },
-    select: { id: true, spaceId: true, runId: true, approverIds: true },
-    orderBy: { createdAt: "asc" },
-    take: limit * 5,
-  });
-  const ended = new Set(
-    (
-      await prisma.run.findMany({
-        where: {
-          id: { in: pending.map((row) => row.runId) },
-          status: { in: ENDED_RUN_STATUSES },
-        },
-        select: { id: true },
-      })
-    ).map((run) => run.id),
-  );
-  const membersBySpace = new Map<string, string[]>();
-  const closing: Array<{ id: string; reason: CloseReason }> = expired.map((row) => ({
-    id: row.id,
-    reason: "expired" as const,
-  }));
-  for (const row of pending) {
-    if (ended.has(row.runId)) {
-      closing.push({ id: row.id, reason: "run_ended" });
-      continue;
+  const batchSize = options.batchSize ?? 200;
+  const closing: Array<{ id: string; reason: CloseReason }> = [];
+  const eligibleFor = new Map<string, Promise<string[]>>();
+  let cursor: string | undefined;
+  for (;;) {
+    const page = await prisma.extApproval.findMany({
+      where: { status: "pending", ...(cursor ? { id: { gt: cursor } } : {}) },
+      select: {
+        id: true,
+        spaceId: true,
+        botId: true,
+        runId: true,
+        requestedBy: true,
+        approverIds: true,
+        expiresAt: true,
+      },
+      orderBy: { id: "asc" },
+      take: batchSize,
+    });
+    const ended = new Set(
+      (
+        await prisma.run.findMany({
+          where: { id: { in: page.map((row) => row.runId) }, status: { in: ENDED_RUN_STATUSES } },
+          select: { id: true },
+        })
+      ).map((run) => run.id),
+    );
+    for (const row of page) {
+      if (isApprovalExpired(row.expiresAt, now)) {
+        closing.push({ id: row.id, reason: "expired" });
+        continue;
+      }
+      if (ended.has(row.runId)) {
+        closing.push({ id: row.id, reason: "run_ended" });
+        continue;
+      }
+      const key = `${row.spaceId}:${row.botId}:${row.requestedBy}`;
+      let eligible = eligibleFor.get(key);
+      if (!eligible) {
+        eligible = eligibleApprovers(prisma, row);
+        eligibleFor.set(key, eligible);
+      }
+      if (activeApprovers(row.approverIds, await eligible).length === 0) {
+        closing.push({ id: row.id, reason: "no_approver" });
+      }
     }
-    let members = membersBySpace.get(row.spaceId);
-    if (!members) {
-      members = await memberIds(prisma, row.spaceId);
-      membersBySpace.set(row.spaceId, members);
-    }
-    if (activeApprovers(row.approverIds, members).length === 0) {
-      closing.push({ id: row.id, reason: "no_approver" });
-    }
+    if (page.length < batchSize) break;
+    cursor = page.at(-1)!.id;
   }
   return closing;
 }
@@ -424,4 +485,78 @@ function isOwnerRole(role: string): boolean {
     .split(",")
     .map((value) => value.trim())
     .includes("owner");
+}
+
+/**
+ * The API records the EXT_APPROVALS value it runs with. A worker that disagrees would run
+ * gated calls without approval (or wait on approvals nobody serves), so it refuses to start.
+ */
+export async function recordApprovalsFlag(prisma: PrismaClient, enabled: boolean): Promise<void> {
+  await prisma.deploymentSettings.upsert({
+    where: { id: "default" },
+    create: { id: "default", extApprovals: enabled },
+    update: { extApprovals: enabled },
+  });
+}
+
+export async function assertApprovalsFlag(prisma: PrismaClient, enabled: boolean): Promise<void> {
+  const settings = await prisma.deploymentSettings.findUnique({
+    where: { id: "default" },
+    select: { extApprovals: true },
+  });
+  const recorded = settings?.extApprovals;
+  if (recorded === null || recorded === undefined) return;
+  if (recorded !== enabled) {
+    const flag = (value: boolean) => (value ? "1" : "0");
+    throw new Error(
+      `EXT_APPROVALS is ${flag(enabled)} in the worker but ${flag(recorded)} in the API; set the same value for both`,
+    );
+  }
+}
+
+export type ApprovalCardRow = {
+  id: string;
+  approvalId: string;
+  kind: string;
+  userId: string;
+  identityId: string;
+  provider: string;
+  threadId: string;
+  messageId: string | null;
+};
+
+/**
+ * Reserve the card (or notice) for one identity before posting it, so a request announced
+ * twice never posts twice. Null when it is already there.
+ */
+export async function claimApprovalCard(
+  prisma: PrismaClient,
+  input: Omit<ApprovalCardRow, "id" | "messageId">,
+): Promise<string | null> {
+  const id = randomUUID();
+  const created = await prisma.extApprovalCard.createMany({
+    data: [{ id, ...input }],
+    skipDuplicates: true,
+  });
+  return created.count === 1 ? id : null;
+}
+
+export async function approvalCards(
+  prisma: PrismaClient,
+  approvalId: string,
+): Promise<ApprovalCardRow[]> {
+  return prisma.extApprovalCard.findMany({ where: { approvalId }, orderBy: { createdAt: "asc" } });
+}
+
+export async function setApprovalCardMessage(
+  prisma: PrismaClient,
+  cardId: string,
+  messageId: string,
+): Promise<void> {
+  await prisma.extApprovalCard.update({ where: { id: cardId }, data: { messageId } });
+}
+
+/** A card that could not be posted is released, so a later announcement can try again. */
+export async function releaseApprovalCard(prisma: PrismaClient, cardId: string): Promise<void> {
+  await prisma.extApprovalCard.delete({ where: { id: cardId } });
 }

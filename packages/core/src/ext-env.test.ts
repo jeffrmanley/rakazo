@@ -30,7 +30,7 @@ describe("loadExtEnv", () => {
     expect(loadExtEnv({ EXT_AUDIT_LOG: "0" }).auditLog).toBe(false);
     expect(loadExtEnv({ EXT_EMERGENCY_STOP: "1" }).emergencyStop).toBe(true);
     expect(loadExtEnv({ EXT_BUDGETS: "1" }).budgets).toBe(true);
-    expect(loadExtEnv({ EXT_APPROVALS: "1" }).approvals).toBe(true);
+    expect(loadExtEnv({ EXT_APPROVALS: "1", EXT_AUDIT_LOG: "1" }).approvals).toBe(true);
     expect(loadExtEnv({ EXT_APPROVALS: "0" }).approvals).toBe(false);
   });
 
@@ -90,5 +90,15 @@ describe("loadExtEnv", () => {
     expect(loadExtEnv({}).auditExportDir).toBeUndefined();
     expect(loadExtEnv({ EXT_AUDIT_EXPORT_DIR: "   " }).auditExportDir).toBeUndefined();
     expect(loadExtEnv({ EXT_AUDIT_EXPORT_DIR: " /var/audit " }).auditExportDir).toBe("/var/audit");
+  });
+
+  it("refuses approvals without the audit log", () => {
+    expect(() => loadExtEnv({ EXT_APPROVALS: "1" })).toThrow(
+      "EXT_APPROVALS=1 requires EXT_AUDIT_LOG=1",
+    );
+    expect(() => loadExtEnv({ EXT_APPROVALS: "1", EXT_AUDIT_LOG: "0" })).toThrow(
+      "EXT_APPROVALS=1 requires EXT_AUDIT_LOG=1",
+    );
+    expect(loadExtEnv({ EXT_APPROVALS: "0" }).approvals).toBe(false);
   });
 });

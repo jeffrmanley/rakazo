@@ -5,10 +5,14 @@ import type { PrismaClient } from "./client.js";
 import { createDb } from "./client.js";
 import { pauseRunForInput } from "./events.js";
 import {
+  assertApprovalsFlag,
   checkApprovedCall,
   createApprovalRequest,
   decideApproval,
   findApprovalsToClose,
+  loadApprovalPolicy,
+  loadSpaceRoster,
+  recordApprovalsFlag,
   saveApprovalPolicy,
 } from "./ext-approvals.js";
 import type { AuditWriter } from "./ext-audit.js";
@@ -398,6 +402,167 @@ describePostgres("ext approvals (PostgreSQL)", () => {
     expect(await checkApprovedCall(prisma, { effectId: "no-such-effect", callHash: hash })).toEqual(
       { gated: false, refusal: null },
     );
+  });
+
+  const ownerOrg = async () =>
+    (
+      await prisma.space.findUniqueOrThrow({
+        where: { id: owner.spaceId },
+        select: { organizationId: true },
+      })
+    ).organizationId;
+  const leave = async (userId: string) =>
+    prisma.member.deleteMany({ where: { organizationId: await ownerOrg(), userId } });
+  const rejoin = async (userId: string) =>
+    prisma.member.createMany({
+      data: [
+        {
+          id: randomUUID(),
+          organizationId: await ownerOrg(),
+          userId,
+          role: "member",
+          createdAt: new Date(),
+        },
+      ],
+      skipDuplicates: true,
+    });
+  const decideAs = (approvalId: string, userId: string) =>
+    decideApproval(prisma, {
+      approvalId,
+      decider: { type: "human", userId },
+      answer: "deny",
+      via: "web",
+    });
+
+  it("checks the current policy too: an approver taken off the list can no longer decide", async () => {
+    await rejoin(memberId);
+    await saveApprovalPolicyFor(owner, [owner.userId, memberId]);
+    try {
+      const call = await pendingCall(owner);
+      expect(call.approval.approverIds).toEqual([memberId, owner.userId].sort());
+      await saveApprovalPolicyFor(owner, [owner.userId]);
+      expect(await decideAs(call.approval.id, memberId)).toMatchObject({
+        status: "not_allowed",
+        reason: "removed",
+      });
+      expect((await state(call)).approval).toBe("pending");
+      // Nobody on the snapshot is still eligible (the list now names someone else): the sweep
+      // closes it.
+      await saveApprovalPolicyFor(owner, [other.userId]);
+      expect(await findApprovalsToClose(prisma, new Date())).toContainEqual({
+        id: call.approval.id,
+        reason: "no_approver",
+      });
+      await saveApprovalPolicyFor(owner, [owner.userId]);
+      expect(await decideAs(call.approval.id, owner.userId)).toMatchObject({
+        status: "decided",
+        outcome: "deny",
+      });
+    } finally {
+      await saveApprovalPolicyFor(owner, []);
+    }
+  });
+
+  it("restores authority after leaving and rejoining only while still on the policy", async () => {
+    await rejoin(memberId);
+    await saveApprovalPolicyFor(owner, [memberId]);
+    try {
+      const kept = await pendingCall(owner);
+      await leave(memberId);
+      expect(await decideAs(kept.approval.id, memberId)).toMatchObject({ reason: "left" });
+      await rejoin(memberId);
+      expect(await decideAs(kept.approval.id, memberId)).toMatchObject({ status: "decided" });
+
+      const dropped = await pendingCall(owner);
+      await leave(memberId);
+      await saveApprovalPolicyFor(owner, [owner.userId]);
+      await rejoin(memberId);
+      expect(await decideAs(dropped.approval.id, memberId)).toMatchObject({
+        status: "not_allowed",
+        reason: "removed",
+      });
+      expect((await state(dropped)).approval).toBe("pending");
+      await decideAs(dropped.approval.id, owner.userId);
+    } finally {
+      await rejoin(memberId);
+      await saveApprovalPolicyFor(owner, []);
+    }
+  });
+
+  it("keys a bot's policy by space and bot for reads and writes alike", async () => {
+    await prisma.$transaction((tx) =>
+      saveApprovalPolicy(tx, {
+        spaceId: other.spaceId,
+        botId: owner.botId,
+        actorId: other.userId,
+        patch: { gatedClasses: ["read"] },
+      }),
+    );
+    expect(
+      (await loadApprovalPolicy(prisma, { spaceId: owner.spaceId, botId: owner.botId }))
+        .gatedClasses,
+    ).toEqual(["write-external"]);
+    expect(
+      (await loadApprovalPolicy(prisma, { spaceId: other.spaceId, botId: owner.botId }))
+        .gatedClasses,
+    ).toEqual(["read"]);
+    await prisma.extBotApprovalPolicy.deleteMany({
+      where: { spaceId: other.spaceId, botId: owner.botId },
+    });
+  });
+
+  it("reads the whole roster and sweeps every pending request, page by page", async () => {
+    await rejoin(memberId);
+    const roster = await loadSpaceRoster(prisma, owner.spaceId, { batchSize: 1 });
+    expect(roster.members.map((m) => m.userId).sort()).toEqual([owner.userId, memberId].sort());
+    await saveApprovalPolicyFor(owner, [memberId]);
+    try {
+      const older = [await pendingCall(owner), await pendingCall(owner)];
+      await saveApprovalPolicyFor(owner, [owner.userId]);
+      const newest = await pendingCall(owner);
+      await saveApprovalPolicyFor(owner, [memberId]);
+      const due = await findApprovalsToClose(prisma, new Date(), { batchSize: 1 });
+      expect(due).toContainEqual({ id: newest.approval.id, reason: "no_approver" });
+      expect(due).not.toContainEqual(expect.objectContaining({ id: older[0]!.approval.id }));
+      for (const call of [...older, newest]) {
+        await decideApproval(prisma, {
+          approvalId: call.approval.id,
+          decider: { type: "system" },
+          answer: "deny",
+          via: "system",
+        });
+      }
+    } finally {
+      await saveApprovalPolicyFor(owner, []);
+    }
+  });
+
+  it("lets a worker start only with the API's EXT_APPROVALS value", async () => {
+    const before = await prisma.deploymentSettings.findUnique({ where: { id: "default" } });
+    try {
+      await recordApprovalsFlag(prisma, true);
+      await expect(assertApprovalsFlag(prisma, true)).resolves.toBeUndefined();
+      await expect(assertApprovalsFlag(prisma, false)).rejects.toThrow(
+        "EXT_APPROVALS is 0 in the worker but 1 in the API",
+      );
+      await recordApprovalsFlag(prisma, false);
+      await expect(assertApprovalsFlag(prisma, true)).rejects.toThrow(
+        "EXT_APPROVALS is 1 in the worker but 0 in the API",
+      );
+      // Not recorded yet (the API has never started): nothing to compare.
+      await prisma.deploymentSettings.update({
+        where: { id: "default" },
+        data: { extApprovals: null },
+      });
+      await expect(assertApprovalsFlag(prisma, true)).resolves.toBeUndefined();
+    } finally {
+      if (before) {
+        await prisma.deploymentSettings.update({
+          where: { id: "default" },
+          data: { extApprovals: before.extApprovals },
+        });
+      }
+    }
   });
 
   async function saveApprovalPolicyFor(target: Target, approverUserIds: string[]) {

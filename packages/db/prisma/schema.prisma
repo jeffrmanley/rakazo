@@ -311,6 +311,9 @@ model DeploymentSettings {
   updatedAt                       DateTime @updatedAt
 
   @@map("deployment_settings")
+  /// Fork extension: the EXT_APPROVALS value the API runs with; a worker with another value
+  /// refuses to start.
+  extApprovals Boolean?
 }
 
 model UserModelCredential {
@@ -1184,6 +1187,9 @@ model McpServer {
   revision      Int               @default(1)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
+  /// Fork extension (EXT_APPROVALS): the bot that added this server with add_mcp_server;
+  /// its tools are never treated as reads by name.
+  addedByBotId  String?
   assignments   BotMcpServer[]
   oauthSessions McpOAuthSession[]
 
@@ -1674,7 +1680,7 @@ model ExtRunSlotWait {
 /// for a person, and who may decide. FK-free like the other extension tables; no row means
 /// the defaults (write-external; space owners plus the user who started the run).
 model ExtBotApprovalPolicy {
-  botId           String   @id
+  botId           String
   spaceId         String
   /// "read" | "write-internal" | "write-external"
   gatedClasses    String[]
@@ -1685,7 +1691,7 @@ model ExtBotApprovalPolicy {
   updatedAt       DateTime @updatedAt
   updatedBy       String
 
-  @@index([spaceId])
+  @@id([spaceId, botId])
   @@map("ext_bot_approval_policies")
 }
 
@@ -1725,13 +1731,29 @@ model ExtApproval {
   /// Platform interaction id of the deciding click.
   interactionId String?
   decisionNote  String?
-  /// Where the chat card was posted, so a decision anywhere can update it.
-  cardProvider  String?
-  cardThreadId  String?
-  cardMessageId String?
 
   @@index([status, expiresAt])
   @@index([spaceId, status])
   @@index([runId])
   @@map("ext_approvals")
+}
+
+/// Fork extension: a chat card or notice posted for an approval request (EXT_APPROVALS):
+/// one approval card per approver's linked identity, and a notice to a requester who is not
+/// an approver. Kept so a decision anywhere can update every card.
+model ExtApprovalCard {
+  id         String   @id
+  approvalId String
+  /// "approval" | "notice"
+  kind       String
+  userId     String
+  identityId String
+  provider   String
+  threadId   String
+  /// The platform message id once posted.
+  messageId  String?
+  createdAt  DateTime @default(now())
+
+  @@unique([approvalId, identityId])
+  @@map("ext_approval_cards")
 }

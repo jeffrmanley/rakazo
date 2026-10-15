@@ -29,6 +29,15 @@ export const EXT_FLAG_NAMES = [
 ] as const;
 
 export function loadExtEnv(source: NodeJS.ProcessEnv = process.env): ExtEnv {
+  const env = readExtEnv(source);
+  // Approvals are fail closed on their audit records; without the log there are none.
+  if (env.approvals && !env.auditLog) {
+    throw new Error("EXT_APPROVALS=1 requires EXT_AUDIT_LOG=1");
+  }
+  return env;
+}
+
+function readExtEnv(source: NodeJS.ProcessEnv): ExtEnv {
   return {
     auditLog: flag(source, "EXT_AUDIT_LOG"),
     emergencyStop: flag(source, "EXT_EMERGENCY_STOP"),

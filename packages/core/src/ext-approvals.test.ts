@@ -3,10 +3,13 @@ import {
   APPROVAL_TTL_MS,
   activeApprovers,
   approvalExpiresAt,
+  approvalHashLabel,
   approvalRequired,
   approverStanding,
+  canonicalArgsText,
   DEFAULT_GATED_CLASSES,
   EXPLICIT_RISK_CLASSES,
+  isApprovalExempt,
   isApprovalExpired,
   parseApprovalPolicyPatch,
   RISK_CLASSES,
@@ -36,9 +39,10 @@ describe("toolRiskClass", () => {
       "browser_act",
       "remember",
       "schedule_create",
-      "spawn_bot",
       "archive_bot",
       "forget_secret",
+      "launch_app",
+      "open_path",
     ]) {
       expect(toolRiskClass({ toolName, viaConnector: false })).toBe("write-internal");
     }
@@ -47,6 +51,37 @@ describe("toolRiskClass", () => {
   it("classes the upstream consequential tools that leave the deployment as write-external", () => {
     for (const toolName of ["destination.write", "cloud_agent_launch", "cloud_agent_reply"]) {
       expect(toolRiskClass({ toolName, viaConnector: false })).toBe("write-external");
+    }
+  });
+
+  it("classes tools that make another bot or a new tool server act as write-external", () => {
+    for (const toolName of ["add_mcp_server", "message_bot", "handoff_to_bot", "spawn_bot"]) {
+      expect(toolRiskClass({ toolName, viaConnector: false })).toBe("write-external");
+    }
+  });
+
+  it("never trusts a read-looking name on a tool server the model added", () => {
+    expect(
+      toolRiskClass({ toolName: "mcp__x__list_items", viaConnector: true, modelAdded: true }),
+    ).toBe("write-external");
+    expect(
+      toolRiskClass({
+        toolName: "mcp__x__get_page",
+        viaConnector: true,
+        readOnly: true,
+        modelAdded: true,
+      }),
+    ).toBe("write-external");
+    // A server a person installed keeps the upstream rule.
+    expect(toolRiskClass({ toolName: "mcp__x__list_items", viaConnector: true })).toBe("read");
+  });
+
+  it("exempts conversation tools from gating entirely", () => {
+    for (const tool of ["ask_user", "end_call", "request_secret", "request_takeover"]) {
+      expect(isApprovalExempt(tool)).toBe(true);
+    }
+    for (const tool of ["read_file", "web_fetch", "shell", "destination.write"]) {
+      expect(isApprovalExempt(tool)).toBe(false);
     }
   });
 
@@ -193,13 +228,50 @@ describe("approvers", () => {
 
   it("checks a decider against the listed approvers and current membership", () => {
     const approvers = ["owner1", "requester"];
-    expect(approverStanding({ approvers, members, userId: "owner1" })).toBe("approver");
-    expect(approverStanding({ approvers, members, userId: "member" })).toBe("not_listed");
-    expect(approverStanding({ approvers, members: ["owner1"], userId: "requester" })).toBe("left");
+    const eligible = ["owner1", "requester", "member"];
+    const check = (userId: string, overrides: { members?: string[]; eligible?: string[] } = {}) =>
+      approverStanding({
+        approvers,
+        members: overrides.members ?? members,
+        eligible: overrides.eligible ?? eligible,
+        userId,
+      });
+    expect(check("owner1")).toBe("approver");
+    expect(check("member")).toBe("not_listed");
+    expect(check("requester", { members: ["owner1"] })).toBe("left");
+    // Still a member, but no longer on the bot's current approver list.
+    expect(check("requester", { eligible: ["owner1"] })).toBe("removed");
   });
 
-  it("drops approvers who left the space; none left means the request cannot be decided", () => {
+  it("counts only approvers who are still members and still on the current list", () => {
     expect(activeApprovers(["owner1", "requester"], ["requester"])).toEqual(["requester"]);
     expect(activeApprovers(["owner1"], ["member"])).toEqual([]);
+  });
+});
+
+describe("canonical arguments", () => {
+  it("renders every argument with keys sorted at every depth, like the call hash", () => {
+    const text = canonicalArgsText({ to: "a@example.test", body: { z: 1, a: [{ y: 2, b: 3 }] } });
+    expect(text).toBe(
+      [
+        "{",
+        '  "body": {',
+        '    "a": [',
+        "      {",
+        '        "b": 3,',
+        '        "y": 2',
+        "      }",
+        "    ],",
+        '    "z": 1',
+        "  },",
+        '  "to": "a@example.test"',
+        "}",
+      ].join("\n"),
+    );
+    expect(canonicalArgsText({ b: 1, a: 2 })).toBe(canonicalArgsText({ a: 2, b: 1 }));
+  });
+
+  it("labels a call with the first eight hex characters of its hash", () => {
+    expect(approvalHashLabel("0123456789abcdef".repeat(4))).toBe("01234567");
   });
 });

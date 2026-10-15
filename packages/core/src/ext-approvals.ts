@@ -15,8 +15,9 @@ export function isRiskClass(value: unknown): value is RiskClass {
 
 /**
  * Built-in tools by risk class. Read: no side effect. Internal: a side effect inside the
- * deployment (the bot's own computer, memory, files, schedule, bots and space). External:
- * the upstream consequential tools that act outside the deployment. Anything not listed,
+ * deployment (the bot's own computer, memory, files, schedule and space). External: the
+ * upstream consequential tools that act outside the deployment, and tools that make another
+ * actor act (another bot, a cloud agent, a tool server the model adds). Anything not listed,
  * built-in or connector, falls through to the default-deny rule in toolRiskClass.
  */
 export const EXPLICIT_RISK_CLASSES: Readonly<Record<RiskClass, readonly string[]>> = {
@@ -44,7 +45,6 @@ export const EXPLICIT_RISK_CLASSES: Readonly<Record<RiskClass, readonly string[]
     "web_search",
   ],
   "write-internal": [
-    "add_mcp_server",
     "archive_bot",
     "attach_file",
     "browser_act",
@@ -54,9 +54,7 @@ export const EXPLICIT_RISK_CLASSES: Readonly<Record<RiskClass, readonly string[]
     "delete_bot",
     "forget_memory",
     "forget_secret",
-    "handoff_to_bot",
     "launch_app",
-    "message_bot",
     "message_user",
     "open_path",
     "remember",
@@ -75,7 +73,6 @@ export const EXPLICIT_RISK_CLASSES: Readonly<Record<RiskClass, readonly string[]
     "skill_create",
     "skill_delete",
     "skill_update",
-    "spawn_bot",
     "ticket_comment",
     "ticket_create",
     "ticket_update",
@@ -83,13 +80,17 @@ export const EXPLICIT_RISK_CLASSES: Readonly<Record<RiskClass, readonly string[]
     "write_file",
   ],
   "write-external": [
+    "add_mcp_server",
     "cloud_agent_cancel",
     "cloud_agent_launch",
     "cloud_agent_reply",
     "connect_agent",
     "destination.write",
+    "handoff_to_bot",
     "message_agent",
+    "message_bot",
     "respond_agent_connection",
+    "spawn_bot",
   ],
 };
 
@@ -108,13 +109,56 @@ export function toolRiskClass(input: {
   toolName: string;
   viaConnector: boolean;
   readOnly?: boolean;
+  /** The tool comes from a tool server the model itself added: no name is trusted. */
+  modelAdded?: boolean;
 }): RiskClass {
   if (input.viaConnector) {
+    if (input.modelAdded) return "write-external";
     return connectorToolRequiresApproval(input.toolName, input.readOnly)
       ? "write-external"
       : "read";
   }
   return CLASS_OF_TOOL.get(input.toolName) ?? "write-external";
+}
+
+/**
+ * Conversation tools never wait on an approval: asking the person, ending a call, secure
+ * secret entry (its own card) and asking the person to take over the computer.
+ */
+const APPROVAL_EXEMPT_TOOLS = new Set([
+  "ask_user",
+  "end_call",
+  "request_secret",
+  "request_takeover",
+]);
+
+export function isApprovalExempt(toolName: string): boolean {
+  return APPROVAL_EXEMPT_TOOLS.has(toolName);
+}
+
+/**
+ * The arguments as approvers see them: every key, sorted at every depth (the order the
+ * call hash uses), two-space indented. Keys the model put last cannot hide at the end.
+ */
+export function canonicalArgsText(args: unknown): string {
+  return JSON.stringify(sortKeys(args), null, 2) ?? "null";
+}
+
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value as Record<string, unknown>)
+        .sort()
+        .map((key) => [key, sortKeys((value as Record<string, unknown>)[key])]),
+    );
+  }
+  return value;
+}
+
+/** The short form of a call hash shown on every card, so approvers can match them. */
+export function approvalHashLabel(callHash: string): string {
+  return callHash.slice(0, 8);
 }
 
 export const DEFAULT_GATED_CLASSES: readonly RiskClass[] = ["write-external"];
@@ -198,23 +242,31 @@ export function resolveApprovers(input: {
   return uniqueSorted(candidates.filter((id) => members.has(id)));
 }
 
-export type ApproverStanding = "approver" | "not_listed" | "left";
+export type ApproverStanding = "approver" | "not_listed" | "left" | "removed";
 
+/**
+ * May this user decide? Only someone on the request's approver list (fixed when it was
+ * made) who is still a member of the space and still eligible under the bot's current
+ * policy (`eligible`, from resolveApprovers now). Leaving and rejoining restores nothing the
+ * current policy does not grant.
+ */
 export function approverStanding(input: {
   approvers: readonly string[];
   members: readonly string[];
+  eligible: readonly string[];
   userId: string;
 }): ApproverStanding {
   if (!input.approvers.includes(input.userId)) return "not_listed";
-  return input.members.includes(input.userId) ? "approver" : "left";
+  if (!input.members.includes(input.userId)) return "left";
+  return input.eligible.includes(input.userId) ? "approver" : "removed";
 }
 
-/** Approvers still in the space; an empty result means nobody can decide any more. */
+/** The request's approvers who may still decide; empty means nobody can any more. */
 export function activeApprovers(
   approvers: readonly string[],
-  members: readonly string[],
+  eligible: readonly string[],
 ): string[] {
-  const current = new Set(members);
+  const current = new Set(eligible);
   return approvers.filter((id) => current.has(id));
 }
 

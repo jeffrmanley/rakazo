@@ -137,6 +137,19 @@ describe("hashAuditEvent", () => {
 });
 
 describe("redactAuditValue", () => {
+  it("keeps every string, item and key in full mode, still redacted", () => {
+    const long = "x".repeat(5_000);
+    const many = Array.from({ length: 150 }, (_, i) => i);
+    const out = redactAuditValue(
+      { long, many, api_key: "k-0123456789", note: "uses secret-value" },
+      { secrets: ["secret-value"], full: true },
+    ) as Record<string, unknown>;
+    expect(out.long).toBe(long);
+    expect(out.many).toEqual(many);
+    expect(out.api_key).toBe("[redacted]");
+    expect(out.note).not.toContain("secret-value");
+  });
+
   it("replaces values of secret-named keys and keeps the names", () => {
     expect(
       redactAuditValue({

@@ -183,25 +183,41 @@ export function redactAuditText(text: string, secrets: string[] = []): string {
 /**
  * Redact a structured value for the audit log: secret-named keys keep the name
  * and lose the value, strings are scrubbed and truncated, and depth and
- * breadth are bounded so one event cannot carry a file.
+ * breadth are bounded so one event cannot carry a file. `full` keeps every string,
+ * item and key (still scrubbed): what an approver sees of a call must not be cut.
  */
-export function redactAuditValue(value: unknown, options: { secrets?: string[] } = {}): unknown {
-  return sanitizeJsonValue(redactNode(value, options.secrets ?? [], 0));
+export function redactAuditValue(
+  value: unknown,
+  options: { secrets?: string[]; full?: boolean } = {},
+): unknown {
+  const limits = options.full ? FULL_LIMITS : AUDIT_LIMITS;
+  return sanitizeJsonValue(redactNode(value, options.secrets ?? [], 0, limits));
 }
 
-function redactNode(value: unknown, secrets: string[], depth: number): unknown {
+type Limits = { string: number; items: number; depth: number };
+const AUDIT_LIMITS: Limits = { string: MAX_STRING, items: MAX_ITEMS, depth: MAX_DEPTH };
+const FULL_LIMITS: Limits = {
+  string: Number.POSITIVE_INFINITY,
+  items: Number.POSITIVE_INFINITY,
+  depth: 256,
+};
+
+function redactNode(value: unknown, secrets: string[], depth: number, limits: Limits): unknown {
+  const cut = (text: string) => truncate(text, limits.string);
   if (value === null || value === undefined) return null;
-  if (typeof value === "string") return truncate(redactAuditText(value, secrets));
+  if (typeof value === "string") return cut(redactAuditText(value, secrets));
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value === "boolean") return value;
   if (typeof value === "bigint") return value.toString();
   if (typeof value === "function") return "[function]";
   if (typeof value === "symbol") return null;
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
-  if (depth >= MAX_DEPTH) return "[truncated]";
+  if (depth >= limits.depth) return "[truncated]";
   if (Array.isArray(value)) {
-    const items = value.slice(0, MAX_ITEMS).map((item) => redactNode(item, secrets, depth + 1));
-    if (value.length > MAX_ITEMS) items.push(`[+${value.length - MAX_ITEMS} more]`);
+    const items = value
+      .slice(0, limits.items)
+      .map((item) => redactNode(item, secrets, depth + 1, limits));
+    if (value.length > limits.items) items.push(`[+${value.length - limits.items} more]`);
     return items;
   }
   if (typeof value === "object") {
@@ -209,20 +225,20 @@ function redactNode(value: unknown, secrets: string[], depth: number): unknown {
     const entries = Object.entries(value as Record<string, unknown>).filter(
       ([, member]) => member !== undefined,
     );
-    for (const [key, member] of entries.slice(0, MAX_ITEMS)) {
-      out[truncate(key)] = SENSITIVE_KEY.test(key)
+    for (const [key, member] of entries.slice(0, limits.items)) {
+      out[cut(key)] = SENSITIVE_KEY.test(key)
         ? "[redacted]"
-        : redactNode(member, secrets, depth + 1);
+        : redactNode(member, secrets, depth + 1, limits);
     }
-    if (entries.length > MAX_ITEMS) out["…"] = `[+${entries.length - MAX_ITEMS} more]`;
+    if (entries.length > limits.items) out["…"] = `[+${entries.length - limits.items} more]`;
     return out;
   }
   return String(value);
 }
 
-function truncate(text: string): string {
-  if (text.length <= MAX_STRING) return text;
-  return `${text.slice(0, MAX_STRING)}…[+${text.length - MAX_STRING} chars]`;
+function truncate(text: string, max = MAX_STRING): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max)}…[+${text.length - max} chars]`;
 }
 
 /** A failed audit write. The message is safe to show; the cause is only logged. */
