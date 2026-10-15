@@ -309,6 +309,24 @@ describePostgres("ext approvals (PostgreSQL)", () => {
     await saveApprovalPolicyFor(owner, []);
   });
 
+  it("closes a request whose run already ended (a stop cancelled it)", async () => {
+    const call = await pendingCall(owner);
+    await prisma.run.update({ where: { id: call.run.id }, data: { status: "cancelled" } });
+    expect(await findApprovalsToClose(prisma, new Date())).toContainEqual({
+      id: call.approval.id,
+      reason: "run_ended",
+    });
+    const closed = await decideApproval(prisma, {
+      approvalId: call.approval.id,
+      decider: { type: "system" },
+      answer: "deny",
+      via: "system",
+      note: "The run ended before a decision",
+    });
+    expect(closed).toMatchObject({ status: "decided", outcome: "invalid", resumed: false });
+    expect(await state(call)).toMatchObject({ approval: "invalid", run: "cancelled" });
+  });
+
   it("does not approve a stopped bot's call", async () => {
     const call = await pendingCall(owner);
     installEmergencyStop({

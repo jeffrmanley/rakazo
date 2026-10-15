@@ -4,7 +4,7 @@
  * instead of probing them, and a deployment without them loads without failed
  * requests.
  */
-export type ExtModule = "emergencyStop" | "budgets";
+export type ExtModule = "emergencyStop" | "budgets" | "approvals";
 
 const MODULES_PATH = "/api/v1/ext/modules";
 

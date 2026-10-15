@@ -533,6 +533,10 @@ msgstr "Apparence"
 msgid "Approval boundaries"
 msgstr "Limites d'approbation"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Approvals"
+msgstr "Validations"
+
 #: src/pages/MessagingSettingsOverlay.tsx
 #: src/pages/shell/message-cards.tsx
 msgid "Approve"
@@ -541,6 +545,10 @@ msgstr "Approuver"
 #: src/pages/shell/message-cards.tsx
 msgid "Approve this server to let your agent use its tools."
 msgstr "Approuvez ce serveur pour permettre à votre agent d'utiliser ses outils."
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Approvers"
+msgstr "Validateurs"
 
 #: src/pages/BotContextMenu.tsx
 msgid "Archive"
@@ -1615,6 +1623,7 @@ msgstr "Impossible de révoquer la connexion"
 msgid "Could not run routine"
 msgstr "Impossible d'exécuter la routine"
 
+#: src/lib/approvals.ts
 #: src/lib/budgets.ts
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -2229,6 +2238,10 @@ msgstr "Exporter"
 msgid "Export this week's list from the CRM and drop it in the shared folder"
 msgstr "Exportez la liste de cette semaine depuis le CRM et déposez-la dans le dossier partagé"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "External actions"
+msgstr "Actions externes"
+
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/MessagingSettingsOverlay.tsx
 msgid "External conversation"
@@ -2531,6 +2544,10 @@ msgstr "Options d'intégration"
 #: src/pages/Shell.tsx
 msgid "Integrations"
 msgstr "Intégrations"
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Internal changes"
+msgstr "Modifications internes"
 
 #: src/pages/RoutineEditor.tsx
 #: src/pages/RoutineSchedule.tsx
@@ -3522,6 +3539,10 @@ msgstr "Réactions"
 msgid "Read replies aloud"
 msgstr "Lire les réponses à voix haute"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Reads"
+msgstr "Lectures"
+
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Reasoning effort"
@@ -4256,6 +4277,10 @@ msgstr "L’espace a changé. Rouvrez Modèles pour enregistrer sa liste de seco
 #: src/pages/shell/bot-panel.tsx
 msgid "Space default"
 msgstr "Défaut de l'espace"
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Space owners and the requester"
+msgstr "Propriétaires de l’espace et le demandeur"
 
 #: src/pages/shell/dialogs.tsx
 msgid "Spaces"

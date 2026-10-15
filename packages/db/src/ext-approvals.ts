@@ -319,15 +319,26 @@ export async function decideApproval(
   };
 }
 
+/** Run states after which nothing can resume on an approval. */
+const ENDED_RUN_STATUSES = ["completed", "failed", "cancelled"];
+
+export type CloseReason = "expired" | "no_approver" | "run_ended";
+
+export const CLOSE_NOTES: Record<Exclude<CloseReason, "expired">, string> = {
+  no_approver: "No approver is left in the space",
+  run_ended: "The run ended before a decision",
+};
+
 /**
- * Requests that must end without a person: past their deadline, or with every approver
- * gone from the space. Bounded per sweep; the next sweep takes the rest.
+ * Requests that must end without a person: past their deadline, with every approver gone
+ * from the space, or whose run already ended (cancelled by a stop, for example). Bounded
+ * per sweep; the next sweep takes the rest.
  */
 export async function findApprovalsToClose(
   prisma: PrismaClient,
   now: Date,
   limit = 100,
-): Promise<Array<{ id: string; reason: "expired" | "no_approver" }>> {
+): Promise<Array<{ id: string; reason: CloseReason }>> {
   const expired = await prisma.extApproval.findMany({
     where: { status: "pending", expiresAt: { lte: now } },
     select: { id: true },
@@ -336,23 +347,41 @@ export async function findApprovalsToClose(
   });
   const pending = await prisma.extApproval.findMany({
     where: { status: "pending", expiresAt: { gt: now } },
-    select: { id: true, spaceId: true, approverIds: true },
+    select: { id: true, spaceId: true, runId: true, approverIds: true },
     orderBy: { createdAt: "asc" },
-    take: limit,
+    take: limit * 5,
   });
+  const ended = new Set(
+    (
+      await prisma.run.findMany({
+        where: {
+          id: { in: pending.map((row) => row.runId) },
+          status: { in: ENDED_RUN_STATUSES },
+        },
+        select: { id: true },
+      })
+    ).map((run) => run.id),
+  );
   const membersBySpace = new Map<string, string[]>();
-  const orphaned: Array<{ id: string; reason: "no_approver" }> = [];
+  const closing: Array<{ id: string; reason: CloseReason }> = expired.map((row) => ({
+    id: row.id,
+    reason: "expired" as const,
+  }));
   for (const row of pending) {
+    if (ended.has(row.runId)) {
+      closing.push({ id: row.id, reason: "run_ended" });
+      continue;
+    }
     let members = membersBySpace.get(row.spaceId);
     if (!members) {
       members = await memberIds(prisma, row.spaceId);
       membersBySpace.set(row.spaceId, members);
     }
     if (activeApprovers(row.approverIds, members).length === 0) {
-      orphaned.push({ id: row.id, reason: "no_approver" });
+      closing.push({ id: row.id, reason: "no_approver" });
     }
   }
-  return [...expired.map((row) => ({ id: row.id, reason: "expired" as const })), ...orphaned];
+  return closing;
 }
 
 /**

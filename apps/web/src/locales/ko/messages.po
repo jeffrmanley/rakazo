@@ -533,6 +533,10 @@ msgstr "모양"
 msgid "Approval boundaries"
 msgstr "승인이 필요한 범위"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Approvals"
+msgstr "승인"
+
 #: src/pages/MessagingSettingsOverlay.tsx
 #: src/pages/shell/message-cards.tsx
 msgid "Approve"
@@ -541,6 +545,10 @@ msgstr "승인"
 #: src/pages/shell/message-cards.tsx
 msgid "Approve this server to let your agent use its tools."
 msgstr "이 서버를 승인하면 Bot이 제공되는 도구를 사용할 수 있습니다."
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Approvers"
+msgstr "승인자"
 
 #: src/pages/BotContextMenu.tsx
 msgid "Archive"
@@ -1615,6 +1623,7 @@ msgstr "연결을 해제하지 못했습니다."
 msgid "Could not run routine"
 msgstr "루틴을 실행할 수 없습니다"
 
+#: src/lib/approvals.ts
 #: src/lib/budgets.ts
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -2229,6 +2238,10 @@ msgstr "내보내기"
 msgid "Export this week's list from the CRM and drop it in the shared folder"
 msgstr "CRM에서 이번 주 목록을 내려받아 공유 폴더에 넣기"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "External actions"
+msgstr "외부 작업"
+
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/MessagingSettingsOverlay.tsx
 msgid "External conversation"
@@ -2531,6 +2544,10 @@ msgstr ""
 #: src/pages/Shell.tsx
 msgid "Integrations"
 msgstr "앱·도구 연동"
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Internal changes"
+msgstr "내부 변경"
 
 #: src/pages/RoutineEditor.tsx
 #: src/pages/RoutineSchedule.tsx
@@ -3522,6 +3539,10 @@ msgstr "반응"
 msgid "Read replies aloud"
 msgstr "답변을 자동으로 읽기"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Reads"
+msgstr "읽기"
+
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Reasoning effort"
@@ -4256,6 +4277,10 @@ msgstr "공간이 변경되었습니다. 백업 목록을 저장하려면 모델
 #: src/pages/shell/bot-panel.tsx
 msgid "Space default"
 msgstr "스페이스 기본값"
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Space owners and the requester"
+msgstr "스페이스 소유자와 요청자"
 
 #: src/pages/shell/dialogs.tsx
 msgid "Spaces"

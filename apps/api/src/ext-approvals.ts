@@ -14,6 +14,7 @@ import type {
 } from "@rakazo/db";
 import {
   AuditWriteError,
+  CLOSE_NOTES,
   decideApproval,
   findApprovalsToClose,
   getAuditWriter,
@@ -97,7 +98,7 @@ export function createApprovalService(deps: {
           answer: "deny",
           via: "system",
           now: at,
-          ...(item.reason === "no_approver" ? { note: "No approver is left in the space" } : {}),
+          ...(item.reason === "expired" ? {} : { note: CLOSE_NOTES[item.reason] }),
         });
         if (result.status === "decided") closed += 1;
       } catch (error) {

@@ -533,6 +533,10 @@ msgstr "Görünüm"
 msgid "Approval boundaries"
 msgstr "Onay sınırları"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Approvals"
+msgstr "Onaylar"
+
 #: src/pages/MessagingSettingsOverlay.tsx
 #: src/pages/shell/message-cards.tsx
 msgid "Approve"
@@ -541,6 +545,10 @@ msgstr "Onayla"
 #: src/pages/shell/message-cards.tsx
 msgid "Approve this server to let your agent use its tools."
 msgstr "Agent'ının bu sunucunun araçlarını kullanabilmesi için sunucuyu onayla."
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Approvers"
+msgstr "Onaylayanlar"
 
 #: src/pages/BotContextMenu.tsx
 msgid "Archive"
@@ -1615,6 +1623,7 @@ msgstr "Bağlantı iptal edilemedi"
 msgid "Could not run routine"
 msgstr ""
 
+#: src/lib/approvals.ts
 #: src/lib/budgets.ts
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -2229,6 +2238,10 @@ msgstr "Dışa aktar"
 msgid "Export this week's list from the CRM and drop it in the shared folder"
 msgstr "Bu haftanın listesini CRM'den dışa aktar ve ortak klasöre bırak"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "External actions"
+msgstr "Harici işlemler"
+
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/MessagingSettingsOverlay.tsx
 msgid "External conversation"
@@ -2531,6 +2544,10 @@ msgstr ""
 #: src/pages/Shell.tsx
 msgid "Integrations"
 msgstr "Entegrasyonlar"
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Internal changes"
+msgstr "Dahili değişiklikler"
 
 #: src/pages/RoutineEditor.tsx
 #: src/pages/RoutineSchedule.tsx
@@ -3522,6 +3539,10 @@ msgstr "Tepkiler"
 msgid "Read replies aloud"
 msgstr "Yanıtları sesli oku"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Reads"
+msgstr "Okumalar"
+
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Reasoning effort"
@@ -4256,6 +4277,10 @@ msgstr "Alan değişti. Yedek listesini kaydetmek için Modelleri yeniden açın
 #: src/pages/shell/bot-panel.tsx
 msgid "Space default"
 msgstr "Alan varsayılanı"
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Space owners and the requester"
+msgstr "Alan sahipleri ve isteği yapan kişi"
 
 #: src/pages/shell/dialogs.tsx
 msgid "Spaces"

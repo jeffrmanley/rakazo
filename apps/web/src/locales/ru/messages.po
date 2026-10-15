@@ -533,6 +533,10 @@ msgstr "Внешний вид"
 msgid "Approval boundaries"
 msgstr "Границы одобрения"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Approvals"
+msgstr "Одобрения"
+
 #: src/pages/MessagingSettingsOverlay.tsx
 #: src/pages/shell/message-cards.tsx
 msgid "Approve"
@@ -541,6 +545,10 @@ msgstr "Утвердить"
 #: src/pages/shell/message-cards.tsx
 msgid "Approve this server to let your agent use its tools."
 msgstr "Одобрите этот сервер, чтобы ваш агент мог использовать его инструменты."
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Approvers"
+msgstr "Одобряющие"
 
 #: src/pages/BotContextMenu.tsx
 msgid "Archive"
@@ -1615,6 +1623,7 @@ msgstr "Не удалось отменить соединение"
 msgid "Could not run routine"
 msgstr "Не удалось запустить задачу"
 
+#: src/lib/approvals.ts
 #: src/lib/budgets.ts
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -2229,6 +2238,10 @@ msgstr "Экспорт"
 msgid "Export this week's list from the CRM and drop it in the shared folder"
 msgstr "Экспортируйте список этой недели из CRM и поместите его в общую папку."
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "External actions"
+msgstr "Внешние действия"
+
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/MessagingSettingsOverlay.tsx
 msgid "External conversation"
@@ -2531,6 +2544,10 @@ msgstr "Параметры интеграции"
 #: src/pages/Shell.tsx
 msgid "Integrations"
 msgstr "Интеграции"
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Internal changes"
+msgstr "Внутренние изменения"
 
 #: src/pages/RoutineEditor.tsx
 #: src/pages/RoutineSchedule.tsx
@@ -3522,6 +3539,10 @@ msgstr ""
 msgid "Read replies aloud"
 msgstr "Читать ответы вслух"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Reads"
+msgstr "Чтение"
+
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Reasoning effort"
@@ -4256,6 +4277,10 @@ msgstr "Пространство изменилось. Откройте разд
 #: src/pages/shell/bot-panel.tsx
 msgid "Space default"
 msgstr "Пространство по умолчанию"
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Space owners and the requester"
+msgstr "Владельцы пространства и автор запроса"
 
 #: src/pages/shell/dialogs.tsx
 msgid "Spaces"

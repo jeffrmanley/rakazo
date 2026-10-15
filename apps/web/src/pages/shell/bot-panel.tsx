@@ -38,6 +38,7 @@ import { thinkingLevelLabel } from "../../lib/model-catalog";
 import { rpc } from "../../lib/rpc";
 import { errorText } from "../../lib/user-error";
 import { AvatarStudioPopover } from "./avatar-studio-popover";
+import { BotApprovalsSection } from "./bot-approvals";
 import { BotBudgetSection } from "./bot-budget";
 import { BotCredentialsSection } from "./bot-credentials";
 
@@ -541,6 +542,7 @@ export function BotSettings({
         />
       </div>
       <BotBudgetSection botId={bot.id} />
+      <BotApprovalsSection botId={bot.id} />
       <details
         data-testid="bot-settings-advanced"
         className="group mt-5"

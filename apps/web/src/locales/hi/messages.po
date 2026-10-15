@@ -533,6 +533,10 @@ msgstr "रूप"
 msgid "Approval boundaries"
 msgstr "अनुमोदन सीमाएं"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Approvals"
+msgstr "मंज़ूरियाँ"
+
 #: src/pages/MessagingSettingsOverlay.tsx
 #: src/pages/shell/message-cards.tsx
 msgid "Approve"
@@ -541,6 +545,10 @@ msgstr "अनुमोदित करें"
 #: src/pages/shell/message-cards.tsx
 msgid "Approve this server to let your agent use its tools."
 msgstr "अपने एजेंट को इसके टूल उपयोग करने देने के लिए इस सर्वर को अनुमोदित करें।"
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Approvers"
+msgstr "मंज़ूरी देने वाले"
 
 #: src/pages/BotContextMenu.tsx
 msgid "Archive"
@@ -1615,6 +1623,7 @@ msgstr "कनेक्शन रद्द नहीं किया जा स�
 msgid "Could not run routine"
 msgstr ""
 
+#: src/lib/approvals.ts
 #: src/lib/budgets.ts
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -2229,6 +2238,10 @@ msgstr "एक्सपोर्ट करें"
 msgid "Export this week's list from the CRM and drop it in the shared folder"
 msgstr "CRM से इस सप्ताह की सूची एक्सपोर्ट करें और उसे साझा फ़ोल्डर में डालें"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "External actions"
+msgstr "बाहरी कार्रवाइयाँ"
+
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/MessagingSettingsOverlay.tsx
 msgid "External conversation"
@@ -2531,6 +2544,10 @@ msgstr ""
 #: src/pages/Shell.tsx
 msgid "Integrations"
 msgstr "इंटीग्रेशन"
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Internal changes"
+msgstr "आंतरिक बदलाव"
 
 #: src/pages/RoutineEditor.tsx
 #: src/pages/RoutineSchedule.tsx
@@ -3522,6 +3539,10 @@ msgstr "प्रतिक्रियाएँ"
 msgid "Read replies aloud"
 msgstr "उत्तर पढ़कर सुनाएं"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Reads"
+msgstr "पढ़ना"
+
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Reasoning effort"
@@ -4256,6 +4277,10 @@ msgstr "स्पेस बदल गया। बैकअप सूची स�
 #: src/pages/shell/bot-panel.tsx
 msgid "Space default"
 msgstr "स्पेस डिफ़ॉल्ट"
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Space owners and the requester"
+msgstr "स्पेस के मालिक और अनुरोध करने वाला"
 
 #: src/pages/shell/dialogs.tsx
 msgid "Spaces"

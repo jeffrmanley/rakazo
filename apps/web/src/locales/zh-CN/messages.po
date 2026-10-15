@@ -533,6 +533,10 @@ msgstr "外观"
 msgid "Approval boundaries"
 msgstr "审批边界"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Approvals"
+msgstr "审批"
+
 #: src/pages/MessagingSettingsOverlay.tsx
 #: src/pages/shell/message-cards.tsx
 msgid "Approve"
@@ -541,6 +545,10 @@ msgstr "批准"
 #: src/pages/shell/message-cards.tsx
 msgid "Approve this server to let your agent use its tools."
 msgstr "批准此服务器后，Agent 才能使用它的工具。"
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Approvers"
+msgstr "审批人"
 
 #: src/pages/BotContextMenu.tsx
 msgid "Archive"
@@ -1615,6 +1623,7 @@ msgstr "无法撤销连接"
 msgid "Could not run routine"
 msgstr "无法运行例行任务"
 
+#: src/lib/approvals.ts
 #: src/lib/budgets.ts
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -2229,6 +2238,10 @@ msgstr "导出"
 msgid "Export this week's list from the CRM and drop it in the shared folder"
 msgstr "从 CRM 导出本周名单并放到共享文件夹"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "External actions"
+msgstr "外部操作"
+
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/MessagingSettingsOverlay.tsx
 msgid "External conversation"
@@ -2531,6 +2544,10 @@ msgstr ""
 #: src/pages/Shell.tsx
 msgid "Integrations"
 msgstr "集成"
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Internal changes"
+msgstr "内部更改"
 
 #: src/pages/RoutineEditor.tsx
 #: src/pages/RoutineSchedule.tsx
@@ -3522,6 +3539,10 @@ msgstr "表情回应"
 msgid "Read replies aloud"
 msgstr "朗读回复"
 
+#: src/pages/shell/bot-approvals.tsx
+msgid "Reads"
+msgstr "读取"
+
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Reasoning effort"
@@ -4256,6 +4277,10 @@ msgstr "空间已更改。重新打开“模型”以保存备用列表。"
 #: src/pages/shell/bot-panel.tsx
 msgid "Space default"
 msgstr "工作区默认"
+
+#: src/pages/shell/bot-approvals.tsx
+msgid "Space owners and the requester"
+msgstr "空间所有者和发起人"
 
 #: src/pages/shell/dialogs.tsx
 msgid "Spaces"
