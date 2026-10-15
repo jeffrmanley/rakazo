@@ -84,7 +84,7 @@ the card or the button counts as an identity.
 | A second click, a retry or a click elsewhere after the decision | `This approval was already decided.`; nothing runs again. |
 | 30 minutes pass | `expired`, counted as a deny. |
 | An approver leaves the space | They can no longer decide. If nobody on the list is left, the request becomes `invalid` (a deny). |
-| The bot is stopped (emergency stop) | Not approved: a decision after the stop resolves `invalid`, and the run's own stop guard halts a call approved just before the stop. |
+| The bot is stopped (emergency stop) | Not approved: a decision after the stop resolves `invalid`, and a call approved just before the stop is halted before its side effect. Both checks read the stop state from the database, not the one second stop cache, so a stop made in another process counts at once. |
 | The run ended before a decision (a stop cancels waiting runs) | `invalid`. |
 
 Expiry, lost approvers and ended runs are closed by a sweep in the API process every 15

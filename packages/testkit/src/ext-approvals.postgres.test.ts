@@ -10,7 +10,7 @@ import {
 } from "@rakazo/adapters";
 import { loadExtEnv } from "@rakazo/core";
 import type { PrismaClient } from "@rakazo/db";
-import { decideApproval, recordStop, saveApprovalPolicy } from "@rakazo/db";
+import { decideApproval, getEmergencyStop, recordStop, saveApprovalPolicy } from "@rakazo/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { createApp } from "../../../apps/api/src/app.ts";
 import { discardBotIntroRun } from "./discard-bot-intro.js";
@@ -551,45 +551,81 @@ describeApprovals("fork extension: approvals from Slack, Teams and the web", () 
         botId,
         reason: "test",
       });
-      expect(stop.status).toBe(200);
-      await click(ownerSlack, first, "allow");
-      expect(await statusOf(first)).toBe("invalid");
-      expect(records()).toBe(before);
-      await post(app, people.owner.cookie, "/api/v1/control/resume", {
-        scope: "bot",
-        botId,
-        reason: "test",
-      });
+      try {
+        expect(stop.status).toBe(200);
+        await click(ownerSlack, first, "allow");
+        expect(await statusOf(first)).toBe("invalid");
+        expect(records()).toBe(before);
+      } finally {
+        await post(app, people.owner.cookie, "/api/v1/control/resume", {
+          scope: "bot",
+          botId,
+          reason: "test",
+        });
+      }
 
-      // Approved, then a stop lands before the run resumes: the execution guard halts it.
+      const reader = getEmergencyStop()!;
+      const lateStop = () =>
+        // Written straight to the table, as another API process would: this process's one
+        // second stop cache still says "running" (primed just before).
+        recordStop(prisma, {
+          scope: "bot",
+          spaceId: people.owner.spaceId,
+          botId,
+          reason: "late stop",
+          userId: people.owner.userId,
+        });
+      const resume = () =>
+        post(app, people.owner.cookie, "/api/v1/control/resume", {
+          scope: "bot",
+          botId,
+          reason: "test",
+        });
+      const cancelLeftover = (runId: string) =>
+        prisma.run.updateMany({
+          where: { id: runId, status: { in: ["queued", "waiting_input"] } },
+          data: { status: "cancelled" },
+        });
+
+      // Stopped elsewhere a moment ago: the decision reads the stop state fresh and refuses.
       const second = await gatedCallFromSlack();
-      const decided = await decideApproval(prisma, {
-        approvalId: second.id,
-        decider: { type: "human", userId: people.owner.userId },
-        answer: "allow",
-        via: "web",
-      });
-      expect(decided).toMatchObject({ status: "decided", outcome: "allow" });
-      // Recorded straight in the table, as another process would before its cancel pass.
-      await recordStop(prisma, {
-        scope: "bot",
-        spaceId: people.owner.spaceId,
-        botId,
-        reason: "late stop",
-        userId: people.owner.userId,
-      });
-      await handles.executor.continueRun(second.runId, "approvals-test-worker");
-      expect(records()).toBe(before);
-      expect((await effectOf(second)).status).not.toBe("completed");
-      await post(app, people.owner.cookie, "/api/v1/control/resume", {
-        scope: "bot",
-        botId,
-        reason: "test",
-      });
-      await prisma.run.updateMany({
-        where: { id: second.runId, status: { in: ["queued", "waiting_input"] } },
-        data: { status: "cancelled" },
-      });
+      try {
+        expect(await reader.check({ spaceId: people.owner.spaceId, botId })).toBeNull();
+        await lateStop();
+        const refused = await decideApproval(prisma, {
+          approvalId: second.id,
+          decider: { type: "human", userId: people.owner.userId },
+          answer: "allow",
+          via: "web",
+        });
+        expect(refused).toMatchObject({ status: "decided", outcome: "invalid" });
+        expect((await effectOf(second)).status).toBe("denied");
+      } finally {
+        await resume();
+        await cancelLeftover(second.runId);
+      }
+
+      // Approved, then the stop lands before the run resumes: the run's cached guard lets it
+      // start, and the execution-time check (a fresh read) keeps the side effect from running.
+      const third = await gatedCallFromSlack();
+      try {
+        const approved = await decideApproval(prisma, {
+          approvalId: third.id,
+          decider: { type: "human", userId: people.owner.userId },
+          answer: "allow",
+          via: "web",
+        });
+        expect(approved).toMatchObject({ status: "decided", outcome: "allow" });
+        expect(await reader.check({ spaceId: people.owner.spaceId, botId })).toBeNull();
+        await lateStop();
+        await handles.executor.continueRun(third.runId, "approvals-test-worker");
+        await settled(third.runId);
+        expect(records()).toBe(before);
+        expect((await effectOf(third)).status).toBe("approved");
+      } finally {
+        await resume();
+        await cancelLeftover(third.runId);
+      }
     },
     TIMEOUT,
   );

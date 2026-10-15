@@ -331,6 +331,7 @@ describePostgres("ext approvals (PostgreSQL)", () => {
     const call = await pendingCall(owner);
     installEmergencyStop({
       check: async () => ({ id: "stop-1" }),
+      invalidate: () => undefined,
     } as unknown as EmergencyStopReader);
     const result = await decideApproval(prisma, {
       approvalId: call.approval.id,

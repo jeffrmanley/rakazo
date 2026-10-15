@@ -4754,7 +4754,12 @@ export function createRunExecutor(deps: ExecutorDeps) {
               return settleUncertainEffect(deps.prisma, applied.effect.id, gate.toolName);
             } else if (gate.action === "execute") {
               // Fork extension (EXT_APPROVALS): a gated call runs only under an approved request
-              // for this exact call (tool name and canonical arguments).
+              // for this exact call (tool name and canonical arguments), and never once its bot
+              // is stopped: the stop state is read fresh here, not from the one second cache.
+              if (approvals) {
+                getEmergencyStop()?.invalidate(run.spaceId);
+                await haltIfStopped();
+              }
               const refusal = await approvals?.checkExecution({
                 effectId: applied.effect.id,
                 callHash: approvalCallHash(replayEffectToolName, args),

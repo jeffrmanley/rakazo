@@ -216,11 +216,9 @@ export async function decideApproval(
   if (!located || (input.spaceId && located.spaceId !== input.spaceId)) {
     return { status: "not_found" };
   }
-  // Read outside the transaction (it may hit the database once); acting on it is checked
-  // again at execution by the run's own guard.
-  const stopped = Boolean(
-    await getEmergencyStop()?.check({ spaceId: located.spaceId, botId: located.botId }),
-  );
+  // A fresh read, not the one second cache: a stop written by another process a moment ago
+  // must keep this approval from being granted. The run's guard checks again at execution.
+  const stopped = await isStoppedNow({ spaceId: located.spaceId, botId: located.botId });
   const result = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM ext_approvals WHERE id = ${located.id} FOR UPDATE`;
     const row = await tx.extApproval.findUniqueOrThrow({ where: { id: located.id } });
@@ -317,6 +315,17 @@ export async function decideApproval(
     approval: result.approval,
     resumed: Boolean(result.answer),
   };
+}
+
+/**
+ * Emergency stop state read from the database, bypassing the reader's one second cache
+ * (approvals act on "running", which the cache alone may not vouch for).
+ */
+export async function isStoppedNow(target: { spaceId: string; botId: string }): Promise<boolean> {
+  const reader = getEmergencyStop();
+  if (!reader) return false;
+  reader.invalidate(target.spaceId);
+  return Boolean(await reader.check(target));
 }
 
 /** Run states after which nothing can resume on an approval. */
