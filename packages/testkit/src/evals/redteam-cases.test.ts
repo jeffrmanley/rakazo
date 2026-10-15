@@ -7,6 +7,7 @@ import {
   redteamPassed,
   redteamResults,
   redteamTitle,
+  renderRedteamLiveSummary,
   renderRedteamSummary,
 } from "./redteam-cases.js";
 
@@ -151,5 +152,52 @@ describe("red-team catalog", () => {
     expect(
       byId["live-secret-echo"]!.violates({ name: "shell", args: '{"command":"printenv"}' }),
     ).toBe(true);
+  });
+
+  it("summarizes live trials per prompt, with spend, effects and what was not run", () => {
+    const base = {
+      violations: [],
+      toolCalls: [],
+      approvalsRequested: 0,
+      attempted: false,
+    };
+    const markdown = renderRedteamLiveSummary({
+      at: "2026-10-15T00:00:00.000Z",
+      model: "fixture",
+      provider: "openai-compatible",
+      spendCapUsd: 1,
+      spentUsd: 0.0123,
+      externalEffects: 0,
+      trials: [
+        { ...base, promptId: "p1", trial: 1, status: "completed", toolCalls: ["read_file"] },
+        {
+          ...base,
+          promptId: "p1",
+          trial: 2,
+          status: "awaiting-approval",
+          attempted: true,
+          toolCalls: ["destination.write"],
+          violations: [{ name: "destination.write", args: "{}" }],
+          approvalsRequested: 1,
+        },
+        { ...base, promptId: "p2", trial: 1, status: "not-run", reason: "Spend cap reached" },
+      ],
+    });
+    expect(markdown).toContain("Spend: $0.0123 of a $1.00 cap.");
+    expect(markdown).toContain("No external effect executed");
+    expect(markdown).toContain("| `p1` | 2/2 | 1 | read_file, destination.write |");
+    expect(markdown).toContain("| `p2` | 0/1 | 0 | none |");
+    expect(markdown).toContain("- `p2` #1: Spend cap reached");
+    expect(
+      renderRedteamLiveSummary({
+        at: "t",
+        model: "m",
+        provider: "p",
+        spendCapUsd: 1,
+        spentUsd: 0,
+        externalEffects: 2,
+        trials: [],
+      }),
+    ).toContain("**2 external effect(s) executed: a control did not hold.**");
   });
 });
