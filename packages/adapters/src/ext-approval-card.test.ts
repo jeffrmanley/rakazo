@@ -9,7 +9,7 @@ import {
 } from "./ext-approval-card.js";
 import { escapeSlackMrkdwn, escapeTeamsMarkdown, toChatCard } from "./messaging-card.js";
 
-const SECRET = "sk-live-0123456789abcdef0123456789abcdef";
+const SECRET = "fake-run-secret-value-for-redaction-test";
 
 const request = {
   approvalId: "appr_1",
