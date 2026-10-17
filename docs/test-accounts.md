@@ -55,7 +55,9 @@ pnpm --silent --filter @rakazo/api test-account delete --all
   The app also refuses the `live-test.invalid` domain at sign-up, OIDC sign-in and email change, so
   no person can hold such an account. Restricting `delete` to that pattern means the command
   cannot remove a real account, and `create` never reuses an existing address.
-- The live checks turn Playwright traces and videos off, since they would record the password.
+- The live checks turn Playwright traces and videos off, since they would record the password,
+  and empty the password field before a failed sign-in is reported (the failure snapshot records
+  field values).
 - Access to the command is access to the api container, which already holds the database
   credentials. It adds no HTTP route.
 - A test account gets a member's rights in its own space only. Every owner-only check still

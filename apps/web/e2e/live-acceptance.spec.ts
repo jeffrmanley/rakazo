@@ -15,6 +15,14 @@ import { completeOnboarding, rpc, signup } from "./helpers";
  * Sign-ups are allowlist-only on a real deployment, so pass an account made with
  * `test-account create` (docs/test-accounts.md) as LIVE_TEST_EMAIL and LIVE_TEST_PASSWORD.
  * Without them the test signs up a new address, which only works where sign-ups are open.
+ *
+ * The auth routes (sign-in, delete-user) accept only the deployment's own web origin. When the
+ * checks reach it on a loopback port, set LIVE_WEB_ORIGIN to that origin (WEB_ORIGIN on the
+ * server): page.request then sends it, and the test signs in through page.request, which shares
+ * the browser's cookies, because the browser always sends its own Origin. An https deployment
+ * sets Secure cookies, which page.request sends over plain http only to `localhost`, so use
+ * PLAYWRIGHT_BASE_URL=http://localhost:5173 there. LIVE_OTHER_SPACE_ID (optional) names a real
+ * space the user does not belong to, for the space-spoofing check.
  */
 const enabled = process.env.LIVE_E2E === "1";
 const BRAND = process.env.LIVE_BRAND_NAME ?? "withJZ Crew";
@@ -32,8 +40,14 @@ async function send(page: Page, text: string) {
   await page.keyboard.press("Enter");
 }
 
+const webOrigin = process.env.LIVE_WEB_ORIGIN;
+
 // Traces and videos would record the test account's password.
-test.use({ trace: "off", video: "off" });
+test.use({
+  trace: "off",
+  video: "off",
+  ...(webOrigin ? { extraHTTPHeaders: { origin: webOrigin } } : {}),
+});
 
 test.describe("live deployment", () => {
   test.skip(!enabled, "set LIVE_E2E=1 and PLAYWRIGHT_BASE_URL to a running deployment");
@@ -94,23 +108,40 @@ test.describe("live deployment", () => {
       await test.step(
         provided ? "sign in as the test account" : "sign up a throwaway user",
         async () => {
-          if (provided) {
-            await page.goto("/sign-in");
-            await page.getByPlaceholder("Your email address").fill(email);
-            await page.getByPlaceholder("Password").fill(password);
-            await page.getByRole("button", { name: "Continue with email" }).click();
-          } else {
-            await signup(page, email, password, `Live check ${stamp}`);
+          try {
+            if (provided && webOrigin) {
+              const response = await page.request.post("/api/auth/sign-in/email", {
+                data: { email, password },
+              });
+              expect(response.status(), "sign-in").toBe(200);
+              await page.goto("/app");
+            } else if (provided) {
+              await page.goto("/sign-in");
+              await page.getByPlaceholder("Your email address").fill(email);
+              await page.getByPlaceholder("Password").fill(password);
+              await page.getByRole("button", { name: "Continue with email" }).click();
+            } else {
+              await signup(page, email, password, `Live check ${stamp}`);
+            }
+            const refused = page.getByText("Email is not allowed to register");
+            await page
+              .waitForURL(/\/(onboarding|app)/, { timeout: 30_000 })
+              .catch(async (error: unknown) => {
+                if (!provided && (await refused.isVisible())) {
+                  test.skip(
+                    true,
+                    "sign-ups are closed; pass a test account (docs/test-accounts.md)",
+                  );
+                }
+                throw error;
+              });
+          } catch (error) {
+            // The failure report snapshots the page, field values included: empty the password.
+            for (const field of await page.getByPlaceholder(/Password/).all()) {
+              await field.fill("").catch(() => {});
+            }
+            throw error;
           }
-          const refused = page.getByText("Email is not allowed to register");
-          await page
-            .waitForURL(/\/(onboarding|app)/, { timeout: 30_000 })
-            .catch(async (error: unknown) => {
-              if (!provided && (await refused.isVisible())) {
-                test.skip(true, "sign-ups are closed; pass a test account (docs/test-accounts.md)");
-              }
-              throw error;
-            });
           signedIn = true;
         },
       );
@@ -171,10 +202,13 @@ test.describe("live deployment", () => {
         const events = await auditEvents(page);
         const own = JSON.stringify(events);
         // Nothing from any other space leaks into this user's view; a spoofed space is ignored.
-        const spoofed = await page.request.get("/api/v1/audit?spaceId=other&limit=100", {
-          headers: { "x-rakazo-space-id": "other" },
+        // LIVE_OTHER_SPACE_ID: a real space this user is not a member of (another test account's).
+        const other = process.env.LIVE_OTHER_SPACE_ID ?? "other";
+        const spoofed = await page.request.get(`/api/v1/audit?spaceId=${other}&limit=100`, {
+          headers: { "x-rakazo-space-id": other },
         });
-        expect([200, 400, 403, 404]).toContain(spoofed.status());
+        // A space the user is not a member of resolves to no actor (401), like every route.
+        expect([200, 400, 401, 403, 404]).toContain(spoofed.status());
         if (spoofed.ok()) {
           const body = (await spoofed.json()) as { events: unknown[] };
           expect(JSON.stringify(body.events)).toBe(own);
