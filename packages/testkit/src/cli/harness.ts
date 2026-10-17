@@ -123,6 +123,7 @@ async function main() {
         "packages/db/src/ext-approvals.postgres.test.ts",
         "packages/testkit/src/ext-approvals.postgres.test.ts",
         "packages/testkit/src/ext-redteam.postgres.test.ts",
+        "packages/testkit/src/test-accounts.postgres.test.ts",
         "apps/api/src/billing.postgres.test.ts",
         "packages/memory/src/commit.postgres.test.ts",
         "packages/adapters/src/wakeup.postgres.test.ts",

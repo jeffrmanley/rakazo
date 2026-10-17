@@ -10,7 +10,7 @@ export function loadRootEnv(options: { allowInTests?: boolean } = {}) {
   for (let i = 0; i < 8; i += 1) {
     const candidate = path.join(dir, ".env");
     if (existsSync(candidate)) {
-      config({ path: candidate, override: false });
+      config({ path: candidate, override: false, quiet: true });
       if (process.env.DATA_DIR && !path.isAbsolute(process.env.DATA_DIR)) {
         process.env.DATA_DIR = path.resolve(dir, process.env.DATA_DIR);
       }
@@ -20,5 +20,5 @@ export function loadRootEnv(options: { allowInTests?: boolean } = {}) {
     if (parent === dir) break;
     dir = parent;
   }
-  config();
+  config({ quiet: true });
 }

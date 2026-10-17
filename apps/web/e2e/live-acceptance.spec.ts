@@ -7,10 +7,14 @@ import { completeOnboarding, rpc, signup } from "./helpers";
  *   LIVE_E2E=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:5173 pnpm --filter @rakazo/web exec \
  *     playwright test e2e/live-acceptance.spec.ts
  *
- * Signs up a throwaway user, who gets a space of their own, exercises the governance modules
- * on that space only, and deletes the account at the end. It never signs in as the owner and
- * never changes deployment-wide settings: every owner-only call it makes must be refused.
- * Chat runs only when the deployment provides a model to new users (a few short messages).
+ * Uses a throwaway user with a space of their own, exercises the governance modules on that
+ * space only, and deletes the account at the end. It never signs in as the owner and never
+ * changes deployment-wide settings: every owner-only call it makes must be refused. Chat runs
+ * only when the deployment provides a model to new users (a few short messages).
+ *
+ * Sign-ups are allowlist-only on a real deployment, so pass an account made with
+ * `test-account create` (docs/test-accounts.md) as LIVE_TEST_EMAIL and LIVE_TEST_PASSWORD.
+ * Without them the test signs up a new address, which only works where sign-ups are open.
  */
 const enabled = process.env.LIVE_E2E === "1";
 const BRAND = process.env.LIVE_BRAND_NAME ?? "withJZ Crew";
@@ -78,26 +82,35 @@ test.describe("live deployment", () => {
     page,
   }, testInfo) => {
     const stamp = Date.now();
-    // Sign-ups are allowlist-only on a real deployment: LIVE_TEST_EMAIL must be an allowlisted
-    // address (a plus-address of an allowlisted domain works) that has no account yet.
+    const provided = process.env.LIVE_TEST_EMAIL && process.env.LIVE_TEST_PASSWORD;
     const email = process.env.LIVE_TEST_EMAIL ?? `live-check-${stamp}@example.test`;
-    const password = randomBytes(18).toString("base64url");
-    let signedUp = false;
+    const password = process.env.LIVE_TEST_PASSWORD ?? randomBytes(18).toString("base64url");
+    let signedIn = false;
 
     try {
-      await test.step("sign up a throwaway user", async () => {
-        await signup(page, email, password, `Live check ${stamp}`);
-        const refused = page.getByText("Email is not allowed to register");
-        await page
-          .waitForURL(/\/(onboarding|app)/, { timeout: 30_000 })
-          .catch(async (error: unknown) => {
-            if (await refused.isVisible()) {
-              test.skip(true, `sign-ups are closed to ${email}; set LIVE_TEST_EMAIL`);
-            }
-            throw error;
-          });
-        signedUp = true;
-      });
+      await test.step(
+        provided ? "sign in as the test account" : "sign up a throwaway user",
+        async () => {
+          if (provided) {
+            await page.goto("/sign-in");
+            await page.getByPlaceholder("Your email address").fill(email);
+            await page.getByPlaceholder("Password").fill(password);
+            await page.getByRole("button", { name: "Continue with email" }).click();
+          } else {
+            await signup(page, email, password, `Live check ${stamp}`);
+          }
+          const refused = page.getByText("Email is not allowed to register");
+          await page
+            .waitForURL(/\/(onboarding|app)/, { timeout: 30_000 })
+            .catch(async (error: unknown) => {
+              if (!provided && (await refused.isVisible())) {
+                test.skip(true, "sign-ups are closed; pass a test account (docs/test-accounts.md)");
+              }
+              throw error;
+            });
+          signedIn = true;
+        },
+      );
 
       const needsModel = await page
         .getByRole("heading", { name: "Connect a model" })
@@ -184,7 +197,7 @@ test.describe("live deployment", () => {
         expect(kinds.has("message.in")).toBe(true);
       });
     } finally {
-      if (signedUp) {
+      if (signedIn) {
         // Delete the throwaway account; the append-only audit trail keeps its events.
         const deleted = await page.request.post("/api/auth/delete-user", { data: { password } });
         testInfo.annotations.push({

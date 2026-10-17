@@ -9,7 +9,8 @@
     "check": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --root ../.. apps/api/src",
     "secrets:infisical": "tsx src/cli/secrets-infisical.ts",
-    "audit:verify": "tsx src/cli/audit-verify.ts"
+    "audit:verify": "tsx src/cli/audit-verify.ts",
+    "test-account": "tsx src/cli/test-account.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.1",
