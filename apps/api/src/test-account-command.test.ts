@@ -15,6 +15,7 @@ function deps(overrides: Partial<TestAccountCommandDeps> = {}) {
     })),
     list: vi.fn(async () => [{ email: EMAIL, createdAt: new Date("2026-10-17T00:00:00Z") }]),
     remove: vi.fn(async () => ({ ok: true as const, value: "deleted" as const })),
+    now: () => new Date("2026-10-17T12:00:00Z"),
     stdout: (line) => out.push(line),
     stderr: (line) => err.push(line),
   };
@@ -37,6 +38,38 @@ describe("test-account command", () => {
     expect(d.create).toHaveBeenCalledWith(PASSWORD);
     expect(out).toEqual([JSON.stringify({ email: EMAIL, spaceId: "space-1" })]);
     expect([...out, ...err].join("\n")).not.toContain(PASSWORD);
+  });
+
+  it("create first deletes test accounts older than a day, noting them on stderr only", async () => {
+    const old = "live-test-0000000000aa@live-test.invalid";
+    const remove = vi.fn(async () => ({ ok: true as const, value: "deleted" as const }));
+    const {
+      deps: d,
+      out,
+      err,
+    } = deps({
+      list: vi.fn(async () => [
+        { email: EMAIL, createdAt: new Date("2026-10-17T11:00:00Z") },
+        { email: old, createdAt: new Date("2026-10-16T11:59:00Z") },
+      ]),
+      remove,
+    });
+    expect(await runTestAccountCommand(["create"], d)).toBe(0);
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(remove).toHaveBeenCalledWith(old);
+    expect(err).toEqual([`expired: ${old}`]);
+    expect(out).toHaveLength(1);
+    expect(JSON.parse(out[0]!)).toEqual({ email: EMAIL, spaceId: "space-1" });
+  });
+
+  it("create stops before creating when an expired account cannot be deleted", async () => {
+    const { deps: d, out } = deps({
+      list: vi.fn(async () => [{ email: EMAIL, createdAt: new Date("2026-10-01T00:00:00Z") }]),
+      remove: vi.fn(async () => ({ ok: false as const, reason: "sign-in failed with 500" })),
+    });
+    expect(await runTestAccountCommand(["create"], d)).toBe(1);
+    expect(d.create).not.toHaveBeenCalled();
+    expect(out).toEqual([]);
   });
 
   it("create reports a refused password with exit 2", async () => {
@@ -68,6 +101,24 @@ describe("test-account command", () => {
     });
     expect(await runTestAccountCommand(["delete", EMAIL], d)).toBe(1);
     expect(err.join("\n")).toContain("429");
+  });
+
+  it("delete --all repeats until the list is empty", async () => {
+    const list = vi
+      .fn()
+      .mockResolvedValueOnce([{ email: EMAIL, createdAt: new Date() }])
+      .mockResolvedValueOnce([{ email: EMAIL, createdAt: new Date() }])
+      .mockResolvedValueOnce([]);
+    const { deps: d, out } = deps({ list });
+    expect(await runTestAccountCommand(["delete", "--all"], d)).toBe(0);
+    expect(list).toHaveBeenCalledTimes(3);
+    expect(out).toEqual([`deleted: ${EMAIL}`, `deleted: ${EMAIL}`]);
+  });
+
+  it("delete --all gives up when accounts keep coming back", async () => {
+    const { deps: d, err } = deps();
+    expect(await runTestAccountCommand(["delete", "--all"], d)).toBe(1);
+    expect(err.join("\n")).toContain("remain");
   });
 
   it("delete --all removes every listed account and keeps going after a failure", async () => {

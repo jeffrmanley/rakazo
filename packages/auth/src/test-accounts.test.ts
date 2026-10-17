@@ -4,6 +4,7 @@ import {
   checkTestAccountPassword,
   createTestAccount,
   deleteTestAccount,
+  isReservedTestAccountEmail,
   isTestAccountEmail,
   newTestAccountEmail,
 } from "./test-accounts.js";
@@ -45,12 +46,36 @@ describe("test account addresses", () => {
   });
 });
 
+describe("reserved test account domain", () => {
+  it.each([
+    "live-test-0123456789ab@live-test.invalid",
+    "anyone@live-test.invalid",
+    "Anyone@LIVE-TEST.INVALID",
+    "x@sub.live-test.invalid",
+    " x@live-test.invalid ",
+  ])("reserves %j", (email) => {
+    expect(isReservedTestAccountEmail(email)).toBe(true);
+  });
+
+  it.each([
+    "x@live-test.invalid.example.com",
+    "x@notlive-test.invalid",
+    "x@example.com",
+    "live-test.invalid",
+  ])("leaves %j alone", (email) => {
+    expect(isReservedTestAccountEmail(email)).toBe(false);
+  });
+});
+
 describe("test account passwords", () => {
   it.each([
     ["", "required"],
     ["short-password1", "16"],
     ["x".repeat(129), "128"],
     ["has a\nnewline-inside", "one line"],
+    ["has spaces in the middle", "printable ASCII"],
+    ["pässwörd-with-umlauts", "printable ASCII"],
+    ["\u20ac".repeat(20), "printable ASCII"],
   ])("refuses %j", (password, reason) => {
     expect(checkTestAccountPassword(password)).toContain(reason);
   });
@@ -63,8 +88,21 @@ describe("test account passwords", () => {
 
 describe("refused input never reaches the database", () => {
   it("create refuses a bad password", async () => {
-    const result = await createTestAccount(untouchable, { password: "short", policyEnv });
+    const result = await createTestAccount(untouchable, {
+      password: "short",
+      policyEnv,
+      passwordAuth: true,
+    });
     expect(result).toEqual({ ok: false, reason: expect.stringContaining("16") });
+  });
+
+  it("create refuses when password sign-in is disabled", async () => {
+    const result = await createTestAccount(untouchable, {
+      password: "a-long-enough-password",
+      policyEnv,
+      passwordAuth: false,
+    });
+    expect(result).toEqual({ ok: false, reason: expect.stringContaining("disabled") });
   });
 
   it.each(["owner@example.com", "live-test-0123456789ab@example.com"])(

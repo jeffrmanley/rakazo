@@ -48,6 +48,18 @@ describeWithDatabase("test accounts on an allowlist-only deployment", () => {
       authUrl: origin,
       ...policyEnv,
     });
+    // Before the owner exists: no test account may be created, and a leftover one (inserted
+    // directly here) must not count as another person and block the owner's sign-up.
+    const early = await createTestAccount(handles.prisma, {
+      password: "test-account-password-0",
+      policyEnv,
+      passwordAuth: true,
+    });
+    expect(early).toEqual({ ok: false, reason: expect.stringContaining("no owner") });
+    expect(await handles.prisma.user.count()).toBe(0);
+    await handles.prisma.user.create({
+      data: { id: "leftover", email: "live-test-00000000beef@live-test.invalid", name: "x" },
+    });
     const owner = await post("/api/auth/sign-up/email", {
       email: "owner@allowed.test",
       password: "owner-password-123",
@@ -59,6 +71,11 @@ describeWithDatabase("test accounts on an allowlist-only deployment", () => {
         where: { email: "owner@allowed.test" },
       })
     ).id;
+    const settings = await handles.prisma.deploymentSettings.findUniqueOrThrow({
+      where: { id: "default" },
+    });
+    expect(settings.ownerUserId).toBe(ownerId);
+    await handles.prisma.user.delete({ where: { id: "leftover" } });
   });
 
   afterAll(async () => {
@@ -76,9 +93,42 @@ describeWithDatabase("test accounts on an allowlist-only deployment", () => {
     expect(await response.text()).toContain("Registration requires email delivery");
   });
 
+  it.each(["live-test-0123456789ab@live-test.invalid", "Someone@LIVE-TEST.INVALID"])(
+    "nobody can sign up as %s, even with sign-ups open",
+    async (email) => {
+      await handles.prisma.deploymentSettings.update({
+        where: { id: "default" },
+        data: { signupAllowlist: "" },
+      });
+      try {
+        const response = await post("/api/auth/sign-up/email", {
+          email,
+          password: "squatter-password-123",
+          name: "Squatter",
+        });
+        expect(response.status).toBe(400);
+        expect(await response.text()).toContain("Email is not available");
+        expect(
+          await handles.prisma.user.count({
+            where: { email: { contains: "live-test.invalid", mode: "insensitive" } },
+          }),
+        ).toBe(0);
+      } finally {
+        await handles.prisma.deploymentSettings.update({
+          where: { id: "default" },
+          data: { signupAllowlist: policyEnv.signupAllowlist },
+        });
+      }
+    },
+  );
+
   it("creates a verified non-owner account in its own space that can sign in", async () => {
     const password = "test-account-password-1";
-    const created = await createTestAccount(handles.prisma, { password, policyEnv });
+    const created = await createTestAccount(handles.prisma, {
+      password,
+      policyEnv,
+      passwordAuth: true,
+    });
     if (!created.ok) throw new Error(created.reason);
     const { email, userId, spaceId } = created.value;
     expect(email).toMatch(/^live-test-[0-9a-f]{12}@live-test\.invalid$/);
@@ -131,6 +181,7 @@ describeWithDatabase("test accounts on an allowlist-only deployment", () => {
     const second = await createTestAccount(handles.prisma, {
       password: "another-password-12",
       policyEnv,
+      passwordAuth: true,
     });
     if (!second.ok) throw new Error(second.reason);
     const listed = await listTestAccounts(handles.prisma);

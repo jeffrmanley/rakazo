@@ -29,6 +29,7 @@ import {
 import { escapeHtml } from "./escape-html.js";
 import type { OidcConfig } from "./oidc.js";
 import { oidcDiscovery } from "./oidc.js";
+import { isReservedTestAccountEmail, TEST_ACCOUNT_DOMAIN } from "./test-accounts.js";
 
 export type { OidcConfig } from "./oidc.js";
 export * from "./test-accounts.js";
@@ -75,6 +76,12 @@ export async function resolveSignupPolicy(
 }
 
 const signupGates = new Map<string, Array<() => Promise<void>>>();
+
+/** Accounts that are not people: messaging identities and live-test accounts (test-accounts.ts). */
+const NOT_HUMAN_EMAILS = [
+  { email: { endsWith: "@messaging.invalid", mode: "insensitive" as const } },
+  { email: { endsWith: `@${TEST_ACCOUNT_DOMAIN}`, mode: "insensitive" as const } },
+];
 
 /** Serializes first-account admission inside this process. */
 let signupGateTail: Promise<void> = Promise.resolve();
@@ -142,9 +149,7 @@ async function holdFirstAccountGate(prisma: PrismaClient): Promise<{
       async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${FIRST_ACCOUNT_ADMISSION_LOCK})`;
         const otherHuman = await tx.user.findFirst({
-          where: {
-            NOT: { email: { endsWith: "@messaging.invalid", mode: "insensitive" } },
-          },
+          where: { NOT: NOT_HUMAN_EMAILS },
           select: { id: true },
         });
         resolveReady(otherHuman ? "needs-delivery" : "open");
@@ -205,10 +210,7 @@ async function claimUnverifiedFirstAccount(prisma: PrismaClient, userId: string)
         select: { ownerUserId: true },
       }),
       tx.user.findFirst({
-        where: {
-          id: { not: userId },
-          NOT: { email: { endsWith: "@messaging.invalid", mode: "insensitive" } },
-        },
+        where: { id: { not: userId }, NOT: NOT_HUMAN_EMAILS },
         select: { id: true },
       }),
     ]);
@@ -306,7 +308,8 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
           return { error: "REAUTHENTICATION_REQUIRED" };
         const verified = user.emailVerified === true;
         const email = String(user.email ?? "").toLowerCase();
-        if (isMessagingEmail(email)) return { error: "EMAIL_NOT_AVAILABLE" };
+        if (isMessagingEmail(email) || isReservedTestAccountEmail(email))
+          return { error: "EMAIL_NOT_AVAILABLE" };
         if (source.action === "link-account") {
           if (!verified) return { error: "unable_to_link_account" };
           return;
@@ -391,6 +394,14 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
         }
         for (const value of [ctx.body?.email, ctx.body?.newEmail]) {
           if (typeof value === "string" && isMessagingEmail(value)) {
+            throw new APIError("BAD_REQUEST", { message: "Email is not available" });
+          }
+        }
+        for (const value of [
+          ctx.path === "/sign-up/email" ? ctx.body?.email : undefined,
+          ctx.body?.newEmail,
+        ]) {
+          if (typeof value === "string" && isReservedTestAccountEmail(value)) {
             throw new APIError("BAD_REQUEST", { message: "Email is not available" });
           }
         }
@@ -545,14 +556,17 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
       user: {
         create: {
           before: async (user) => {
-            if (isMessagingEmail(user.email)) {
+            if (isMessagingEmail(user.email) || isReservedTestAccountEmail(user.email)) {
               throw new APIError("BAD_REQUEST", { message: "Email is not available" });
             }
           },
         },
         update: {
           before: async (user) => {
-            if (user.email && isMessagingEmail(user.email)) {
+            if (
+              user.email &&
+              (isMessagingEmail(user.email) || isReservedTestAccountEmail(user.email))
+            ) {
               throw new APIError("BAD_REQUEST", { message: "Email is not available" });
             }
           },
