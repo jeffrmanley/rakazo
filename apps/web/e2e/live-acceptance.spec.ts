@@ -32,10 +32,11 @@ async function send(page: Page, text: string) {
   await page.keyboard.press("Enter");
 }
 
+// Traces and videos would record the test account's password.
+test.use({ trace: "off", video: "off" });
+
 test.describe("live deployment", () => {
   test.skip(!enabled, "set LIVE_E2E=1 and PLAYWRIGHT_BASE_URL to a running deployment");
-  // Traces and videos would record the test account's password.
-  test.use({ trace: "off", video: "off" });
   test.setTimeout(300_000);
 
   test("public pages carry the brand and never the upstream name", async ({ page, request }) => {
