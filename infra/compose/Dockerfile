@@ -1,4 +1,4 @@
-FROM node:22-bookworm@sha256:0557ac14e0d45d02ed563067b82856ca5e7aa3437fa28d98d4350ea9c3d9494a
+FROM node:22.23.4-bookworm@sha256:2bd396628eceb5c999a6e43731fab69d5fb98b94ba9d9d90b5f64575c5178765
 RUN corepack enable
 WORKDIR /app
 # Normalize modes: a restrictive host umask (e.g. 077 on hardened hosts) would otherwise
