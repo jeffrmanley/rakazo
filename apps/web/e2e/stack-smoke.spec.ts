@@ -73,6 +73,22 @@ test.describe("compose stack", () => {
   }) => {
     const stamp = Date.now();
     const transcript = page.getByTestId("transcript");
+    // The stack serves the app through the Caddy front end with an enforced CSP: any violation
+    // (or a Permissions-Policy the browser rejects) on any page of the journey fails it.
+    const policyViolations: string[] = [];
+    await page.addInitScript(() => {
+      document.addEventListener("securitypolicyviolation", (event) => {
+        console.error(
+          `CSP violation: ${event.effectiveDirective} blocked ${event.blockedURI || "inline"} in ${event.documentURI}`,
+        );
+      });
+    });
+    page.on("console", (message) => {
+      const text = message.text();
+      if (/Content Security Policy|CSP violation|Permissions-Policy/i.test(text)) {
+        policyViolations.push(`${message.type()}: ${text}`);
+      }
+    });
 
     await test.step("sign up and connect the model during onboarding", async () => {
       if (OWNER_EMAIL) {
@@ -221,5 +237,75 @@ test.describe("compose stack", () => {
       expect(kinds.has("approval.request")).toBe(true);
       expect(kinds.has("approval.decision")).toBe(true);
     });
+
+    await test.step("a remote image in a bot reply loads once the reader asks", async () => {
+      const image = `https://images.example.test/chart-${stamp}.png`;
+      await page.route("https://images.example.test/**", (route) =>
+        route.fulfill({ status: 200, contentType: "image/png", body: png(8) }),
+      );
+      await send(page, `chart ![Stack chart](${image})`);
+      const placeholder = transcript.getByRole("button", { name: /Stack chart/ }).last();
+      await expect(placeholder).toBeVisible({ timeout: 60_000 });
+      await placeholder.click();
+      const loaded = transcript.getByRole("img", { name: "Stack chart" }).last();
+      await expect(loaded).toHaveAttribute("src", image);
+      await expect
+        .poll(() => loaded.evaluate((element: HTMLImageElement) => element.naturalWidth))
+        .toBe(8);
+    });
+
+    await test.step("HTML and PDF artifacts render under the enforced CSP", async () => {
+      // Bot-authored HTML keeps running its own scripts (in the opaque artifact frame), while
+      // the app's script-src 'self' still applies to the app.
+      const htmlName = `csp-probe-${stamp}.html`;
+      const html = `<!doctype html><title>probe</title><p id="out">waiting</p><script>
+        const reach = () => { try { return top.document.title; } catch { return "isolated"; } };
+        document.getElementById("out").textContent = "artifact script ran: " + reach();
+      </script>`;
+      const htmlArtifact = await rpc<{ id: string }>(page, "artifacts/create", {
+        botId,
+        name: htmlName,
+        mimeType: "text/html",
+        contentBase64: Buffer.from(html).toString("base64"),
+      });
+      await page.goto(`/app/artifacts/${htmlArtifact.id}`);
+      const preview = page.frameLocator(`iframe[title="${htmlName}"]`).frameLocator("#preview");
+      await expect(preview.getByText("artifact script ran: isolated")).toBeVisible({
+        timeout: 30_000,
+      });
+
+      const pdfName = `csp-probe-${stamp}.pdf`;
+      const pdf = await rpc<{ id: string }>(page, "artifacts/create", {
+        botId,
+        name: pdfName,
+        mimeType: "application/pdf",
+        contentBase64: Buffer.from(minimalPdf()).toString("base64"),
+      });
+      await page.goto(`/app/artifacts/${pdf.id}`);
+      await expect(page.locator(`iframe[title="${pdfName}"]`)).toHaveAttribute("src", /^blob:/);
+    });
+
+    await test.step("no CSP or Permissions-Policy violations on any page", async () => {
+      expect(policyViolations, policyViolations.join("\n")).toEqual([]);
+    });
   });
 });
+
+/** A one-page PDF, small enough to inline. */
+function minimalPdf(): string {
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] >>",
+  ];
+  let body = "%PDF-1.4\n";
+  const offsets = objects.map((object, index) => {
+    const offset = body.length;
+    body += `${index + 1} 0 obj\n${object}\nendobj\n`;
+    return offset;
+  });
+  const xref = body.length;
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) body += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  return `${body}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+}
