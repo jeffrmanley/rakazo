@@ -82,12 +82,23 @@
 	# The API, as vite preview proxied it: every path starting with /api or /rpc.
 	@api path /api* /rpc*
 	handle @api {
+		# JSON and images only; nothing under /api may be framed.
+		header {
+			X-Frame-Options "DENY"
+			defer
+		}
 		import api_proxy
 	}
 
 	# The screen proxy keeps its own policy (CSP sandbox, CORS for noVNC modules) and must stay
-	# frameable by the app, so it gets none of the app headers.
+	# frameable by the app, so it gets none of the app headers. A second CSP header (browsers
+	# enforce every one) lets only this origin frame a screen, so a leaked capability URL cannot
+	# be framed and clickjacked by another site.
 	handle /novnc/* {
+		header {
+			+Content-Security-Policy "frame-ancestors 'self'"
+			defer
+		}
 		import web_app_proxy
 	}
 

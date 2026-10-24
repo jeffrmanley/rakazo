@@ -260,6 +260,7 @@ async function main() {
     !brand.headers.has("content-security-policy"),
     "/api/v1/brand: no app CSP on API responses",
   );
+  check(brand.headers.get("x-frame-options") === "DENY", "/api/v1/brand: X-Frame-Options DENY");
   const rpc = await get("/rpc/health-check-probe", { method: "POST" });
   check(rpc.status !== 502 && rpc.status !== 504, "/rpc: proxied to the api", String(rpc.status));
 
@@ -274,6 +275,10 @@ async function main() {
     "/novnc/: app CSP not applied",
   );
   check(!screen.headers.has("x-frame-options"), "/novnc/: stays frameable by the app");
+  check(
+    /frame-ancestors 'self'/.test(screen.headers.get("content-security-policy") ?? ""),
+    "/novnc/: only this origin may frame a screen",
+  );
   check(
     !(await websocketUpgrades("/novnc/session/view/0.invalid/websockify")),
     "/novnc/: websocket refused for a bad capability",
