@@ -35,6 +35,8 @@ services:
       SANDBOX_TEAM_SCREEN_LIMIT: ${SANDBOX_TEAM_SCREEN_LIMIT:-0}
       SANDBOX_SUPERVISOR_TOKEN: ${SANDBOX_SUPERVISOR_TOKEN:?Set SANDBOX_SUPERVISOR_TOKEN in .env}
       SANDBOX_SCREEN_NETWORK: isolated
+      # The screen proxy runs in web-app; the Caddy front end (web) stays off bot networks.
+      SANDBOX_SCREEN_PEER_SERVICE: web-app
       SANDBOX_COMPUTER_EGRESS: ${SANDBOX_COMPUTER_EGRESS:-open}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_FORMAT: ${LOG_FORMAT:-}
@@ -159,7 +161,35 @@ services:
       data-init:
         condition: service_completed_successfully
 
+  # The browser-facing web front end: Caddy serving the built SPA with security headers (CSP,
+  # HSTS, nosniff, ...) and proxying /api and /rpc to the api and the Node routes to web-app
+  # (infra/compose/Caddyfile.web). Plain HTTP on 5173; TLS terminates in front of it.
   web:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile
+      target: web
+    environment:
+      # Names the public host in the CSP's websocket source.
+      RAKAZO_HOST: ${RAKAZO_HOST:-localhost}
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /data
+      - /config
+    ports:
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      - api
+      - web-app
+
+  # The Node side of the web (vite preview), reachable only through the front end: the screen
+  # proxy (/novnc/), the desktop stack probe and index.html under the runtime brand. It is the
+  # container the supervisor joins to bot networks (SANDBOX_SCREEN_PEER_SERVICE).
+  web-app:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile
@@ -172,8 +202,6 @@ services:
       PUBLIC_BRAND_NAME: ${PUBLIC_BRAND_NAME:-}
       PUBLIC_BRAND_SHORT_NAME: ${PUBLIC_BRAND_SHORT_NAME:-}
       PUBLIC_BRAND_TAGLINE: ${PUBLIC_BRAND_TAGLINE:-}
-    ports:
-      - "127.0.0.1:5173:5173"
     depends_on:
       - api
 

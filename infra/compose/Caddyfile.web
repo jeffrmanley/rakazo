@@ -1,0 +1,153 @@
+# The web front end for the compose stack (service `web`, hardening phase 1, S2).
+#
+# Plain HTTP on :5173; TLS terminates in front of it (Tailscale serve on eu-2, or the edge Caddy
+# in docker-compose.prod.yml). It replaces `vite preview` as the process the browser talks to:
+#   - the built SPA (apps/web/dist, copied to /srv) is served from here, with security headers;
+#   - /api* and /rpc* go straight to the api, exactly the prefixes `vite preview` proxied;
+#   - the routes that need application code stay on the Node preview server (service `web-app`,
+#     never published): the capability-checked screen proxy (/novnc/, HTTP and websockets),
+#     the desktop stack probe, the runtime PWA manifest, and every page navigation, which it
+#     answers with index.html under the runtime brand.
+#
+# Upstreams can be overridden for local testing: RAKAZO_API_UPSTREAM, RAKAZO_WEB_APP_UPSTREAM.
+{
+	admin off
+	persist_config off
+	auto_https off
+	servers {
+		# The hop in front (Tailscale serve through Docker's port forward, or the edge Caddy)
+		# connects from a private address and sets X-Forwarded-For to the real client. Take the
+		# rightmost address that is not a private hop, and send the api exactly that one value:
+		# better-auth only trusts a single-value X-Forwarded-For.
+		trusted_proxies static private_ranges
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
+	}
+	log {
+		output stderr
+		format json
+	}
+}
+
+(api_proxy) {
+	reverse_proxy {$RAKAZO_API_UPSTREAM:api:3100} {
+		# `changeOrigin` in vite preview: the api sees its own host; X-Forwarded-Host keeps the public one.
+		header_up Host {upstream_hostport}
+		header_up X-Forwarded-For {client_ip}
+	}
+}
+
+(web_app_proxy) {
+	# The Host header passes through unchanged, so vite preview's allowedHosts still applies.
+	reverse_proxy {$RAKAZO_WEB_APP_UPSTREAM:web-app:5173} {
+		header_up X-Forwarded-For {client_ip}
+		{block}
+	}
+}
+
+# Headers every response gets. Responses that carry their own CSP keep it.
+(base_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		-Server
+		-Via
+	}
+	# On its own: a `?` field makes its whole header block conditional.
+	header ?Referrer-Policy "strict-origin-when-cross-origin"
+}
+
+# The app's documents and static files.
+(app_headers) {
+	header {
+		defer
+		# style-src 'unsafe-inline': React style attributes and the UI library's inline styles.
+		# img-src https:: remote images in bot replies, which load only after the reader taps them
+		# (or turns that on); never http:.
+		# frame-src: the screen proxy and the HTML artifact frame are same-origin paths; PDFs
+		# preview in a blob: frame. connect-src: the API and the screen/terminal websockets are
+		# same-origin ('self' covers ws/wss in CSP3 browsers; the wss origin is listed for others).
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self' wss://{$RAKAZO_HOST:localhost}; frame-src 'self' blob:; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+		Permissions-Policy "camera=(), geolocation=(), payment=(), microphone=(self), usb=(), serial=(), hid=(), midi=()"
+		# same-origin-allow-popups, not same-origin: the MCP and app OAuth flows watch the
+		# provider popup they open; same-origin would sever it (popup.closed turns true at once).
+		Cross-Origin-Opener-Policy "same-origin-allow-popups"
+		X-Frame-Options "DENY"
+	}
+}
+
+:5173 {
+	import base_headers
+
+	# The API, as vite preview proxied it: every path starting with /api or /rpc.
+	@api path /api* /rpc*
+	handle @api {
+		import api_proxy
+	}
+
+	# The screen proxy keeps its own policy (CSP sandbox, CORS for noVNC modules) and must stay
+	# frameable by the app, so it gets none of the app headers.
+	handle /novnc/* {
+		import web_app_proxy
+	}
+
+	handle /.well-known/rakazo-desktop-stack {
+		import web_app_proxy {
+			header_down Cache-Control "no-store"
+		}
+	}
+
+	# The PWA manifest under the runtime fallback brand.
+	handle /site.webmanifest {
+		import app_headers
+		import web_app_proxy {
+			header_down Cache-Control "no-cache"
+		}
+	}
+
+	# The HTML artifact frame: bot-authored HTML (and its scripts) runs inside it, in an opaque
+	# sandboxed origin with no network access. The app frames it, so it may be framed by 'self'.
+	handle /html-preview.html {
+		root * /srv
+		request_header -Range
+		request_header -If-Range
+		header {
+			Content-Security-Policy "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src about:; child-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'self'"
+			Referrer-Policy "no-referrer"
+			Cache-Control "no-cache"
+		}
+		file_server
+	}
+
+	# Built files other than index.html. Range requests are not needed for static files and are
+	# dropped wherever Caddy serves files (Go's Range parsing has an open DoS advisory in this build).
+	@static {
+		not path / /index.html
+		file {
+			root /srv
+			try_files {path}
+		}
+	}
+	handle @static {
+		root * /srv
+		import app_headers
+		request_header -Range
+		request_header -If-Range
+		@hashed path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@unhashed not path /assets/*
+		header @unhashed Cache-Control "no-cache"
+		encode zstd gzip
+		file_server
+	}
+
+	# Everything else is a page navigation (or a missing file): the Node server answers with the
+	# runtime-branded index.html, or 404 as vite preview did.
+	handle {
+		import app_headers
+		encode zstd gzip
+		import web_app_proxy {
+			header_down Cache-Control "no-store"
+		}
+	}
+}

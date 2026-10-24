@@ -10,9 +10,10 @@ services:
   api:
     ports: !override
       - "127.0.0.1:${E2E_API_PORT:-13100}:3100"
-  web:
+  web-app:
     env_file:
       - ../../.env
+  web:
     ports: !override
       - "127.0.0.1:${E2E_WEB_PORT:-15173}:5173"
   echo-model:
