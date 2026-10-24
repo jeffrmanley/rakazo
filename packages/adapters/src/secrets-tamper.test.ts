@@ -44,7 +44,7 @@ describe("EncryptedSecretStore tamper handling", () => {
     };
     const record = await store.put("v2 value", context, { recordId: "record-2" });
     const raw = Buffer.from(record.ciphertext.slice(3), "base64");
-    raw[raw.length - 1] ^= 0x01;
+    raw.writeUInt8(raw.readUInt8(raw.length - 1) ^ 0x01, raw.length - 1);
     await expect(store.load(`v2:${raw.toString("base64")}`, record.id)).rejects.toThrow();
   });
 });
