@@ -747,7 +747,9 @@ export async function createApp(
         // Same user in the same space, so leaving the space also ends a stream.
         // A database failure rejects this check; only a missing membership is unauthorized.
         stillAuthorized: async () => {
-          const current = await sessionActor(c.req.raw);
+          // A fresh lookup, never the per-request memo: the stream outlives the request that
+          // opened it, and a revoked session or membership must end it.
+          const current = (await lookupSession(c.req.raw))?.actor ?? null;
           return Boolean(
             actor && current?.userId === actor.userId && current.spaceId === actor.spaceId,
           );

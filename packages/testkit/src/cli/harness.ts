@@ -126,6 +126,7 @@ async function main() {
         "packages/testkit/src/test-accounts.postgres.test.ts",
         "packages/testkit/src/rate-limit.postgres.test.ts",
         "packages/testkit/src/two-factor.postgres.test.ts",
+        "packages/testkit/src/session-recheck.postgres.test.ts",
         "apps/api/src/billing.postgres.test.ts",
         "packages/memory/src/commit.postgres.test.ts",
         "packages/adapters/src/wakeup.postgres.test.ts",
