@@ -57,7 +57,8 @@ function parseSealed(ciphertext: string): SealedSecret {
 }
 
 function openSealed(sealed: SealedSecret, key: Buffer, recordId: string): string {
-  const decipher = createDecipheriv("aes-256-gcm", key, sealed.iv);
+  // Pin the tag length: GCM otherwise accepts truncated tags (down to 4 bytes).
+  const decipher = createDecipheriv("aes-256-gcm", key, sealed.iv, { authTagLength: TAG_BYTES });
   decipher.setAAD(Buffer.from(recordId));
   decipher.setAuthTag(sealed.tag);
   return Buffer.concat([decipher.update(sealed.enc), decipher.final()]).toString("utf8");
@@ -106,10 +107,13 @@ export class EncryptedSecretStore extends SecretChanges implements SecretStore {
     // no AAD. Keep them readable so an upgrade does not strand credentials;
     // every subsequent write uses the stronger versioned format above.
     const buf = Buffer.from(ciphertext, "base64");
+    if (buf.length < IV_BYTES + TAG_BYTES) throw new Error("Encrypted secret is malformed");
     const iv = buf.subarray(0, IV_BYTES);
     const tag = buf.subarray(IV_BYTES, IV_BYTES + TAG_BYTES);
     const enc = buf.subarray(IV_BYTES + TAG_BYTES);
-    const decipher = createDecipheriv("aes-256-gcm", legacyKeyFrom(this.encryptionKey), iv);
+    const decipher = createDecipheriv("aes-256-gcm", legacyKeyFrom(this.encryptionKey), iv, {
+      authTagLength: TAG_BYTES,
+    });
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf8");
   }
