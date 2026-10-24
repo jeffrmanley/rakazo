@@ -144,7 +144,44 @@ so the mode does not apply there.
 
 On Windows, if an older clone with `core.autocrlf=true` leaves the computer pane hung on boot (`bash\r` in sandbox logs): from a clean worktree, set `git config core.autocrlf false`, run `git add --renormalize . && git checkout -- .`, then rebuild with `pnpm sandbox:build`.
 
-Compose runs Postgres, the sandbox supervisor (Docker socket), API, worker, and a Vite preview of the web app. Bot computers are sibling containers (`rakazo/computer:local`) on separate per-bot networks; only the supervisor and screen proxy join each one. The API process does not get an unrestricted Docker socket; the supervisor owns the lifecycle.
+Compose runs Postgres, the sandbox supervisor (Docker socket), API, worker, and the web front end (`web`, Caddy) with the Vite preview server behind it (`web-app`). Bot computers are sibling containers (`rakazo/computer:local`) on separate per-bot networks; only the supervisor and the screen proxy (`web-app`) join each one. The API process does not get an unrestricted Docker socket; the supervisor owns the lifecycle.
+
+### The web front end and its headers
+
+`web` is Caddy (`caddy:2.11.7-alpine`, pinned by digest in `infra/compose/Dockerfile`, target
+`web`) with the built SPA inside the image. It listens on plain HTTP `:5173`; put TLS in front of
+it. Configuration: `infra/compose/Caddyfile.web`.
+
+- **Routes.** `/api*` and `/rpc*` go to the API, the prefixes the Vite preview proxied. `/novnc/`
+  (the capability-checked screen proxy, HTTP and websockets), `/.well-known/rakazo-desktop-stack`,
+  `/site.webmanifest` and every page navigation go to `web-app`, which answers navigations with
+  `index.html` under the runtime brand. Built files are served by Caddy.
+- **Headers on the app's pages and files.** An enforced `Content-Security-Policy`:
+  `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:;
+  font-src 'self' data:; media-src 'self' blob:; connect-src 'self' wss://$RAKAZO_HOST;
+  frame-src 'self' blob:; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none';
+  object-src 'none'; base-uri 'self'; form-action 'self'`. Also `Strict-Transport-Security:
+  max-age=31536000`, `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+  strict-origin-when-cross-origin`, `Permissions-Policy` (camera, geolocation, payment off;
+  microphone for the page itself, for voice), `Cross-Origin-Opener-Policy:
+  same-origin-allow-popups` (the OAuth flows watch the popups they open) and `X-Frame-Options: DENY`.
+  `img-src https:` is for remote images in bot replies, which load only after the reader taps
+  them; `style-src 'unsafe-inline'` is for the UI's inline styles.
+  The page has no inline scripts: `theme-init.js` (light/dark before first paint) and
+  `zod-jitless.js` (keeps zod from probing `new Function`) are classic scripts in `<head>`.
+- **Exceptions.** API responses get only HSTS, `nosniff` and a default referrer policy, so the
+  API's own headers (for example the logo's `default-src 'none'`) stand. Screen-proxy responses
+  keep their sandbox CSP and stay frameable by the app. `/html-preview.html`, the frame that runs
+  bot-authored HTML, has its own policy: `sandbox allow-scripts`, no network, framed by the app only.
+- **Caching.** Pages are `no-store`; hashed `/assets/` are immutable for a year; other files revalidate.
+- **Client address.** Caddy sends the API one `X-Forwarded-For` value: the client the proxy in
+  front reported (it trusts private-range hops such as Docker's port forward), else the peer.
+- **Check.** `node infra/compose/check-web-headers.mjs http://127.0.0.1:5173` asserts every header,
+  the CSP directives, the caching rules and an Observatory-style grade; `infra/compose/e2e/run.sh`
+  runs it and fails the browser journey on any CSP violation.
+
+`docker-compose.prod.yml` and `docker-compose.images.yml` still serve the Vite preview behind their
+own Caddy (`Caddyfile.prod`); they are unchanged.
 
 Postgres stays on the Compose network only (not published on the host), matching the images
 compose. Credentials come from `.env` (`POSTGRES_PASSWORD` is required). Prefer a URI-safe value
