@@ -26,6 +26,7 @@ export const TWO_FACTOR_CHALLENGE_SECONDS = 5 * 60;
 const TRUST_DEVICE_SECONDS = 30 * 24 * 60 * 60;
 const VERIFY_PATHS = new Set(["/two-factor/verify-totp", "/two-factor/verify-backup-code"]);
 const PENDING_USER = "rakazoTwoFactorUserId";
+const RESETTING_USER = "rakazoResettingUserId";
 const DIGEST_PREFIX = "hmac-sha256:";
 
 export type TwoFactorEnforcement = "none" | "banner" | "enrol";
@@ -164,7 +165,7 @@ function requestIp(ctx: HookContext): string | null {
 }
 
 export function twoFactorGuard(deps: {
-  prisma: Pick<PrismaClient, "deploymentSettings" | "account">;
+  prisma: Pick<PrismaClient, "deploymentSettings" | "account" | "verification" | "session">;
   secret: string;
   brandName: () => Promise<string>;
   /** Checks a current authenticator code, or a backup code, for the session in `headers`. */
@@ -174,6 +175,12 @@ export function twoFactorGuard(deps: {
   const emit = async (event: TwoFactorEvent) => {
     await deps.onEvent?.(event);
   };
+  // The plugin forgets only the trusted device of the browser that disables two-factor; a lost
+  // laptop's trust must not outlive a disable, a password change or a reset.
+  const forgetTrustedDevices = (userId: string) =>
+    deps.prisma.verification.deleteMany({
+      where: { value: userId, identifier: { startsWith: "trust-device-" } },
+    });
   return {
     id: "two-factor-policy",
     endpoints: {
@@ -198,8 +205,15 @@ export function twoFactorGuard(deps: {
                 const enabled = (user as { twoFactorEnabled?: boolean | null }).twoFactorEnabled;
                 const ip = ctx ? requestIp(ctx as HookContext) : null;
                 if (ctx?.path === "/two-factor/verify-totp" && enabled === true) {
+                  // Enrolling is often the answer to a suspected compromise: every other
+                  // session of the account ends, so none of them outlives the new factor.
+                  const current = (ctx as HookContext).context.session?.session.id;
+                  await deps.prisma.session.deleteMany({
+                    where: { userId: user.id, ...(current ? { id: { not: current } } : {}) },
+                  });
                   await emit({ kind: "enabled", userId: user.id, ip });
                 } else if (ctx?.path === "/two-factor/disable" && enabled === false) {
+                  await forgetTrustedDevices(user.id);
                   await emit({ kind: "disabled", userId: user.id, ip });
                 }
               },
@@ -237,6 +251,24 @@ export function twoFactorGuard(deps: {
           }),
         },
         {
+          // A reset carries only its token; note whose it is, for the after hook.
+          matcher: (ctx) => ctx.path === "/reset-password",
+          handler: createAuthMiddleware(async (ctx) => {
+            const token =
+              typeof ctx.body?.token === "string"
+                ? ctx.body.token
+                : typeof ctx.query?.token === "string"
+                  ? ctx.query.token
+                  : "";
+            if (!token) return;
+            const row = await deps.prisma.verification.findFirst({
+              where: { identifier: `reset-password:${token}` },
+              select: { value: true },
+            });
+            if (row) return { context: { context: { [RESETTING_USER]: row.value } } };
+          }),
+        },
+        {
           matcher: (ctx) => VERIFY_PATHS.has(ctx.path ?? ""),
           handler: createAuthMiddleware(async (ctx) => {
             const userId = await verifyingUserId(ctx);
@@ -253,6 +285,20 @@ export function twoFactorGuard(deps: {
         },
       ],
       after: [
+        {
+          matcher: (ctx) => ctx.path === "/change-password" || ctx.path === "/reset-password",
+          handler: createAuthMiddleware(async (ctx) => {
+            if (isAPIError(ctx.context.returned)) return;
+            const resetting = (ctx.context as unknown as Record<string, unknown>)[RESETTING_USER];
+            const userId =
+              ctx.path === "/reset-password"
+                ? typeof resetting === "string"
+                  ? resetting
+                  : null
+                : (ctx.context.session?.user.id ?? null);
+            if (userId) await forgetTrustedDevices(userId);
+          }),
+        },
         {
           matcher: (ctx) => VERIFY_PATHS.has(ctx.path ?? ""),
           handler: createAuthMiddleware(async (ctx) => {
@@ -275,8 +321,8 @@ export function twoFactorGuard(deps: {
 
 /**
  * Host-operator recovery (apps/api/src/cli/reset-2fa.ts): removes the account's second factor,
- * its trusted devices and any pending sign-in, so the next password sign-in needs no code.
- * Sessions stay; the deployment policy asks the account to enrol again.
+ * its trusted devices, any pending sign-in and every session, so a lost device is signed out and
+ * the next password sign-in needs no code. The deployment policy asks the account to enrol again.
  */
 export async function resetTwoFactor(
   prisma: PrismaClient,
@@ -302,6 +348,7 @@ export async function resetTwoFactor(
         ],
       },
     });
+    await tx.session.deleteMany({ where: { userId: user.id } });
     return factors.count;
   });
   return {

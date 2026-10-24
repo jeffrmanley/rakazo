@@ -651,6 +651,8 @@ describeWithDatabase("authenticator-app two-factor sign-in", () => {
       orderBy: { at: "desc" },
     });
     expect(reset).toMatchObject({ actorId: "reset-2fa" });
+    // Recovery from a lost device also signs the account out everywhere.
+    expect((await me(owner)).status).toBe(401);
 
     const password = new Jar();
     const signedIn = await signIn(OWNER, password);
@@ -666,5 +668,91 @@ describeWithDatabase("authenticator-app two-factor sign-in", () => {
       ok: false,
       reason: "no account has that email",
     });
+  });
+
+  const trustedDevices = (userId: string) =>
+    handles.prisma.verification.count({
+      where: { value: userId, identifier: { startsWith: "trust-device-" } },
+    });
+
+  const trustThisDevice = async (totpURI: string) => {
+    const laptop = await pendingSignIn(OWNER);
+    await awayFromTotpBoundary();
+    const verified = await post(
+      "/api/auth/two-factor/verify-totp",
+      { code: totpCode(totpURI), trustDevice: true },
+      laptop,
+    );
+    expect(verified.status).toBe(200);
+    return laptop;
+  };
+
+  it("turning two-factor off removes every trusted device, not only this browser's", async () => {
+    const browser = new Jar();
+    expect((await signIn(OWNER, browser)).status).toBe(200);
+    const enrolled = await enrol(browser, OWNER.password);
+    const laptop = await trustThisDevice(enrolled.totpURI);
+    expect(await trustedDevices(ownerId)).toBeGreaterThan(0);
+
+    await awayFromTotpBoundary();
+    const disabled = await post(
+      "/api/auth/two-factor/disable",
+      { password: OWNER.password, code: totpCode(enrolled.totpURI) },
+      browser,
+    );
+    expect(disabled.status).toBe(200);
+    expect(await trustedDevices(ownerId)).toBe(0);
+
+    // Enrolled again, the old laptop's trust cookie no longer skips the code.
+    const again = await enrol(browser, OWNER.password);
+    await pendingSignIn(OWNER, laptop);
+    await awayFromTotpBoundary();
+    expect(
+      (
+        await post(
+          "/api/auth/two-factor/disable",
+          { password: OWNER.password, code: totpCode(again.totpURI) },
+          browser,
+        )
+      ).status,
+    ).toBe(200);
+  });
+
+  it("a password change removes trusted devices", async () => {
+    const browser = new Jar();
+    expect((await signIn(OWNER, browser)).status).toBe(200);
+    const enrolled = await enrol(browser, OWNER.password);
+    await trustThisDevice(enrolled.totpURI);
+    expect(await trustedDevices(ownerId)).toBeGreaterThan(0);
+
+    const changePassword = (from: string, to: string) =>
+      post(
+        "/api/auth/change-password",
+        { currentPassword: from, newPassword: to, revokeOtherSessions: false },
+        browser,
+      );
+    expect((await changePassword(OWNER.password, "owner-new-password-1")).status).toBe(200);
+    expect(await trustedDevices(ownerId)).toBe(0);
+    expect((await changePassword("owner-new-password-1", OWNER.password)).status).toBe(200);
+
+    await awayFromTotpBoundary();
+    expect(
+      (
+        await post(
+          "/api/auth/two-factor/disable",
+          { password: OWNER.password, code: totpCode(enrolled.totpURI) },
+          browser,
+        )
+      ).status,
+    ).toBe(200);
+  });
+
+  it("turning two-factor on signs the account out of its other sessions", async () => {
+    const other = new Jar();
+    expect((await signIn(MEMBER, other)).status).toBe(200);
+    expect((await me(other)).status).toBe(200);
+    await enrol(member, MEMBER.password);
+    expect((await me(member)).status).toBe(200);
+    expect((await me(other)).status).toBe(401);
   });
 });

@@ -64,7 +64,9 @@ code, key or backup code is ever logged or audited.
 ## Recovery
 
 1. **Backup codes.** Sign in with one, then turn two-factor off and on again for a new key and
-   new codes.
+   new codes. Turning it off forgets every trusted device, and turning it on signs the account
+   out of all its other sessions, so a lost device loses access. A password change or reset
+   also forgets every trusted device.
 2. **Host reset.** Only the host operator can do this. In the api container, as the deploy user:
 
    ```sh
@@ -73,8 +75,9 @@ code, key or backup code is ever logged or audited.
 
    It removes the account's key, backup codes, trusted devices and pending sign-ins, prints
    `reset: <email>` (or `not enrolled: <email>`), and with `EXT_AUDIT_LOG=1` records
-   `auth.2fa_disabled` with the actor `system:reset-2fa`. Sessions stay. The owner sees the
-   enrolment banner again at the next page load.
+   `auth.2fa_disabled` with the actor `system:reset-2fa`. It also ends every session of the
+   account, so a lost device is signed out. After the next sign-in, the owner sees the enrolment
+   banner again.
 
 The reset has no HTTP route, no package script and no deploy-helper command, on purpose: an agent
 or a stolen session can never remove the owner's second factor. Do not add one.
