@@ -410,6 +410,9 @@ export default defineConfig(({ mode }) => {
     (process.env.PUBLIC_BRAND_ASSETS_DIR ?? rootEnv.PUBLIC_BRAND_ASSETS_DIR)?.trim() || undefined;
   const api = process.env.API_PROXY_TARGET ?? rootEnv.API_PROXY_TARGET ?? "http://127.0.0.1:3100";
   const previewHost = process.env.RAKAZO_HOST ?? rootEnv.RAKAZO_HOST ?? "localhost";
+  // Behind the Caddy front end, the browser's /api and /rpc go straight to the api. This server
+  // then also sits on every bot computer's network (screens), so it must not relay them too.
+  const previewApiProxy = (process.env.WEB_PREVIEW_API_PROXY ?? "1") !== "0";
   const screenProxySecret = () =>
     resolveScreenProxySecret({
       ...process.env,
@@ -470,10 +473,12 @@ export default defineConfig(({ mode }) => {
       host: "0.0.0.0",
       port: Number(process.env.WEB_PORT ?? 5173),
       allowedHosts: [previewHost],
-      proxy: {
-        "/api": { target: api, changeOrigin: true },
-        "/rpc": { target: api, changeOrigin: true },
-      },
+      proxy: previewApiProxy
+        ? {
+            "/api": { target: api, changeOrigin: true },
+            "/rpc": { target: api, changeOrigin: true },
+          }
+        : {},
     },
   };
 });

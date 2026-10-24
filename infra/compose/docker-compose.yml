@@ -196,6 +196,9 @@ services:
     command: ["pnpm", "--filter", "@rakazo/web", "preview", "--host", "0.0.0.0", "--port", "5173"]
     environment:
       API_PROXY_TARGET: http://api:3100
+      # Caddy routes the browser's /api and /rpc; this service joins bot networks for screens,
+      # so it must not relay the api to them (hardening phase 1).
+      WEB_PREVIEW_API_PROXY: "0"
       SCREEN_PROXY_SECRET: ${SCREEN_PROXY_SECRET:?Set SCREEN_PROXY_SECRET in .env}
       RAKAZO_HOST: ${RAKAZO_HOST:-localhost}
       # Fallback brand while the API cannot answer; the owner's runtime brand comes from the API.
