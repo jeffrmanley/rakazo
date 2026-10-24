@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 import * as Plot from "@observablehq/plot";
 import { MAX_CHART_DATA_ROWS } from "@rakazo/contracts";
-import { autoType, csvParse, tsvParse } from "d3-dsv";
+import { autoType, csvParseRows, tsvParseRows } from "d3-dsv";
 
 /**
  * Declarative, JSON-only surface over Observable Plot for the render_plot
@@ -253,9 +253,24 @@ function buildMark(
   return factory(data, finalOptions);
 }
 
+/**
+ * Header row to typed objects, as d3-dsv's csvParse(text, autoType) builds them, but without its
+ * `new Function` row converter, which the web app's Content-Security-Policy (script-src 'self')
+ * refuses: this also runs in the browser when a model hands over CSV text rows.
+ */
+function rowsToObjects([columns = [], ...rows]: string[][]): Record<string, unknown>[] {
+  return rows.map((row) => {
+    const object: Record<string, string> = {};
+    columns.forEach((column, index) => {
+      object[column] = row[index] || "";
+    });
+    return autoType(object);
+  });
+}
+
 export function parsePlotData(name: string, content: string): unknown[] {
-  if (/\.csv$/i.test(name)) return csvParse(content, autoType);
-  if (/\.tsv$/i.test(name)) return tsvParse(content, autoType);
+  if (/\.csv$/i.test(name)) return rowsToObjects(csvParseRows(content));
+  if (/\.tsv$/i.test(name)) return rowsToObjects(tsvParseRows(content));
   const parsed = JSON.parse(content) as unknown;
   if (!Array.isArray(parsed))
     throw new Error("JSON data files must contain a top-level array of rows");

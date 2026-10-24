@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<!--
+  The frame SandboxedHtmlViewer loads (sandbox="allow-scripts", so an opaque origin) to show
+  bot-authored HTML. It is a real URL rather than a srcdoc because srcdoc documents inherit the
+  app's Content-Security-Policy, which would stop the artifact's own scripts. The web front end
+  serves it with the CSP below as a header (plus `sandbox allow-scripts`); the meta tag keeps the
+  same policy when the dev server serves it. The app posts the document to show; it renders in a
+  nested sandboxed srcdoc iframe, and nothing here can reach the network or navigate.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src about:; child-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
+<style>html,body{height:100%;margin:0}iframe{width:100%;height:100%;border:0;background:#fff}</style>
+<iframe id="preview" title="Preview" sandbox="allow-scripts" referrerpolicy="no-referrer" csp="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'; base-uri 'none'"></iframe>
+<script>
+  addEventListener("message", (event) => {
+    if (event.source !== parent) return;
+    const message = event.data;
+    if (message?.type !== "rakazo:html-preview" || typeof message.html !== "string") return;
+    document.getElementById("preview").srcdoc = message.html;
+  });
+</script>

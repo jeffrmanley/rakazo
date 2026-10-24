@@ -1,9 +1,16 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+
 const PREVIEW_CSP =
   "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'; base-uri 'none'";
 
-// frame-src about: allows srcdoc and rejects navigations the sandbox and inner CSP do not block.
-const SHELL_CSP =
-  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src about:; child-src 'none'; form-action 'none'; base-uri 'none'";
+/**
+ * The frame (apps/web/public/html-preview.html) that renders the preview in a nested sandboxed
+ * srcdoc iframe. A URL, not a srcdoc shell: srcdoc documents inherit the app's CSP, whose
+ * `script-src 'self'` would block the shell's script and the artifact's own scripts. The frame
+ * carries its own policy (`frame-src about:` lets it load the srcdoc and rejects navigations).
+ */
+export const HTML_PREVIEW_FRAME_URL = "/html-preview.html";
+export const HTML_PREVIEW_MESSAGE = "rakazo:html-preview";
 
 const PREVIEW_GUARD = `<script>
 document.addEventListener("click", (event) => {
@@ -17,32 +24,35 @@ document.addEventListener("click", (event) => {
 document.addEventListener("submit", (event) => event.preventDefault(), true);
 </script>`;
 
-/** JSON-embed so user HTML cannot close the shell's script and run in it. */
-function embedScriptString(value: string): string {
-  return JSON.stringify(value)
-    .replace(/</g, "\\u003c")
-    .replace(/\u2028/g, "\\u2028")
-    .replace(/\u2029/g, "\\u2029");
-}
-
 function withPreviewDocument(html: string): string {
   const meta = `<meta http-equiv="Content-Security-Policy" content="${PREVIEW_CSP}">`;
   const referrer = `<meta name="referrer" content="no-referrer">`;
   return `${meta}${referrer}${PREVIEW_GUARD}${html}`;
 }
 
-function shellDocument(innerHtml: string): string {
-  const payload = embedScriptString(innerHtml);
-  return `<!DOCTYPE html><meta http-equiv="Content-Security-Policy" content="${SHELL_CSP}"><meta name="referrer" content="no-referrer"><style>html,body{height:100%;margin:0}iframe{width:100%;height:100%;border:0;background:#fff}</style><iframe id="preview" sandbox="allow-scripts" referrerpolicy="no-referrer" csp="${PREVIEW_CSP}"></iframe><script>document.getElementById("preview").srcdoc=${payload};</script>`;
-}
-
 export function SandboxedHtmlViewer({ html, title }: { html: string; title: string }) {
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [loads, setLoads] = useState(0);
+  const previewDocument = useMemo(() => withPreviewDocument(html), [html]);
+
+  useEffect(() => {
+    if (loads === 0) return;
+    // The frame is sandboxed without allow-same-origin, so its origin is opaque: "*" is the
+    // only target that reaches it. It accepts messages from its parent only.
+    frame.current?.contentWindow?.postMessage(
+      { type: HTML_PREVIEW_MESSAGE, html: previewDocument },
+      "*",
+    );
+  }, [loads, previewDocument]);
+
   return (
     <iframe
+      ref={frame}
       title={title}
-      srcDoc={shellDocument(withPreviewDocument(html))}
+      src={HTML_PREVIEW_FRAME_URL}
       sandbox="allow-scripts"
       referrerPolicy="no-referrer"
+      onLoad={() => setLoads((count) => count + 1)}
       className="h-full w-full border-0 bg-white"
     />
   );
