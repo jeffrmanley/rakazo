@@ -348,6 +348,9 @@ describe("createAuditWriter", () => {
       "control.stop",
       "control.resume",
       "policy.change",
+      "auth.2fa_enabled",
+      "auth.2fa_disabled",
+      "auth.2fa_failed",
     ]);
   });
 });

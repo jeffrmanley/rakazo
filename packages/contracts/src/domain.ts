@@ -1241,6 +1241,8 @@ export const DeploymentSettingsSchema = z.object({
   computerHost: z.enum(["docker", "this-mac"]).nullable(),
   canChooseHostComputer: z.boolean(),
   sandboxProvider: z.string(),
+  /** Every account with a password must enrol in two-factor sign-in; owner-only to change. */
+  require2faForAll: z.boolean(),
 });
 
 export const ServerUpdateSourceSchema = z.object({

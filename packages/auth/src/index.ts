@@ -20,6 +20,7 @@ import {
   getOAuthState,
 } from "better-auth/api";
 import { bearer, organization } from "better-auth/plugins";
+import { twoFactor } from "better-auth/plugins/two-factor";
 import {
   accountSecurity,
   OIDC_FRESH_AGE,
@@ -30,9 +31,18 @@ import { escapeHtml } from "./escape-html.js";
 import type { OidcConfig } from "./oidc.js";
 import { oidcDiscovery } from "./oidc.js";
 import { isReservedTestAccountEmail, TEST_ACCOUNT_DOMAIN } from "./test-accounts.js";
+import type { TwoFactorEvent } from "./two-factor.js";
+import { twoFactorGuard, twoFactorOptions } from "./two-factor.js";
 
 export type { OidcConfig } from "./oidc.js";
 export * from "./test-accounts.js";
+export type { TwoFactorEnforcement, TwoFactorEvent, TwoFactorPolicy } from "./two-factor.js";
+export {
+  loadTwoFactorPolicy,
+  resetTwoFactor,
+  twoFactorEnrolmentPending,
+  twoFactorPolicy,
+} from "./two-factor.js";
 
 export interface AuthEnv {
   passwordAuth?: boolean;
@@ -54,6 +64,8 @@ export interface AuthEnv {
   afterDeleteSession?: (session: AuthSession) => Promise<void>;
   /** Runs when a password change replaces the caller's own session instead of ending it. */
   afterReplaceSession?: (previous: AuthSession, session: AuthSession) => Promise<void>;
+  /** Two-factor enrolment, removal and failed codes, for the log and the audit chain. */
+  onTwoFactorEvent?: (event: TwoFactorEvent) => Promise<void>;
 }
 
 type AuthSession = { id: string; userId: string };
@@ -257,6 +269,8 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
   if (env.passwordAuth === false && !env.oidc)
     throw new Error("Password auth requires OIDC when disabled");
   const discovery = env.oidc ? oidcDiscovery(env.oidc) : undefined;
+  // Bound once the instance exists: disabling two-factor checks a code through the plugin.
+  const late: { verifyTwoFactorCode?: (headers: Headers, code: string) => Promise<void> } = {};
   const auth = betterAuth({
     appName: env.appName ?? UPSTREAM_BRAND.name,
     secret: env.secret,
@@ -379,6 +393,17 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
         allowUserToCreateOrganization: false,
         disableOrganizationDeletion: true,
         creatorRole: "owner",
+      }),
+      twoFactor(twoFactorOptions(env.secret)),
+      twoFactorGuard({
+        prisma,
+        secret: env.secret,
+        brandName: () => currentBrandName(env),
+        verifyCode: async (headers, code) => {
+          if (!late.verifyTwoFactorCode) throw new APIError("INTERNAL_SERVER_ERROR");
+          await late.verifyTwoFactorCode(headers, code);
+        },
+        onEvent: env.onTwoFactorEvent,
       }),
     ],
     hooks: {
@@ -574,6 +599,11 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
       },
     },
   });
+  late.verifyTwoFactorCode = async (headers, code) => {
+    // Six digits is an authenticator code; anything else can only be a backup code.
+    if (/^\d{6}$/.test(code)) await auth.api.verifyTOTP({ headers, body: { code } });
+    else await auth.api.verifyBackupCode({ headers, body: { code, disableSession: true } });
+  };
   return Object.assign(auth, {
     ssoAvailability: () => discovery?.availability(),
     disposeOidcDiscovery: () => discovery?.dispose(),

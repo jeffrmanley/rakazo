@@ -214,6 +214,7 @@ export const appContract = {
           signupsEnabled: z.boolean().optional(),
           signupAllowlist: z.array(z.string()).optional(),
           computerHost: z.enum(["docker", "this-mac"]).nullable().optional(),
+          require2faForAll: z.boolean().optional(),
         }),
       )
       .output(DeploymentSettingsSchema),

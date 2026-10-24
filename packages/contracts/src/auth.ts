@@ -25,6 +25,17 @@ export const accountSecuritySchema = z.object({
 });
 export type AccountSecurity = z.infer<typeof accountSecuritySchema>;
 
+/** The signed-in account's two-factor state: `GET /api/auth/two-factor-policy`. */
+export const twoFactorPolicySchema = z.object({
+  enabled: z.boolean(),
+  required: z.boolean(),
+  /** Unenrolled but required: the deployment owner sees a banner, anyone else the enrolment screen. */
+  enforcement: z.enum(["none", "banner", "enrol"]),
+  /** False for an account without a password; two-factor guards password sign-in only. */
+  available: z.boolean(),
+});
+export type TwoFactorPolicyView = z.infer<typeof twoFactorPolicySchema>;
+
 /** Only a complete pre-SSO shape may opt into password-only compatibility. */
 export const legacyAuthCapabilitiesSchema = authCapabilitiesSchema
   .omit({ sso: true, passwordAuth: true })

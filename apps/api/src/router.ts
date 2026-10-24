@@ -184,6 +184,7 @@ import {
   findSpaceMemoryConfig,
   findTicket,
   formatMessagingLinkCode,
+  getAuditWriter,
   homeMessagingIdentity,
   InvalidSpaceNameError,
   IsolationError,
@@ -1065,12 +1066,20 @@ export function createRouter(deps: RouterDeps) {
         return deploymentDto(deps.prisma, deps.env.sandboxProvider);
       }),
       update: authed.deployment.update.handler(async ({ context, input }) => {
-        if (!context.actor.isDeploymentOwner) throw new ORPCError("FORBIDDEN");
+        if (!context.actor.isDeploymentOwner) {
+          getLogger().warn("deployment settings change denied", {
+            "user.id": context.actor.userId,
+          });
+          throw new ORPCError("FORBIDDEN");
+        }
         if (input.computerHost === "this-mac" && deps.env.sandboxProvider !== "docker") {
           throw new ORPCError("BAD_REQUEST", {
             message:
               "This Mac mode is only available when SANDBOX_PROVIDER=docker on a personal local app.",
           });
+        }
+        if (input.require2faForAll !== undefined) {
+          await setRequire2faForAll(deps.prisma, context.actor, input.require2faForAll);
         }
         await deps.prisma.deploymentSettings.upsert({
           where: { id: "default" },
@@ -6709,6 +6718,37 @@ async function computerScreenContext(
   return { ...context, screenLeaseId: screenLeaseIdForRun(lease, lease.runId) };
 }
 
+/**
+ * Owner-only. The write repeats the owner condition inside the transaction, so ownership lost
+ * since the request was authorized is a denial too; a change is audited with EXT_AUDIT_LOG.
+ */
+async function setRequire2faForAll(prisma: PrismaClient, actor: Actor, value: boolean) {
+  await prisma.$transaction(async (tx) => {
+    const current = await tx.deploymentSettings.findUnique({
+      where: { id: "default" },
+      select: { ownerUserId: true, require2faForAll: true },
+    });
+    if (!current?.ownerUserId || current.ownerUserId !== actor.userId) {
+      getLogger().warn("deployment settings change denied", { "user.id": actor.userId });
+      throw new ORPCError("FORBIDDEN");
+    }
+    if (current.require2faForAll === value) return;
+    await tx.deploymentSettings.update({
+      where: { id: "default", ownerUserId: actor.userId },
+      data: { require2faForAll: value },
+    });
+    await getAuditWriter()?.recordInTransaction(tx, {
+      spaceId: actor.spaceId,
+      actor: { type: "human", id: actor.userId },
+      kind: "policy.change",
+      summary: value
+        ? "Two-factor sign-in required for every account"
+        : "Two-factor sign-in required for the deployment owner only",
+      detail: { setting: "require2faForAll", value },
+    });
+  });
+}
+
 async function deploymentDto(prisma: PrismaClient, sandboxProvider: string) {
   const settings = await prisma.deploymentSettings.findUnique({ where: { id: "default" } });
   return {
@@ -6723,6 +6763,7 @@ async function deploymentDto(prisma: PrismaClient, sandboxProvider: string) {
     computerHost: computerHostFor(settings?.computerHost, sandboxProvider),
     canChooseHostComputer: sandboxProvider === "docker",
     sandboxProvider,
+    require2faForAll: settings?.require2faForAll ?? false,
   };
 }
 

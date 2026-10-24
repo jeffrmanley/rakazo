@@ -31,6 +31,9 @@ model User {
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
   avatarStyle                 String                       @default("robot")
+  /// Better Auth two-factor plugin: true once an authenticator app is confirmed.
+  twoFactorEnabled            Boolean?                     @default(false)
+  twoFactor                   TwoFactor?
   sessions                    Session[]
   accounts                    Account[]
   members                     Member[]
@@ -99,6 +102,23 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+/// Better Auth two-factor plugin. `secret` is the TOTP key encrypted with the auth secret;
+/// `backupCodes` holds keyed hashes of the unused backup codes, never the codes.
+/// One row per user, so a second enrolment cannot add a parallel secret.
+model TwoFactor {
+  id                      String    @id
+  secret                  String
+  backupCodes             String
+  userId                  String    @unique
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verified                Boolean?  @default(true)
+  failedVerificationCount Int?      @default(0)
+  lockedUntil             DateTime?
+
+  @@index([secret])
+  @@map("two_factor")
 }
 
 /// Better Auth credential rate limits. `lastRequest` is epoch milliseconds.
@@ -307,6 +327,8 @@ model DeploymentSettings {
   brandUpdatedAt                  DateTime?
   /// User id of the deployment owner who last changed the brand.
   brandUpdatedBy                  String?
+  /// Fork extension: every non-test account with a password must enrol in two-factor sign-in.
+  require2faForAll                Boolean  @default(false)
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt
 

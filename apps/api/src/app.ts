@@ -78,7 +78,12 @@ import {
   toTeamChatInbound,
   withSecretPersistence,
 } from "@rakazo/adapters";
-import { createAuth, isBlockedAuthPath, loopbackTwinOrigins } from "@rakazo/auth";
+import {
+  createAuth,
+  isBlockedAuthPath,
+  loopbackTwinOrigins,
+  twoFactorEnrolmentPending,
+} from "@rakazo/auth";
 import type { Actor, AuthCapabilities } from "@rakazo/contracts";
 import { signupAllowlistBootUpdate, signupPolicyFromEnv } from "@rakazo/core";
 import type { Pool, PrismaClient } from "@rakazo/db";
@@ -156,6 +161,7 @@ import {
   TEAM_CHAT_STARTUP_SHUTDOWN_MS,
   teamChatProviders,
 } from "./team-chat-startup.js";
+import { recordTwoFactorEvent } from "./two-factor-events.js";
 import { mountVoiceHttpRoutes } from "./voice.js";
 import { mountWebhookHttpRoutes } from "./webhook.js";
 
@@ -495,6 +501,7 @@ export async function createApp(
         (error) => getLogger().error("push token session update failed", error),
       );
     },
+    onTwoFactorEvent: (event) => recordTwoFactorEvent(prisma, event),
   });
   // One provider instance so emulator launches and polls share the same Map.
   const cloudAgent = createCloudAgentConnection({
@@ -713,6 +720,12 @@ export async function createApp(
   const lookupSession = async (request: Request) => {
     const session = await auth.api.getSession({ headers: sessionHeaders(request) });
     if (!session?.user) return null;
+    // require2faForAll: an account that has not enrolled reaches only the auth routes, which
+    // carry the enrolment flow, until it does.
+    if (await twoFactorEnrolmentPending(prisma, session.user)) {
+      getLogger().warn("two-factor enrolment required", { "user.id": session.user.id });
+      return null;
+    }
     const actor = await actorFromMembership(
       requireMembership(prisma, session.user.id, request.headers.get("x-rakazo-space-id")),
     );

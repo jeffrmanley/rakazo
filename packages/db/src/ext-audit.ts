@@ -33,6 +33,9 @@ export const AUDIT_EVENT_KINDS = [
   "control.stop",
   "control.resume",
   "policy.change",
+  "auth.2fa_enabled",
+  "auth.2fa_disabled",
+  "auth.2fa_failed",
 ] as const;
 export type AuditEventKind = (typeof AUDIT_EVENT_KINDS)[number];
 

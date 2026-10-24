@@ -18,7 +18,9 @@ Every event belongs to one space and is appended to that space's chain:
 System notes (`role: "system"`) are not chat messages and are not recorded. The remaining kinds
 in the type (`credential.use`, `approval.request`, `approval.decision`, `verifier.verdict`,
 `budget.block`, `control.stop`, `control.resume`, `policy.change`) exist for the emergency-stop
-and budget modules; they call the same writer.
+and budget modules; they call the same writer. Two-factor sign-in writes `auth.2fa_enabled`,
+`auth.2fa_disabled` and `auth.2fa_failed` to the account's default space, with the user id and
+an error id but never a code or secret (`docs/security/two-factor.md`).
 
 `detail` is structured and bounded. Message events carry the thread id, the message sequence,
 the role and the block kinds, never the text: a chat message can be cleared later, an audit row
