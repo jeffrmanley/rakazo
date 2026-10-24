@@ -42,6 +42,7 @@ import {
   resolveComputerControlEndpoint,
   resolveComputerEgressMode,
   resolveScreenNetworkMode,
+  resolveScreenPeerService,
   resolveScreenPublishTarget,
   resolveSpaceComputerLimit,
   resolveTeamScreenLimit,
@@ -104,6 +105,7 @@ let supervisorInfo: Docker.ContainerInspectInfo | undefined;
 let dockerApiVersion: string | undefined;
 const supervisorToken = resolveSupervisorToken(process.env);
 const screenNetworkMode = resolveScreenNetworkMode(process.env.SANDBOX_SCREEN_NETWORK);
+const screenPeerService = resolveScreenPeerService(process.env.SANDBOX_SCREEN_PEER_SERVICE);
 const computerEgressMode = resolveComputerEgressMode();
 const teamScreenLimit = resolveTeamScreenLimit();
 // Host-run supervisors on Docker Desktop (macOS/Windows) cannot reach container
@@ -1396,7 +1398,10 @@ async function composeScreenPeerIds(info: Docker.ContainerInspectInfo) {
     const webContainers = await docker.listContainers({
       all: true,
       filters: {
-        label: [`com.docker.compose.project=${project}`, "com.docker.compose.service=web"],
+        label: [
+          `com.docker.compose.project=${project}`,
+          `com.docker.compose.service=${screenPeerService}`,
+        ],
       },
     });
     for (const container of webContainers) peerIds.add(container.Id);

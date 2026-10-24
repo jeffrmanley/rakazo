@@ -143,6 +143,19 @@ export function computerResourceLimits() {
   };
 }
 
+/**
+ * The Compose service whose containers proxy screens and so join each isolated computer network.
+ * `web` upstream; the fork's compose stack runs the screen proxy as `web-app`, behind the Caddy
+ * front end that keeps the `web` name (and stays off bot networks).
+ */
+export function resolveScreenPeerService(value: string | undefined): string {
+  const service = value?.trim() || "web";
+  if (!/^[a-z0-9][a-z0-9_.-]{0,62}$/.test(service)) {
+    throw new Error(`Unsupported SANDBOX_SCREEN_PEER_SERVICE value: ${value}`);
+  }
+  return service;
+}
+
 export function resolveScreenNetworkMode(value: string | undefined): ScreenNetworkMode {
   if (!value || value === "published") return "published";
   if (value === "internal" || value === "isolated") return value;

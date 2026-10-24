@@ -39,6 +39,7 @@ import {
   resolveComputerControlEndpoint,
   resolveComputerEgressMode,
   resolveScreenNetworkMode,
+  resolveScreenPeerService,
   resolveScreenPublishTarget,
   resolveSpaceComputerLimit,
   resolveTeamScreenLimit,
@@ -1261,6 +1262,17 @@ describe("graphical computer spec", () => {
     expect(resolveScreenNetworkMode("published")).toBe("published");
     expect(resolveScreenNetworkMode("isolated")).toBe("isolated");
     expect(() => resolveScreenNetworkMode("typo")).toThrow(/Unsupported/);
+  });
+
+  it("names the Compose screen proxy service, web unless configured", () => {
+    expect(resolveScreenPeerService(undefined)).toBe("web");
+    expect(resolveScreenPeerService("")).toBe("web");
+    expect(resolveScreenPeerService("web-app")).toBe("web-app");
+    // A label filter value: anything that is not a Compose service name is refused.
+    expect(() => resolveScreenPeerService("web,com.docker.compose.service=api")).toThrow(
+      /Unsupported/,
+    );
+    expect(() => resolveScreenPeerService("Web App")).toThrow(/Unsupported/);
   });
 
   it("uses the host identity for host-run bind mounts without ever using root", () => {

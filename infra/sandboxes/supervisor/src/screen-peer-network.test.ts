@@ -140,3 +140,19 @@ describe("isolated screen peer gateway priority through the supervisor route", (
     });
   });
 });
+
+describe("isolated screen peers", () => {
+  it("joins the configured screen proxy service, not the web front end", async () => {
+    vi.stubEnv("SANDBOX_SCREEN_PEER_SERVICE", "web-app");
+    const { connect } = fixture();
+    mocks.version.mockResolvedValue({ ApiVersion: "1.45" });
+    expect((await openScreen()).status).toBe(200);
+    expect(mocks.listContainers).toHaveBeenCalledWith({
+      all: true,
+      filters: {
+        label: ["com.docker.compose.project=example", "com.docker.compose.service=web-app"],
+      },
+    });
+    expect(connect).toHaveBeenCalledWith({ Container: "web-peer" });
+  });
+});
