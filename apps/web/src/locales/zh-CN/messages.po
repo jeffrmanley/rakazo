@@ -640,6 +640,10 @@ msgstr "附件"
 msgid "Authentication failed."
 msgstr "身份验证失败。"
 
+#: src/pages/Auth.tsx
+msgid "Authenticator code"
+msgstr "身份验证器验证码"
+
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Authorization code or callback URL"
@@ -691,6 +695,10 @@ msgstr "返回"
 #: src/pages/Auth.tsx
 msgid "Back to sign in"
 msgstr "返回登录"
+
+#: src/pages/Auth.tsx
+msgid "Backup code"
+msgstr "备用码"
 
 #: src/pages/ModelBackupsSettings.tsx
 msgid "Backup models"
@@ -815,16 +823,22 @@ msgstr "内置"
 msgid "Can't reach the server."
 msgstr "无法连接服务器。"
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Can’t scan it?"
+msgstr "无法扫描？"
+
 #: src/components/AskCard.tsx
 #: src/components/ComputerMaintenanceActions.tsx
 #: src/components/ComputerUpdateProgress.tsx
 #: src/components/markdown-link-prompt.tsx
 #: src/components/teach/TeachComputerOverlay.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/Artifacts.tsx
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 #: src/pages/PluginsOverlay.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 #: src/pages/shell/bot-credentials.tsx
 #: src/pages/shell/dialogs.tsx
 msgid "Cancel"
@@ -924,6 +938,7 @@ msgstr ""
 #: src/components/ComputersUnavailableHint.tsx
 #: src/components/DesktopUpdates.tsx
 #: src/components/SoftwareUpdateSection.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/HostComputerPrompt.tsx
 msgid "Checking…"
 msgstr "正在检查…"
@@ -1057,8 +1072,13 @@ msgid "Cloud"
 msgstr "云端"
 
 #: src/components/AskCard.tsx
+#: src/components/TwoFactorSetup.tsx
 msgid "Code"
 msgstr "代码"
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Code or backup code"
+msgstr "验证码或备用码"
 
 #. placeholder {0}: group.title
 #. placeholder {0}: item.chat.name
@@ -1148,6 +1168,10 @@ msgstr "由部署配置"
 #: src/pages/McpServersOverlay.tsx
 msgid "Configured servers"
 msgstr "已配置的服务器"
+
+#: src/components/TwoFactorSetup.tsx
+msgid "Confirm"
+msgstr "确认"
 
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/McpServersOverlay.tsx
@@ -1255,6 +1279,7 @@ msgid "Context limit"
 msgstr "上下文限制"
 
 #: src/components/integrations/IntegrationSetup.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/Onboarding.tsx
 msgid "Continue"
 msgstr "继续"
@@ -1273,6 +1298,7 @@ msgid "Continue with email"
 msgstr "使用邮箱继续"
 
 #: src/components/ComputersUnavailableHint.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Copied"
@@ -1287,6 +1313,10 @@ msgstr "复制"
 #: src/components/ComputersUnavailableHint.tsx
 msgid "Copy .env example"
 msgstr ""
+
+#: src/components/TwoFactorSetup.tsx
+msgid "Copy codes"
+msgstr "复制备用码"
 
 #: src/pages/ScratchpadSection.tsx
 msgid "Could not add"
@@ -1336,6 +1366,10 @@ msgstr "无法完成 OAuth"
 msgid "Could not complete the update. Try again."
 msgstr ""
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Could not confirm the code"
+msgstr "无法确认验证码"
+
 #: src/components/integrations/IntegrationSetup.tsx
 #: src/pages/PluginsOverlay.tsx
 msgid "Could not connect"
@@ -1359,6 +1393,7 @@ msgid "Could not connect to the computer screen"
 msgstr ""
 
 #: src/components/AccountAccess.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/lib/account-security.ts
 #: src/lib/sso-flow.ts
 #: src/lib/user-error.ts
@@ -1539,6 +1574,14 @@ msgstr "无法加载此对话。"
 msgid "Could not load this file."
 msgstr "无法加载此文件。"
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Could not load this setting"
+msgstr "无法加载此设置"
+
+#: src/lib/two-factor.ts
+msgid "Could not load two-factor settings"
+msgstr "无法加载双重验证设置"
+
 #: src/components/SoftwareUpdateSection.tsx
 msgid "Could not load update status"
 msgstr "无法加载更新状态"
@@ -1683,6 +1726,10 @@ msgstr ""
 msgid "Could not save this choice"
 msgstr "无法保存此选择"
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Could not save this setting"
+msgstr "无法保存此设置"
+
 #: src/pages/PluginsOverlay.tsx
 msgid "Could not search catalog"
 msgstr ""
@@ -1703,6 +1750,10 @@ msgstr "无法开始 OAuth"
 msgid "Could not start teaching"
 msgstr ""
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Could not start two-factor setup"
+msgstr "无法开始设置双重验证"
+
 #: src/components/AskCard.tsx
 msgid "Could not submit this answer"
 msgstr "无法提交此回答"
@@ -1710,6 +1761,11 @@ msgstr "无法提交此回答"
 #: src/pages/Shell.tsx
 msgid "Could not take control"
 msgstr "无法接管"
+
+#: src/lib/two-factor.ts
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Could not turn off two-factor sign-in"
+msgstr "无法关闭双重验证"
 
 #: src/pages/ScratchpadSection.tsx
 msgid "Could not update"
@@ -1833,7 +1889,9 @@ msgid "Cron expression"
 msgstr "Cron 表达式"
 
 #: src/components/AccountAccess.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/AccountSettingsOverlay.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 msgid "Current password"
 msgstr "当前密码"
 
@@ -2148,6 +2206,10 @@ msgid "Engage when... Ignore..."
 msgstr ""
 
 #: src/lib/user-error.ts
+msgid "Enter a code from your authenticator app or a backup code."
+msgstr "请输入身份验证器应用中的验证码或备用码。"
+
+#: src/lib/user-error.ts
 msgid "Enter a password"
 msgstr "请输入密码"
 
@@ -2177,6 +2239,10 @@ msgstr "请输入 1 到 1000 之间的整数作为图像限制。"
 #: src/lib/model-connection-preflight.ts
 msgid "Enter an API key before testing."
 msgstr "测试前请输入 API 密钥。"
+
+#: src/pages/Auth.tsx
+msgid "Enter your code"
+msgstr "输入验证码"
 
 #: src/lib/roster-status.ts
 #: src/pages/Shell.tsx
@@ -2480,6 +2546,10 @@ msgstr "频率"
 msgid "How to check"
 msgstr "如何检查"
 
+#: src/components/TwoFactorSetup.tsx
+msgid "I saved them"
+msgstr "我已保存"
+
 #: src/pages/Shell.tsx
 msgid "I’m done"
 msgstr "我做完了"
@@ -2704,6 +2774,7 @@ msgstr "正在加载语音提供方…"
 #: src/pages/Onboarding.tsx
 #: src/pages/PeerMessagesOverlay.tsx
 #: src/pages/RoutineRunHistory.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 #: src/pages/Shell.tsx
 msgid "Loading…"
 msgstr "加载中…"
@@ -2720,6 +2791,7 @@ msgstr "本地访问权限允许 Bot 无需询问就执行命令。请勿在共�
 msgid "Local Server Settings"
 msgstr ""
 
+#: src/components/TwoFactorGate.tsx
 #: src/pages/Paywall.tsx
 #: src/pages/Shell.tsx
 msgid "Log out"
@@ -3263,6 +3335,10 @@ msgstr "OAuth 连接失败"
 msgid "OAuth expired"
 msgstr ""
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Off."
+msgstr "已关闭。"
+
 #. placeholder {0}: call.botName
 #: src/components/call/CallCard.tsx
 msgid "On a call with {0}"
@@ -3276,6 +3352,10 @@ msgstr "按计划"
 #: src/pages/RoutineSchedule.tsx
 msgid "on the 1st at {0}"
 msgstr "每月 1 日 {0}"
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "On. Signing in asks for a code from your authenticator app."
+msgstr "已开启。登录时需要输入身份验证器应用中的验证码。"
 
 #: src/pages/Shell.tsx
 msgid "Only empty spaces can be deleted. Delete its bots and groups first."
@@ -3518,6 +3598,10 @@ msgstr "提供方"
 #: src/components/CloudAgentCard.tsx
 msgid "Pull request"
 msgstr "拉取请求"
+
+#: src/components/TwoFactorSetup.tsx
+msgid "QR code for your authenticator app"
+msgstr "用于身份验证器应用的二维码"
 
 #: src/pages/ActivityList.tsx
 msgid "Queued"
@@ -3762,6 +3846,10 @@ msgstr ""
 msgid "Replying to {0}"
 msgstr ""
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Require two-factor sign-in for every account"
+msgstr "要求所有账户使用双重验证登录"
+
 #: src/pages/shell/message-cards.tsx
 msgid "Research & writing"
 msgstr "调研和写作"
@@ -3951,6 +4039,10 @@ msgstr ""
 msgid "Save the workspace and install current software."
 msgstr "保存工作区并安装最新软件。"
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Save these backup codes. Each signs you in once if you lose your phone."
+msgstr "请保存这些备用码。如果你丢失手机，每个备用码可用于登录一次。"
+
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
 #: src/pages/BrandingSettingsPanel.tsx
@@ -3993,6 +4085,10 @@ msgstr "正在保存…"
 #: src/lib/call-session.ts
 msgid "Say yes or no, or answer in a sentence."
 msgstr "回答是或否，或一句话说明。"
+
+#: src/components/TwoFactorSetup.tsx
+msgid "Scan this with your authenticator app, then enter the code it shows."
+msgstr "请用身份验证器应用扫描此二维码，然后输入应用显示的验证码。"
 
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/PluginsOverlay.tsx
@@ -4048,6 +4144,10 @@ msgstr ""
 #: src/pages/SpaceSearch.tsx
 msgid "Searching…"
 msgstr "正在搜索…"
+
+#: src/pages/SettingsOverlay.tsx
+msgid "Security"
+msgstr "安全"
 
 #: src/pages/Shell.tsx
 msgid "Select a bot"
@@ -4109,6 +4209,10 @@ msgstr "服务器名称"
 #: src/pages/Onboarding.tsx
 msgid "Server URL"
 msgstr "服务器 URL"
+
+#: src/components/TwoFactorGate.tsx
+msgid "Set up two-factor sign-in"
+msgstr "设置双重验证"
 
 #: src/components/call/CallCard.tsx
 #: src/pages/MessagingSettingsOverlay.tsx
@@ -4479,6 +4583,14 @@ msgstr "测试登录"
 msgid "Testing…"
 msgstr "正在测试…"
 
+#: src/lib/user-error.ts
+msgid "That backup code didn’t work."
+msgstr "该备用码无效。"
+
+#: src/lib/user-error.ts
+msgid "That code didn’t work. Enter the one your app shows now."
+msgstr "该验证码无效。请输入应用当前显示的验证码。"
+
 #: src/components/SoftwareUpdateSection.tsx
 msgid "The API did not come back. Refresh this page."
 msgstr "API 未恢复。请刷新此页面。"
@@ -4534,6 +4646,10 @@ msgstr "这台电脑"
 #: src/pages/Artifacts.tsx
 msgid "This deletes all {0} versions of this artifact. This can't be undone."
 msgstr ""
+
+#: src/components/TwoFactorGate.tsx
+msgid "This deployment requires it for every account."
+msgstr "此部署要求所有账户启用双重验证。"
 
 #: src/components/ArtifactFileCard.tsx
 msgid "This file is not valid UTF-8 text."
@@ -4626,6 +4742,14 @@ msgstr "至:"
 msgid "Today"
 msgstr "今天"
 
+#: src/lib/user-error.ts
+msgid "Too many tries. Sign in again."
+msgstr "尝试次数过多。请重新登录。"
+
+#: src/lib/user-error.ts
+msgid "Too many wrong codes. Try again in 15 minutes."
+msgstr "错误验证码过多。请在 15 分钟后重试。"
+
 #: src/pages/PluginsOverlay.tsx
 msgid "Tool sources"
 msgstr "工具源"
@@ -4664,6 +4788,10 @@ msgstr ""
 msgid "Trial ends {day}"
 msgstr ""
 
+#: src/pages/Auth.tsx
+msgid "Trust this device for 30 days"
+msgstr "30 天内信任此设备"
+
 #: src/pages/ActivityList.tsx
 #: src/pages/Onboarding.tsx
 msgid "Try again"
@@ -4672,6 +4800,32 @@ msgstr "重试"
 #: src/lib/model-connection-preflight.ts
 msgid "Try the test again."
 msgstr "请重试测试。"
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Turn off"
+msgstr "关闭"
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Turn off two-factor sign-in"
+msgstr "关闭双重验证"
+
+#: src/components/TwoFactorGate.tsx
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Turn on"
+msgstr "开启"
+
+#: src/components/TwoFactorGate.tsx
+msgid "Turn on two-factor sign-in to protect this deployment."
+msgstr "开启双重验证以保护此部署。"
+
+#: src/components/TwoFactorGate.tsx
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Two-factor authentication"
+msgstr "双重身份验证"
+
+#: src/lib/user-error.ts
+msgid "Two-factor sign-in is already on."
+msgstr "双重验证已开启。"
 
 #: src/pages/shell/bot-credentials.tsx
 msgid "Type"
@@ -4797,6 +4951,10 @@ msgstr "用量"
 msgid "Use {hostLabel}"
 msgstr "使用 {hostLabel}"
 
+#: src/pages/Auth.tsx
+msgid "Use a backup code"
+msgstr "使用备用码"
+
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Use a found model"
@@ -4846,6 +5004,10 @@ msgstr ""
 msgid "Use this model"
 msgstr "使用此模型"
 
+#: src/pages/Auth.tsx
+msgid "Use your authenticator app"
+msgstr "使用身份验证器应用"
+
 #: src/pages/ModelSettingsOverlay.tsx
 msgid "Use your own key"
 msgstr "使用自己的密钥"
@@ -4866,6 +5028,10 @@ msgstr ""
 #: src/pages/shell/bot-credentials.tsx
 msgid "Values are encrypted and never shown again."
 msgstr "值会加密保存，之后不再显示。"
+
+#: src/pages/Auth.tsx
+msgid "Verify"
+msgstr "验证"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Verify and add"
@@ -4979,8 +5145,10 @@ msgstr ""
 msgid "Worker ({amount})"
 msgstr "执行者（{amount}）"
 
+#: src/components/TwoFactorSetup.tsx
 #: src/lib/roster-status.ts
 #: src/pages/Auth.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 msgid "Working…"
 msgstr "处理中…"
 
@@ -5013,6 +5181,10 @@ msgstr "可以关闭此窗口。"
 msgid "You have control"
 msgstr "你已接管"
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Your account signs in with SSO, which handles its own second factor."
+msgstr "你的账户通过 SSO 登录，SSO 会自行处理第二重验证。"
+
 #: src/pages/Auth.tsx
 msgid "Your email address"
 msgstr "你的邮箱"
@@ -5020,6 +5192,10 @@ msgstr "你的邮箱"
 #: src/pages/Auth.tsx
 msgid "Your name"
 msgstr "你的名字"
+
+#: src/lib/user-error.ts
+msgid "Your sign-in timed out. Sign in again."
+msgstr "登录已超时。请重新登录。"
 
 #: src/pages/Welcome.tsx
 msgid "Your team of always-on agents<0/>that you can give real work to."

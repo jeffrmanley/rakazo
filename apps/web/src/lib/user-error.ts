@@ -23,6 +23,15 @@ export function authErrorText(error: unknown, fallback: string): string {
   if (code === "REAUTHENTICATION_REQUIRED") return t`Sign in again`;
   if (code === "PASSWORD_AUTH_DISABLED" || code === "EMAIL_DELETION_UNAVAILABLE")
     return t`Could not continue`;
+  if (code === "INVALID_CODE") return t`That code didn’t work. Enter the one your app shows now.`;
+  if (code === "INVALID_BACKUP_CODE") return t`That backup code didn’t work.`;
+  if (code === "TWO_FACTOR_CODE_REQUIRED")
+    return t`Enter a code from your authenticator app or a backup code.`;
+  if (code === "TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE") return t`Too many tries. Sign in again.`;
+  if (code === "INVALID_TWO_FACTOR_COOKIE") return t`Your sign-in timed out. Sign in again.`;
+  if (code === "ACCOUNT_TEMPORARILY_LOCKED")
+    return t`Too many wrong codes. Try again in 15 minutes.`;
+  if (code === "TOTP_ALREADY_ENABLED") return t`Two-factor sign-in is already on.`;
   return authErrorMessage(error, {
     fallback,
     email: credentialIssueText("email"),

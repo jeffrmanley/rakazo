@@ -1,6 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { credentialIssue, signupRequiresEmailVerification } from "@rakazo/core";
-import { Button, Input, Label } from "@rakazo/ui-web";
+import { Button, Checkbox, Input, Label } from "@rakazo/ui-web";
 import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -11,6 +11,7 @@ import { fetchAuthCapabilities } from "../lib/auth-capabilities";
 import { useBrand } from "../lib/brand";
 import { clearSpaceSelection } from "../lib/rpc";
 import { runSsoFlow } from "../lib/sso-flow";
+import { isAuthenticatorCode } from "../lib/two-factor";
 import { authErrorText, credentialIssueText } from "../lib/user-error";
 
 type AuthMode = "in" | "up" | "forgot";
@@ -33,6 +34,11 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
   });
   const [pending, setPending] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  // Password accepted, second factor pending (Better Auth's two-factor redirect).
+  const [challenge, setChallenge] = useState(false);
+  const [code, setCode] = useState("");
+  const [useBackupCode, setUseBackupCode] = useState(false);
+  const [trustDevice, setTrustDevice] = useState(false);
   // Signup triggers a session refresh that remounts the anonymous auth page.
   const sent = resetSent || searchParams.get("verify") === "email";
   const [reset, setReset] = useState<AuthCapabilities | null>(null);
@@ -42,6 +48,8 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
   const brandName = useBrand().name;
   const title = sent ? (
     <Trans>Check your email</Trans>
+  ) : challenge ? (
+    <Trans>Enter your code</Trans>
   ) : mode === "in" ? (
     <Trans>Sign in to {brandName}</Trans>
   ) : mode === "up" ? (
@@ -70,8 +78,49 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     };
   }, [mode, capabilityAttempt]);
 
+  const destination = () =>
+    mode === "up"
+      ? "/onboarding"
+      : searchParams.get("next") === "/integrations/setup"
+        ? "/integrations/setup"
+        : "/app";
+
+  async function verifySecondFactor() {
+    const value = useBackupCode ? code.trim() : code.replace(/\s+/g, "");
+    if (!value) return;
+    setPending(true);
+    setError(null);
+    try {
+      const result = useBackupCode
+        ? await authClient.twoFactor.verifyBackupCode({ code: value, trustDevice })
+        : await authClient.twoFactor.verifyTotp({ code: value, trustDevice });
+      if (result.error) {
+        // The pending sign-in is used up; only a new password sign-in starts another.
+        if (
+          result.error.code === "TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE" ||
+          result.error.code === "INVALID_TWO_FACTOR_COOKIE"
+        ) {
+          setChallenge(false);
+          setCode("");
+        }
+        setError(authErrorText(result.error, t`Could not continue`));
+        return;
+      }
+      clearSpaceSelection();
+      navigate(destination());
+    } catch {
+      setError(t`Could not reach the server`);
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (challenge) {
+      await verifySecondFactor();
+      return;
+    }
     if (!reset?.passwordAuth) return;
     const issue = credentialIssue({ email, password: mode === "forgot" ? undefined : password });
     if (issue) {
@@ -105,7 +154,12 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
               password,
               name: name || trimmedEmail.split("@")[0] || "User",
             })
-          : await authClient.signIn.email({ email: trimmedEmail, password });
+          : // Held back: a refetch that finds no session unmounts this page, and an account with
+            // two-factor gets no session until the code step below.
+            await authClient.signIn.email(
+              { email: trimmedEmail, password },
+              { disableSignal: true },
+            );
       if (result.error) {
         setError(authErrorText(result.error, t`Could not continue`));
         return;
@@ -114,14 +168,15 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
         setSearchParams({ verify: "email" });
         return;
       }
+      if (needsSecondFactor(result.data)) {
+        setPassword("");
+        setCode("");
+        setChallenge(true);
+        return;
+      }
+      if (mode === "in") authClient.$store.notify("$sessionSignal");
       clearSpaceSelection();
-      navigate(
-        mode === "up"
-          ? "/onboarding"
-          : searchParams.get("next") === "/integrations/setup"
-            ? "/integrations/setup"
-            : "/app",
-      );
+      navigate(destination());
     } catch {
       setError(t`Could not reach the server`);
     } finally {
@@ -159,6 +214,77 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
             <Trans>Back to sign in</Trans>
           </Link>
         </div>
+      ) : challenge ? (
+        <>
+          <div className="w-full">
+            <Label htmlFor="two-factor-code" className="text-muted-foreground">
+              {useBackupCode ? <Trans>Backup code</Trans> : <Trans>Authenticator code</Trans>}
+            </Label>
+            <Input
+              id="two-factor-code"
+              name="code"
+              autoComplete="one-time-code"
+              inputMode={useBackupCode ? "text" : "numeric"}
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className={fieldClass}
+            />
+          </div>
+          <div className="mt-4 flex w-full items-center gap-2">
+            <Checkbox
+              id="trust-device"
+              checked={trustDevice}
+              onCheckedChange={(checked) => setTrustDevice(checked === true)}
+            />
+            <Label htmlFor="trust-device" className="font-normal text-muted-foreground">
+              <Trans>Trust this device for 30 days</Trans>
+            </Label>
+          </div>
+          {error ? (
+            <p role="alert" className="mt-3 w-full text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
+          <Button
+            type="submit"
+            size="lg"
+            disabled={pending || (useBackupCode ? !code.trim() : !isAuthenticatorCode(code))}
+            className={submitClass}
+          >
+            {pending ? <Trans>Working…</Trans> : <Trans>Verify</Trans>}
+          </Button>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="mt-3 text-muted-foreground"
+            onClick={() => {
+              setUseBackupCode((value) => !value);
+              setCode("");
+              setError(null);
+            }}
+          >
+            {useBackupCode ? (
+              <Trans>Use your authenticator app</Trans>
+            ) : (
+              <Trans>Use a backup code</Trans>
+            )}
+          </Button>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="mt-6 text-foreground"
+            onClick={() => {
+              setChallenge(false);
+              setCode("");
+              setError(null);
+            }}
+          >
+            <Trans>Back to sign in</Trans>
+          </Button>
+        </>
       ) : (
         <>
           {capabilityError ? (
@@ -321,6 +447,15 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
         </>
       )}
     </AuthFrame>
+  );
+}
+
+/** Better Auth answers a password sign-in for an enrolled account with this instead of a session. */
+function needsSecondFactor(data: unknown): boolean {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    (data as { twoFactorRedirect?: unknown }).twoFactorRedirect === true
   );
 }
 

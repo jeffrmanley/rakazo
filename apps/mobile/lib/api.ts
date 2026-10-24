@@ -472,6 +472,11 @@ async function authenticateWithEmail(
   if (!response.ok) {
     throw new Error(authErrorText(body, t("Could not continue")));
   }
+  // The code step arrives with the rebranded app; until then say so instead of failing vaguely.
+  if (isTwoFactorRedirect(body))
+    throw new Error(
+      t("Two-factor sign-in isn't supported in this app version yet. Sign in on the web."),
+    );
   const token = tokenFromAuthResponse(response, body);
   if (action === "sign-up" && signupRequiresEmailVerification(body))
     return { verificationRequired: true };
@@ -486,6 +491,15 @@ async function authenticateWithEmail(
   if (!(await clearSpace())) throw new Error(t("Could not clear the previous space"));
   await saveSessionToken(token);
   return { verificationRequired: false };
+}
+
+/** A password sign-in for an account with two-factor on answers this instead of a session. */
+function isTwoFactorRedirect(body: unknown): boolean {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    (body as { twoFactorRedirect?: unknown }).twoFactorRedirect === true
+  );
 }
 
 export function signIn(email: string, password: string) {

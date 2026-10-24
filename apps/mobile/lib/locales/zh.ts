@@ -485,6 +485,8 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Sign up for Rakazo": "注册 Rakazo",
   "Sign-in": "登录",
   "Sign-up": "注册",
+  "Two-factor sign-in isn't supported in this app version yet. Sign in on the web.":
+    "此版本的应用暂不支持双重验证登录。请在网页上登录。",
   "Sign-in did not return a session": "登录未返回会话",
   "Sign-up did not return a session": "注册未返回会话",
   "Silence notifications": "静音通知",

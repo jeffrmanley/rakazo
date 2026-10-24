@@ -640,6 +640,10 @@ msgstr "Anexo"
 msgid "Authentication failed."
 msgstr "A autenticação falhou."
 
+#: src/pages/Auth.tsx
+msgid "Authenticator code"
+msgstr "Código do autenticador"
+
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Authorization code or callback URL"
@@ -691,6 +695,10 @@ msgstr ""
 #: src/pages/Auth.tsx
 msgid "Back to sign in"
 msgstr "Voltar para o login"
+
+#: src/pages/Auth.tsx
+msgid "Backup code"
+msgstr "Código de backup"
 
 #: src/pages/ModelBackupsSettings.tsx
 msgid "Backup models"
@@ -815,16 +823,22 @@ msgstr "Integrado"
 msgid "Can't reach the server."
 msgstr "Não é possível acessar o servidor."
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Can’t scan it?"
+msgstr "Não consegue escanear?"
+
 #: src/components/AskCard.tsx
 #: src/components/ComputerMaintenanceActions.tsx
 #: src/components/ComputerUpdateProgress.tsx
 #: src/components/markdown-link-prompt.tsx
 #: src/components/teach/TeachComputerOverlay.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/Artifacts.tsx
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 #: src/pages/PluginsOverlay.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 #: src/pages/shell/bot-credentials.tsx
 #: src/pages/shell/dialogs.tsx
 msgid "Cancel"
@@ -924,6 +938,7 @@ msgstr ""
 #: src/components/ComputersUnavailableHint.tsx
 #: src/components/DesktopUpdates.tsx
 #: src/components/SoftwareUpdateSection.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/HostComputerPrompt.tsx
 msgid "Checking…"
 msgstr ""
@@ -1057,8 +1072,13 @@ msgid "Cloud"
 msgstr "Nuvem"
 
 #: src/components/AskCard.tsx
+#: src/components/TwoFactorSetup.tsx
 msgid "Code"
 msgstr "Código"
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Code or backup code"
+msgstr "Código ou código de backup"
 
 #. placeholder {0}: group.title
 #. placeholder {0}: item.chat.name
@@ -1148,6 +1168,10 @@ msgstr "Configurado por implantação"
 #: src/pages/McpServersOverlay.tsx
 msgid "Configured servers"
 msgstr "Servidores configurados"
+
+#: src/components/TwoFactorSetup.tsx
+msgid "Confirm"
+msgstr "Confirmar"
 
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/McpServersOverlay.tsx
@@ -1255,6 +1279,7 @@ msgid "Context limit"
 msgstr "Limite de contexto"
 
 #: src/components/integrations/IntegrationSetup.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/Onboarding.tsx
 msgid "Continue"
 msgstr "Continuar"
@@ -1273,6 +1298,7 @@ msgid "Continue with email"
 msgstr "Continuar com e-mail"
 
 #: src/components/ComputersUnavailableHint.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Copied"
@@ -1287,6 +1313,10 @@ msgstr "Copiar"
 #: src/components/ComputersUnavailableHint.tsx
 msgid "Copy .env example"
 msgstr ""
+
+#: src/components/TwoFactorSetup.tsx
+msgid "Copy codes"
+msgstr "Copiar códigos"
 
 #: src/pages/ScratchpadSection.tsx
 msgid "Could not add"
@@ -1336,6 +1366,10 @@ msgstr "Não foi possível concluir o OAuth"
 msgid "Could not complete the update. Try again."
 msgstr ""
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Could not confirm the code"
+msgstr "Não foi possível confirmar o código"
+
 #: src/components/integrations/IntegrationSetup.tsx
 #: src/pages/PluginsOverlay.tsx
 msgid "Could not connect"
@@ -1359,6 +1393,7 @@ msgid "Could not connect to the computer screen"
 msgstr ""
 
 #: src/components/AccountAccess.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/lib/account-security.ts
 #: src/lib/sso-flow.ts
 #: src/lib/user-error.ts
@@ -1539,6 +1574,14 @@ msgstr "Não foi possível carregar este chat."
 msgid "Could not load this file."
 msgstr "Não foi possível carregar este arquivo."
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Could not load this setting"
+msgstr "Não foi possível carregar esta configuração"
+
+#: src/lib/two-factor.ts
+msgid "Could not load two-factor settings"
+msgstr "Não foi possível carregar as configurações de dois fatores"
+
 #: src/components/SoftwareUpdateSection.tsx
 msgid "Could not load update status"
 msgstr ""
@@ -1683,6 +1726,10 @@ msgstr ""
 msgid "Could not save this choice"
 msgstr "Não foi possível salvar esta opção"
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Could not save this setting"
+msgstr "Não foi possível salvar esta configuração"
+
 #: src/pages/PluginsOverlay.tsx
 msgid "Could not search catalog"
 msgstr ""
@@ -1703,6 +1750,10 @@ msgstr "Não foi possível iniciar o OAuth"
 msgid "Could not start teaching"
 msgstr ""
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Could not start two-factor setup"
+msgstr "Não foi possível iniciar a configuração de dois fatores"
+
 #: src/components/AskCard.tsx
 msgid "Could not submit this answer"
 msgstr "Não foi possível enviar esta resposta"
@@ -1710,6 +1761,11 @@ msgstr "Não foi possível enviar esta resposta"
 #: src/pages/Shell.tsx
 msgid "Could not take control"
 msgstr "Não foi possível assumir o controle"
+
+#: src/lib/two-factor.ts
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Could not turn off two-factor sign-in"
+msgstr "Não foi possível desativar o login com dois fatores"
 
 #: src/pages/ScratchpadSection.tsx
 msgid "Could not update"
@@ -1833,7 +1889,9 @@ msgid "Cron expression"
 msgstr "Expressão cron"
 
 #: src/components/AccountAccess.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/AccountSettingsOverlay.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 msgid "Current password"
 msgstr "Senha atual"
 
@@ -2148,6 +2206,10 @@ msgid "Engage when... Ignore..."
 msgstr ""
 
 #: src/lib/user-error.ts
+msgid "Enter a code from your authenticator app or a backup code."
+msgstr "Digite um código do seu aplicativo autenticador ou um código de backup."
+
+#: src/lib/user-error.ts
 msgid "Enter a password"
 msgstr "Digite uma senha"
 
@@ -2177,6 +2239,10 @@ msgstr "Digite um número inteiro de 1 a 1000 para o limite de imagens."
 #: src/lib/model-connection-preflight.ts
 msgid "Enter an API key before testing."
 msgstr "Informe uma chave de API antes de testar."
+
+#: src/pages/Auth.tsx
+msgid "Enter your code"
+msgstr "Digite seu código"
 
 #: src/lib/roster-status.ts
 #: src/pages/Shell.tsx
@@ -2480,6 +2546,10 @@ msgstr "Com que frequência"
 msgid "How to check"
 msgstr "Como verificar"
 
+#: src/components/TwoFactorSetup.tsx
+msgid "I saved them"
+msgstr "Já salvei"
+
 #: src/pages/Shell.tsx
 msgid "I’m done"
 msgstr "Eu terminei."
@@ -2704,6 +2774,7 @@ msgstr "Carregando provedores de voz..."
 #: src/pages/Onboarding.tsx
 #: src/pages/PeerMessagesOverlay.tsx
 #: src/pages/RoutineRunHistory.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 #: src/pages/Shell.tsx
 msgid "Loading…"
 msgstr "Carregando..."
@@ -2720,6 +2791,7 @@ msgstr "O acesso local permite que os bots executem comandos sem perguntar. Evit
 msgid "Local Server Settings"
 msgstr ""
 
+#: src/components/TwoFactorGate.tsx
 #: src/pages/Paywall.tsx
 #: src/pages/Shell.tsx
 msgid "Log out"
@@ -3263,6 +3335,10 @@ msgstr "Falha na conexão OAuth"
 msgid "OAuth expired"
 msgstr ""
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Off."
+msgstr "Desativado."
+
 #. placeholder {0}: call.botName
 #: src/components/call/CallCard.tsx
 msgid "On a call with {0}"
@@ -3276,6 +3352,10 @@ msgstr ""
 #: src/pages/RoutineSchedule.tsx
 msgid "on the 1st at {0}"
 msgstr "no dia 1º às {0}"
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "On. Signing in asks for a code from your authenticator app."
+msgstr "Ativado. Ao entrar, será pedido um código do seu aplicativo autenticador."
 
 #: src/pages/Shell.tsx
 msgid "Only empty spaces can be deleted. Delete its bots and groups first."
@@ -3518,6 +3598,10 @@ msgstr "Provedores"
 #: src/components/CloudAgentCard.tsx
 msgid "Pull request"
 msgstr "Solicitação de pull"
+
+#: src/components/TwoFactorSetup.tsx
+msgid "QR code for your authenticator app"
+msgstr "Código QR para o seu aplicativo autenticador"
 
 #: src/pages/ActivityList.tsx
 msgid "Queued"
@@ -3762,6 +3846,10 @@ msgstr ""
 msgid "Replying to {0}"
 msgstr ""
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Require two-factor sign-in for every account"
+msgstr "Exigir login com dois fatores em todas as contas"
+
 #: src/pages/shell/message-cards.tsx
 msgid "Research & writing"
 msgstr ""
@@ -3951,6 +4039,10 @@ msgstr ""
 msgid "Save the workspace and install current software."
 msgstr "Salvar o espaço de trabalho e instalar o software atual."
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Save these backup codes. Each signs you in once if you lose your phone."
+msgstr "Salve estes códigos de backup. Cada um permite entrar uma vez se você perder o celular."
+
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
 #: src/pages/BrandingSettingsPanel.tsx
@@ -3993,6 +4085,10 @@ msgstr "Salvando..."
 #: src/lib/call-session.ts
 msgid "Say yes or no, or answer in a sentence."
 msgstr "Diga sim ou não, ou responda em uma frase."
+
+#: src/components/TwoFactorSetup.tsx
+msgid "Scan this with your authenticator app, then enter the code it shows."
+msgstr "Escaneie com seu aplicativo autenticador e digite o código exibido."
 
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/PluginsOverlay.tsx
@@ -4048,6 +4144,10 @@ msgstr ""
 #: src/pages/SpaceSearch.tsx
 msgid "Searching…"
 msgstr "Pesquisando…"
+
+#: src/pages/SettingsOverlay.tsx
+msgid "Security"
+msgstr "Segurança"
 
 #: src/pages/Shell.tsx
 msgid "Select a bot"
@@ -4109,6 +4209,10 @@ msgstr "Nome do servidor"
 #: src/pages/Onboarding.tsx
 msgid "Server URL"
 msgstr "URL do servidor"
+
+#: src/components/TwoFactorGate.tsx
+msgid "Set up two-factor sign-in"
+msgstr "Configurar login com dois fatores"
 
 #: src/components/call/CallCard.tsx
 #: src/pages/MessagingSettingsOverlay.tsx
@@ -4479,6 +4583,14 @@ msgstr "Testar login"
 msgid "Testing…"
 msgstr "Testando…"
 
+#: src/lib/user-error.ts
+msgid "That backup code didn’t work."
+msgstr "Esse código de backup não funcionou."
+
+#: src/lib/user-error.ts
+msgid "That code didn’t work. Enter the one your app shows now."
+msgstr "Esse código não funcionou. Digite o que seu aplicativo mostra agora."
+
 #: src/components/SoftwareUpdateSection.tsx
 msgid "The API did not come back. Refresh this page."
 msgstr ""
@@ -4534,6 +4646,10 @@ msgstr "Este computador"
 #: src/pages/Artifacts.tsx
 msgid "This deletes all {0} versions of this artifact. This can't be undone."
 msgstr ""
+
+#: src/components/TwoFactorGate.tsx
+msgid "This deployment requires it for every account."
+msgstr "Esta implantação exige isso para todas as contas."
 
 #: src/components/ArtifactFileCard.tsx
 msgid "This file is not valid UTF-8 text."
@@ -4626,6 +4742,14 @@ msgstr "Para:"
 msgid "Today"
 msgstr "Hoje"
 
+#: src/lib/user-error.ts
+msgid "Too many tries. Sign in again."
+msgstr "Muitas tentativas. Entre novamente."
+
+#: src/lib/user-error.ts
+msgid "Too many wrong codes. Try again in 15 minutes."
+msgstr "Muitos códigos incorretos. Tente novamente em 15 minutos."
+
 #: src/pages/PluginsOverlay.tsx
 msgid "Tool sources"
 msgstr "Fontes de ferramentas"
@@ -4664,6 +4788,10 @@ msgstr ""
 msgid "Trial ends {day}"
 msgstr ""
 
+#: src/pages/Auth.tsx
+msgid "Trust this device for 30 days"
+msgstr "Confiar neste dispositivo por 30 dias"
+
 #: src/pages/ActivityList.tsx
 #: src/pages/Onboarding.tsx
 msgid "Try again"
@@ -4672,6 +4800,32 @@ msgstr "Tentar novamente"
 #: src/lib/model-connection-preflight.ts
 msgid "Try the test again."
 msgstr "Tente o teste novamente."
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Turn off"
+msgstr "Desativar"
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Turn off two-factor sign-in"
+msgstr "Desativar login com dois fatores"
+
+#: src/components/TwoFactorGate.tsx
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Turn on"
+msgstr "Ativar"
+
+#: src/components/TwoFactorGate.tsx
+msgid "Turn on two-factor sign-in to protect this deployment."
+msgstr "Ative o login com dois fatores para proteger esta implantação."
+
+#: src/components/TwoFactorGate.tsx
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Two-factor authentication"
+msgstr "Autenticação de dois fatores"
+
+#: src/lib/user-error.ts
+msgid "Two-factor sign-in is already on."
+msgstr "O login com dois fatores já está ativado."
 
 #: src/pages/shell/bot-credentials.tsx
 msgid "Type"
@@ -4797,6 +4951,10 @@ msgstr "Uso"
 msgid "Use {hostLabel}"
 msgstr "Usar {hostLabel}"
 
+#: src/pages/Auth.tsx
+msgid "Use a backup code"
+msgstr "Usar um código de backup"
+
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Use a found model"
@@ -4846,6 +5004,10 @@ msgstr ""
 msgid "Use this model"
 msgstr "Use este modelo"
 
+#: src/pages/Auth.tsx
+msgid "Use your authenticator app"
+msgstr "Usar seu aplicativo autenticador"
+
 #: src/pages/ModelSettingsOverlay.tsx
 msgid "Use your own key"
 msgstr "Usar sua própria chave"
@@ -4866,6 +5028,10 @@ msgstr ""
 #: src/pages/shell/bot-credentials.tsx
 msgid "Values are encrypted and never shown again."
 msgstr "Os valores são criptografados e não são exibidos novamente."
+
+#: src/pages/Auth.tsx
+msgid "Verify"
+msgstr "Verificar"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Verify and add"
@@ -4979,8 +5145,10 @@ msgstr ""
 msgid "Worker ({amount})"
 msgstr "Trabalhador ({amount})"
 
+#: src/components/TwoFactorSetup.tsx
 #: src/lib/roster-status.ts
 #: src/pages/Auth.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 msgid "Working…"
 msgstr "Trabalhando…"
 
@@ -5013,6 +5181,10 @@ msgstr "Você pode fechar esta janela."
 msgid "You have control"
 msgstr "Você tem o controle"
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Your account signs in with SSO, which handles its own second factor."
+msgstr "Sua conta entra com SSO, que cuida do próprio segundo fator."
+
 #: src/pages/Auth.tsx
 msgid "Your email address"
 msgstr "Seu endereço de e-mail"
@@ -5020,6 +5192,10 @@ msgstr "Seu endereço de e-mail"
 #: src/pages/Auth.tsx
 msgid "Your name"
 msgstr "O seu nome"
+
+#: src/lib/user-error.ts
+msgid "Your sign-in timed out. Sign in again."
+msgstr "Seu login expirou. Entre novamente."
 
 #: src/pages/Welcome.tsx
 msgid "Your team of always-on agents<0/>that you can give real work to."

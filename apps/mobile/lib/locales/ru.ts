@@ -505,6 +505,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "Sign up for Rakazo": "Зарегистрироваться в Rakazo",
   "Sign-in": "Вход",
   "Sign-up": "Регистрация",
+  "Two-factor sign-in isn't supported in this app version yet. Sign in on the web.":
+    "Двухфакторный вход в этой версии приложения пока не поддерживается. Войдите через веб-версию.",
   "Sign-in did not return a session": "Вход не вернул сессию",
   "Sign-up did not return a session": "Регистрация не вернула сессию",
   "Silence notifications": "Отключить уведомления",

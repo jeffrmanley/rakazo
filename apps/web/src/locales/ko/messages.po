@@ -640,6 +640,10 @@ msgstr "첨부 파일"
 msgid "Authentication failed."
 msgstr "인증에 실패했습니다."
 
+#: src/pages/Auth.tsx
+msgid "Authenticator code"
+msgstr "인증 앱 코드"
+
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Authorization code or callback URL"
@@ -691,6 +695,10 @@ msgstr "뒤로"
 #: src/pages/Auth.tsx
 msgid "Back to sign in"
 msgstr "로그인으로 돌아가기"
+
+#: src/pages/Auth.tsx
+msgid "Backup code"
+msgstr "백업 코드"
 
 #: src/pages/ModelBackupsSettings.tsx
 msgid "Backup models"
@@ -815,16 +823,22 @@ msgstr "기본 제공"
 msgid "Can't reach the server."
 msgstr "서버에 연결할 수 없습니다."
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Can’t scan it?"
+msgstr "스캔할 수 없나요?"
+
 #: src/components/AskCard.tsx
 #: src/components/ComputerMaintenanceActions.tsx
 #: src/components/ComputerUpdateProgress.tsx
 #: src/components/markdown-link-prompt.tsx
 #: src/components/teach/TeachComputerOverlay.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/Artifacts.tsx
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 #: src/pages/PluginsOverlay.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 #: src/pages/shell/bot-credentials.tsx
 #: src/pages/shell/dialogs.tsx
 msgid "Cancel"
@@ -924,6 +938,7 @@ msgstr ""
 #: src/components/ComputersUnavailableHint.tsx
 #: src/components/DesktopUpdates.tsx
 #: src/components/SoftwareUpdateSection.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/HostComputerPrompt.tsx
 msgid "Checking…"
 msgstr "확인 중…"
@@ -1057,8 +1072,13 @@ msgid "Cloud"
 msgstr "클라우드"
 
 #: src/components/AskCard.tsx
+#: src/components/TwoFactorSetup.tsx
 msgid "Code"
 msgstr "코드"
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Code or backup code"
+msgstr "코드 또는 백업 코드"
 
 #. placeholder {0}: group.title
 #. placeholder {0}: item.chat.name
@@ -1148,6 +1168,10 @@ msgstr "서버에서 설정됨"
 #: src/pages/McpServersOverlay.tsx
 msgid "Configured servers"
 msgstr "연결된 서버"
+
+#: src/components/TwoFactorSetup.tsx
+msgid "Confirm"
+msgstr "확인"
 
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/McpServersOverlay.tsx
@@ -1255,6 +1279,7 @@ msgid "Context limit"
 msgstr "컨텍스트 한도"
 
 #: src/components/integrations/IntegrationSetup.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/Onboarding.tsx
 msgid "Continue"
 msgstr "계속"
@@ -1273,6 +1298,7 @@ msgid "Continue with email"
 msgstr "이메일로 계속하기"
 
 #: src/components/ComputersUnavailableHint.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Copied"
@@ -1287,6 +1313,10 @@ msgstr "복사"
 #: src/components/ComputersUnavailableHint.tsx
 msgid "Copy .env example"
 msgstr ""
+
+#: src/components/TwoFactorSetup.tsx
+msgid "Copy codes"
+msgstr "코드 복사"
 
 #: src/pages/ScratchpadSection.tsx
 msgid "Could not add"
@@ -1336,6 +1366,10 @@ msgstr "OAuth 인증을 완료하지 못했습니다."
 msgid "Could not complete the update. Try again."
 msgstr ""
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Could not confirm the code"
+msgstr "코드를 확인하지 못했습니다."
+
 #: src/components/integrations/IntegrationSetup.tsx
 #: src/pages/PluginsOverlay.tsx
 msgid "Could not connect"
@@ -1359,6 +1393,7 @@ msgid "Could not connect to the computer screen"
 msgstr ""
 
 #: src/components/AccountAccess.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/lib/account-security.ts
 #: src/lib/sso-flow.ts
 #: src/lib/user-error.ts
@@ -1539,6 +1574,14 @@ msgstr "이 채팅을 불러오지 못했습니다."
 msgid "Could not load this file."
 msgstr "파일을 불러오지 못했습니다."
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Could not load this setting"
+msgstr "이 설정을 불러오지 못했습니다."
+
+#: src/lib/two-factor.ts
+msgid "Could not load two-factor settings"
+msgstr "2단계 인증 설정을 불러오지 못했습니다."
+
 #: src/components/SoftwareUpdateSection.tsx
 msgid "Could not load update status"
 msgstr "업데이트 상태를 불러올 수 없습니다"
@@ -1683,6 +1726,10 @@ msgstr ""
 msgid "Could not save this choice"
 msgstr "선택 내용을 저장하지 못했습니다."
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Could not save this setting"
+msgstr "이 설정을 저장하지 못했습니다."
+
 #: src/pages/PluginsOverlay.tsx
 msgid "Could not search catalog"
 msgstr ""
@@ -1703,6 +1750,10 @@ msgstr "OAuth 인증을 시작하지 못했습니다."
 msgid "Could not start teaching"
 msgstr "가르치기를 시작하지 못했습니다."
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Could not start two-factor setup"
+msgstr "2단계 인증 설정을 시작하지 못했습니다."
+
 #: src/components/AskCard.tsx
 msgid "Could not submit this answer"
 msgstr "답변을 보내지 못했습니다."
@@ -1710,6 +1761,11 @@ msgstr "답변을 보내지 못했습니다."
 #: src/pages/Shell.tsx
 msgid "Could not take control"
 msgstr "직접 조작으로 전환하지 못했습니다."
+
+#: src/lib/two-factor.ts
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Could not turn off two-factor sign-in"
+msgstr "2단계 인증을 끄지 못했습니다."
 
 #: src/pages/ScratchpadSection.tsx
 msgid "Could not update"
@@ -1833,7 +1889,9 @@ msgid "Cron expression"
 msgstr "Cron 표현식"
 
 #: src/components/AccountAccess.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/AccountSettingsOverlay.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 msgid "Current password"
 msgstr "현재 비밀번호"
 
@@ -2148,6 +2206,10 @@ msgid "Engage when... Ignore..."
 msgstr ""
 
 #: src/lib/user-error.ts
+msgid "Enter a code from your authenticator app or a backup code."
+msgstr "인증 앱의 코드나 백업 코드를 입력하세요."
+
+#: src/lib/user-error.ts
 msgid "Enter a password"
 msgstr "비밀번호를 입력하세요"
 
@@ -2177,6 +2239,10 @@ msgstr "이미지 한도는 1에서 1000 사이의 정수로 입력하세요."
 #: src/lib/model-connection-preflight.ts
 msgid "Enter an API key before testing."
 msgstr "테스트하기 전에 API 키를 입력하세요."
+
+#: src/pages/Auth.tsx
+msgid "Enter your code"
+msgstr "코드 입력"
 
 #: src/lib/roster-status.ts
 #: src/pages/Shell.tsx
@@ -2480,6 +2546,10 @@ msgstr "실행 주기"
 msgid "How to check"
 msgstr "완료 확인 방법"
 
+#: src/components/TwoFactorSetup.tsx
+msgid "I saved them"
+msgstr "저장했습니다"
+
 #: src/pages/Shell.tsx
 msgid "I’m done"
 msgstr "조작 끝내기"
@@ -2704,6 +2774,7 @@ msgstr "음성 서비스를 불러오는 중…"
 #: src/pages/Onboarding.tsx
 #: src/pages/PeerMessagesOverlay.tsx
 #: src/pages/RoutineRunHistory.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 #: src/pages/Shell.tsx
 msgid "Loading…"
 msgstr "불러오는 중…"
@@ -2720,6 +2791,7 @@ msgstr "로컬 접근을 허용하면 Bot이 묻지 않고 명령을 실행할 �
 msgid "Local Server Settings"
 msgstr ""
 
+#: src/components/TwoFactorGate.tsx
 #: src/pages/Paywall.tsx
 #: src/pages/Shell.tsx
 msgid "Log out"
@@ -3263,6 +3335,10 @@ msgstr "OAuth 연결 실패"
 msgid "OAuth expired"
 msgstr ""
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Off."
+msgstr "꺼짐."
+
 #. placeholder {0}: call.botName
 #: src/components/call/CallCard.tsx
 msgid "On a call with {0}"
@@ -3276,6 +3352,10 @@ msgstr "일정에 따라"
 #: src/pages/RoutineSchedule.tsx
 msgid "on the 1st at {0}"
 msgstr "매월 1일 {0}에"
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "On. Signing in asks for a code from your authenticator app."
+msgstr "켜짐. 로그인할 때 인증 앱의 코드를 요청합니다."
 
 #: src/pages/Shell.tsx
 msgid "Only empty spaces can be deleted. Delete its bots and groups first."
@@ -3518,6 +3598,10 @@ msgstr "서비스"
 #: src/components/CloudAgentCard.tsx
 msgid "Pull request"
 msgstr "풀 리퀘스트"
+
+#: src/components/TwoFactorSetup.tsx
+msgid "QR code for your authenticator app"
+msgstr "인증 앱용 QR 코드"
 
 #: src/pages/ActivityList.tsx
 msgid "Queued"
@@ -3762,6 +3846,10 @@ msgstr ""
 msgid "Replying to {0}"
 msgstr ""
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Require two-factor sign-in for every account"
+msgstr "모든 계정에 2단계 인증 필수"
+
 #: src/pages/shell/message-cards.tsx
 msgid "Research & writing"
 msgstr ""
@@ -3951,6 +4039,10 @@ msgstr ""
 msgid "Save the workspace and install current software."
 msgstr "작업 공간을 저장하고 최신 소프트웨어를 설치합니다."
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Save these backup codes. Each signs you in once if you lose your phone."
+msgstr "이 백업 코드를 저장하세요. 휴대폰을 잃어버린 경우 각 코드로 한 번씩 로그인할 수 있습니다."
+
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
 #: src/pages/BrandingSettingsPanel.tsx
@@ -3993,6 +4085,10 @@ msgstr "저장 중…"
 #: src/lib/call-session.ts
 msgid "Say yes or no, or answer in a sentence."
 msgstr "예 또는 아니요로 답하거나 문장으로 답해 주세요."
+
+#: src/components/TwoFactorSetup.tsx
+msgid "Scan this with your authenticator app, then enter the code it shows."
+msgstr "인증 앱으로 이 QR 코드를 스캔한 다음 앱에 표시된 코드를 입력하세요."
 
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/PluginsOverlay.tsx
@@ -4048,6 +4144,10 @@ msgstr ""
 #: src/pages/SpaceSearch.tsx
 msgid "Searching…"
 msgstr "검색 중…"
+
+#: src/pages/SettingsOverlay.tsx
+msgid "Security"
+msgstr "보안"
 
 #: src/pages/Shell.tsx
 msgid "Select a bot"
@@ -4109,6 +4209,10 @@ msgstr "서버 이름"
 #: src/pages/Onboarding.tsx
 msgid "Server URL"
 msgstr "서버 URL"
+
+#: src/components/TwoFactorGate.tsx
+msgid "Set up two-factor sign-in"
+msgstr "2단계 인증 설정"
 
 #: src/components/call/CallCard.tsx
 #: src/pages/MessagingSettingsOverlay.tsx
@@ -4479,6 +4583,14 @@ msgstr "로그인 테스트"
 msgid "Testing…"
 msgstr "테스트 중…"
 
+#: src/lib/user-error.ts
+msgid "That backup code didn’t work."
+msgstr "백업 코드가 맞지 않습니다."
+
+#: src/lib/user-error.ts
+msgid "That code didn’t work. Enter the one your app shows now."
+msgstr "코드가 맞지 않습니다. 지금 앱에 표시된 코드를 입력하세요."
+
 #: src/components/SoftwareUpdateSection.tsx
 msgid "The API did not come back. Refresh this page."
 msgstr "API가 다시 작동하지 않습니다. 이 페이지를 새로 고침하세요."
@@ -4534,6 +4646,10 @@ msgstr "이 컴퓨터"
 #: src/pages/Artifacts.tsx
 msgid "This deletes all {0} versions of this artifact. This can't be undone."
 msgstr ""
+
+#: src/components/TwoFactorGate.tsx
+msgid "This deployment requires it for every account."
+msgstr "이 서버에서는 모든 계정에 필수입니다."
 
 #: src/components/ArtifactFileCard.tsx
 msgid "This file is not valid UTF-8 text."
@@ -4626,6 +4742,14 @@ msgstr "받는 사람:"
 msgid "Today"
 msgstr "오늘"
 
+#: src/lib/user-error.ts
+msgid "Too many tries. Sign in again."
+msgstr "시도 횟수가 너무 많습니다. 다시 로그인하세요."
+
+#: src/lib/user-error.ts
+msgid "Too many wrong codes. Try again in 15 minutes."
+msgstr "잘못된 코드를 너무 많이 입력했습니다. 15분 후에 다시 시도하세요."
+
 #: src/pages/PluginsOverlay.tsx
 msgid "Tool sources"
 msgstr "도구 소스"
@@ -4664,6 +4788,10 @@ msgstr ""
 msgid "Trial ends {day}"
 msgstr ""
 
+#: src/pages/Auth.tsx
+msgid "Trust this device for 30 days"
+msgstr "이 기기를 30일 동안 신뢰"
+
 #: src/pages/ActivityList.tsx
 #: src/pages/Onboarding.tsx
 msgid "Try again"
@@ -4672,6 +4800,32 @@ msgstr "다시 시도"
 #: src/lib/model-connection-preflight.ts
 msgid "Try the test again."
 msgstr "테스트를 다시 시도하세요."
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Turn off"
+msgstr "끄기"
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Turn off two-factor sign-in"
+msgstr "2단계 인증 끄기"
+
+#: src/components/TwoFactorGate.tsx
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Turn on"
+msgstr "켜기"
+
+#: src/components/TwoFactorGate.tsx
+msgid "Turn on two-factor sign-in to protect this deployment."
+msgstr "이 서버를 보호하려면 2단계 인증을 켜세요."
+
+#: src/components/TwoFactorGate.tsx
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Two-factor authentication"
+msgstr "2단계 인증"
+
+#: src/lib/user-error.ts
+msgid "Two-factor sign-in is already on."
+msgstr "2단계 인증이 이미 켜져 있습니다."
 
 #: src/pages/shell/bot-credentials.tsx
 msgid "Type"
@@ -4797,6 +4951,10 @@ msgstr "사용량"
 msgid "Use {hostLabel}"
 msgstr "{hostLabel} 사용"
 
+#: src/pages/Auth.tsx
+msgid "Use a backup code"
+msgstr "백업 코드 사용"
+
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Use a found model"
@@ -4846,6 +5004,10 @@ msgstr ""
 msgid "Use this model"
 msgstr "이 모델 사용"
 
+#: src/pages/Auth.tsx
+msgid "Use your authenticator app"
+msgstr "인증 앱 사용"
+
 #: src/pages/ModelSettingsOverlay.tsx
 msgid "Use your own key"
 msgstr "내 키 사용"
@@ -4866,6 +5028,10 @@ msgstr ""
 #: src/pages/shell/bot-credentials.tsx
 msgid "Values are encrypted and never shown again."
 msgstr "값은 암호화되며 다시 표시되지 않습니다."
+
+#: src/pages/Auth.tsx
+msgid "Verify"
+msgstr "인증"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Verify and add"
@@ -4979,8 +5145,10 @@ msgstr ""
 msgid "Worker ({amount})"
 msgstr "워커 ({amount})"
 
+#: src/components/TwoFactorSetup.tsx
 #: src/lib/roster-status.ts
 #: src/pages/Auth.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 msgid "Working…"
 msgstr "처리 중…"
 
@@ -5013,6 +5181,10 @@ msgstr "이 창을 닫아도 됩니다."
 msgid "You have control"
 msgstr "직접 조작 중"
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Your account signs in with SSO, which handles its own second factor."
+msgstr "이 계정은 SSO로 로그인하며, 2단계 인증은 SSO에서 처리합니다."
+
 #: src/pages/Auth.tsx
 msgid "Your email address"
 msgstr "이메일 주소"
@@ -5020,6 +5192,10 @@ msgstr "이메일 주소"
 #: src/pages/Auth.tsx
 msgid "Your name"
 msgstr "이름"
+
+#: src/lib/user-error.ts
+msgid "Your sign-in timed out. Sign in again."
+msgstr "로그인 시간이 초과되었습니다. 다시 로그인하세요."
 
 #: src/pages/Welcome.tsx
 msgid "Your team of always-on agents<0/>that you can give real work to."

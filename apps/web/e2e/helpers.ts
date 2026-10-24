@@ -132,6 +132,7 @@ export async function openUserSettings(
   page: Page,
   section?:
     | "general"
+    | "security"
     | "models"
     | "memory"
     | "voice"

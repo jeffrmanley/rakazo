@@ -10,6 +10,7 @@ import {
   Monitor,
   Palette,
   Settings,
+  ShieldCheck,
   Volume2,
   Wallet,
   XIcon,
@@ -30,10 +31,12 @@ import { BrandingSettingsPanel } from "./BrandingSettingsPanel";
 import { BudgetSettingsPanel } from "./BudgetSettingsPanel";
 import { MemorySettingsOverlay } from "./MemorySettingsOverlay";
 import { ModelSettingsOverlay } from "./ModelSettingsOverlay";
+import { SecuritySettingsPanel } from "./SecuritySettingsPanel";
 import { VoiceSettingsOverlay } from "./VoiceSettingsOverlay";
 
 export type SettingsSection =
   | "general"
+  | "security"
   | "models"
   | "memory"
   | "voice"
@@ -161,6 +164,7 @@ export function SettingsOverlay({
 
   const navItems: NavItem[] = [
     { id: "general", label: t`General`, icon: Settings },
+    { id: "security", label: t`Security`, icon: ShieldCheck },
     { id: "models", label: t`Models`, icon: Cpu },
     { id: "memory", label: t`Memory`, icon: Brain },
     { id: "voice", label: t`Voice`, icon: Volume2 },
@@ -289,6 +293,9 @@ export function SettingsOverlay({
                   }
                   isDeploymentOwner={isDeploymentOwner}
                 />
+              ) : null}
+              {section === "security" ? (
+                <SecuritySettingsPanel isDeploymentOwner={isDeploymentOwner} />
               ) : null}
               {section === "usage" ? (
                 <UsageSettingsPanel usage={usage} panelRef={usageRef} />

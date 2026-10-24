@@ -22,6 +22,8 @@ export const DE_MESSAGES: Record<string, string> = {
     "Füge die OpenAI-kompatible Adresse deines Servers ein. Rakazo ergänzt /v1 bei Bedarf.",
   "Settings: General": "Einstellungen: Allgemein",
   "Settings: Usage": "Einstellungen: Nutzung",
+  "Two-factor sign-in isn't supported in this app version yet. Sign in on the web.":
+    "Die Anmeldung mit zweitem Faktor wird von dieser App-Version noch nicht unterstützt. Melde dich im Web an.",
   "Sign-in did not return a session": "Die Anmeldung hat keine Sitzung zurückgegeben",
   "Sign-up did not return a session": "Die Registrierung hat keine Sitzung zurückgegeben",
   "{count} model": "{count} Modell",

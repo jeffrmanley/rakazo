@@ -95,6 +95,18 @@ describe("mobile API authentication", () => {
     expect(resumeLiveNotifications).not.toHaveBeenCalled();
   });
 
+  it("explains that a two-factor account must sign in on the web, and keeps no session", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ twoFactorRedirect: true, twoFactorMethods: ["totp"] })),
+    );
+
+    await expect(signIn("ada@example.com", "correct horse")).rejects.toThrow(
+      "Two-factor sign-in isn't supported in this app version yet. Sign in on the web.",
+    );
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+  });
+
   it("creates an account and persists its session token", async () => {
     const fetchMock = vi.fn(async () => jsonResponse({ token: "signup-token" }));
     vi.stubGlobal("fetch", fetchMock);

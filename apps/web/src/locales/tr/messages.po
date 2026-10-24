@@ -640,6 +640,10 @@ msgstr "Ek"
 msgid "Authentication failed."
 msgstr "Kimlik doğrulama başarısız."
 
+#: src/pages/Auth.tsx
+msgid "Authenticator code"
+msgstr "Kimlik doğrulama kodu"
+
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Authorization code or callback URL"
@@ -691,6 +695,10 @@ msgstr ""
 #: src/pages/Auth.tsx
 msgid "Back to sign in"
 msgstr "Oturum açmaya geri dön"
+
+#: src/pages/Auth.tsx
+msgid "Backup code"
+msgstr "Yedek kod"
 
 #: src/pages/ModelBackupsSettings.tsx
 msgid "Backup models"
@@ -815,16 +823,22 @@ msgstr "Yerleşik"
 msgid "Can't reach the server."
 msgstr "Sunucuya ulaşılamıyor."
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Can’t scan it?"
+msgstr "Tarayamıyor musun?"
+
 #: src/components/AskCard.tsx
 #: src/components/ComputerMaintenanceActions.tsx
 #: src/components/ComputerUpdateProgress.tsx
 #: src/components/markdown-link-prompt.tsx
 #: src/components/teach/TeachComputerOverlay.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/Artifacts.tsx
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 #: src/pages/PluginsOverlay.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 #: src/pages/shell/bot-credentials.tsx
 #: src/pages/shell/dialogs.tsx
 msgid "Cancel"
@@ -924,6 +938,7 @@ msgstr ""
 #: src/components/ComputersUnavailableHint.tsx
 #: src/components/DesktopUpdates.tsx
 #: src/components/SoftwareUpdateSection.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/HostComputerPrompt.tsx
 msgid "Checking…"
 msgstr ""
@@ -1057,8 +1072,13 @@ msgid "Cloud"
 msgstr "Bulut"
 
 #: src/components/AskCard.tsx
+#: src/components/TwoFactorSetup.tsx
 msgid "Code"
 msgstr "Kod"
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Code or backup code"
+msgstr "Kod veya yedek kod"
 
 #. placeholder {0}: group.title
 #. placeholder {0}: item.chat.name
@@ -1148,6 +1168,10 @@ msgstr "Dağıtım tarafından yapılandırıldı"
 #: src/pages/McpServersOverlay.tsx
 msgid "Configured servers"
 msgstr "Yapılandırılmış sunucular"
+
+#: src/components/TwoFactorSetup.tsx
+msgid "Confirm"
+msgstr "Onayla"
 
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/McpServersOverlay.tsx
@@ -1255,6 +1279,7 @@ msgid "Context limit"
 msgstr "Bağlam sınırı"
 
 #: src/components/integrations/IntegrationSetup.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/Onboarding.tsx
 msgid "Continue"
 msgstr "Devam"
@@ -1273,6 +1298,7 @@ msgid "Continue with email"
 msgstr "E-posta ile devam et"
 
 #: src/components/ComputersUnavailableHint.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Copied"
@@ -1287,6 +1313,10 @@ msgstr "Kopyala"
 #: src/components/ComputersUnavailableHint.tsx
 msgid "Copy .env example"
 msgstr ""
+
+#: src/components/TwoFactorSetup.tsx
+msgid "Copy codes"
+msgstr "Kodları kopyala"
 
 #: src/pages/ScratchpadSection.tsx
 msgid "Could not add"
@@ -1336,6 +1366,10 @@ msgstr "OAuth tamamlanamadı"
 msgid "Could not complete the update. Try again."
 msgstr ""
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Could not confirm the code"
+msgstr "Kod onaylanamadı"
+
 #: src/components/integrations/IntegrationSetup.tsx
 #: src/pages/PluginsOverlay.tsx
 msgid "Could not connect"
@@ -1359,6 +1393,7 @@ msgid "Could not connect to the computer screen"
 msgstr ""
 
 #: src/components/AccountAccess.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/lib/account-security.ts
 #: src/lib/sso-flow.ts
 #: src/lib/user-error.ts
@@ -1539,6 +1574,14 @@ msgstr "Bu sohbet yüklenemedi."
 msgid "Could not load this file."
 msgstr "Bu dosya yüklenemedi."
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Could not load this setting"
+msgstr "Bu ayar yüklenemedi"
+
+#: src/lib/two-factor.ts
+msgid "Could not load two-factor settings"
+msgstr "İki faktörlü giriş ayarları yüklenemedi"
+
 #: src/components/SoftwareUpdateSection.tsx
 msgid "Could not load update status"
 msgstr ""
@@ -1683,6 +1726,10 @@ msgstr ""
 msgid "Could not save this choice"
 msgstr "Bu seçim kaydedilemedi"
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Could not save this setting"
+msgstr "Bu ayar kaydedilemedi"
+
 #: src/pages/PluginsOverlay.tsx
 msgid "Could not search catalog"
 msgstr ""
@@ -1703,6 +1750,10 @@ msgstr "OAuth başlatılamadı"
 msgid "Could not start teaching"
 msgstr ""
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Could not start two-factor setup"
+msgstr "İki faktörlü giriş kurulumu başlatılamadı"
+
 #: src/components/AskCard.tsx
 msgid "Could not submit this answer"
 msgstr "Bu yanıt gönderilemedi"
@@ -1710,6 +1761,11 @@ msgstr "Bu yanıt gönderilemedi"
 #: src/pages/Shell.tsx
 msgid "Could not take control"
 msgstr "Kontrol alınamadı"
+
+#: src/lib/two-factor.ts
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Could not turn off two-factor sign-in"
+msgstr "İki faktörlü giriş kapatılamadı"
 
 #: src/pages/ScratchpadSection.tsx
 msgid "Could not update"
@@ -1833,7 +1889,9 @@ msgid "Cron expression"
 msgstr "Cron ifadesi"
 
 #: src/components/AccountAccess.tsx
+#: src/components/TwoFactorSetup.tsx
 #: src/pages/AccountSettingsOverlay.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 msgid "Current password"
 msgstr "Mevcut parola"
 
@@ -2148,6 +2206,10 @@ msgid "Engage when... Ignore..."
 msgstr ""
 
 #: src/lib/user-error.ts
+msgid "Enter a code from your authenticator app or a backup code."
+msgstr "Kimlik doğrulama uygulamandaki bir kodu veya bir yedek kodu gir."
+
+#: src/lib/user-error.ts
 msgid "Enter a password"
 msgstr "Bir parola girin"
 
@@ -2177,6 +2239,10 @@ msgstr "Görüntü sınırı için 1 ile 1000 arasında bir tam sayı girin."
 #: src/lib/model-connection-preflight.ts
 msgid "Enter an API key before testing."
 msgstr "Test etmeden önce bir API anahtarı gir."
+
+#: src/pages/Auth.tsx
+msgid "Enter your code"
+msgstr "Kodunu gir"
 
 #: src/lib/roster-status.ts
 #: src/pages/Shell.tsx
@@ -2480,6 +2546,10 @@ msgstr "Ne sıklıkla"
 msgid "How to check"
 msgstr "Nasıl kontrol edilir"
 
+#: src/components/TwoFactorSetup.tsx
+msgid "I saved them"
+msgstr "Kaydettim"
+
 #: src/pages/Shell.tsx
 msgid "I’m done"
 msgstr "Bitirdim"
@@ -2704,6 +2774,7 @@ msgstr "Ses sağlayıcıları yükleniyor…"
 #: src/pages/Onboarding.tsx
 #: src/pages/PeerMessagesOverlay.tsx
 #: src/pages/RoutineRunHistory.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 #: src/pages/Shell.tsx
 msgid "Loading…"
 msgstr "Yükleniyor…"
@@ -2720,6 +2791,7 @@ msgstr "Yerel erişim, botların sormadan komut çalıştırmasına izin verir. 
 msgid "Local Server Settings"
 msgstr ""
 
+#: src/components/TwoFactorGate.tsx
 #: src/pages/Paywall.tsx
 #: src/pages/Shell.tsx
 msgid "Log out"
@@ -3263,6 +3335,10 @@ msgstr "OAuth bağlantısı başarısız"
 msgid "OAuth expired"
 msgstr ""
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Off."
+msgstr "Kapalı."
+
 #. placeholder {0}: call.botName
 #: src/components/call/CallCard.tsx
 msgid "On a call with {0}"
@@ -3276,6 +3352,10 @@ msgstr ""
 #: src/pages/RoutineSchedule.tsx
 msgid "on the 1st at {0}"
 msgstr "her ayın 1'inde saat {0}"
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "On. Signing in asks for a code from your authenticator app."
+msgstr "Açık. Giriş yaparken kimlik doğrulama uygulamandan bir kod istenir."
 
 #: src/pages/Shell.tsx
 msgid "Only empty spaces can be deleted. Delete its bots and groups first."
@@ -3518,6 +3598,10 @@ msgstr "Sağlayıcılar"
 #: src/components/CloudAgentCard.tsx
 msgid "Pull request"
 msgstr "Çekme isteği"
+
+#: src/components/TwoFactorSetup.tsx
+msgid "QR code for your authenticator app"
+msgstr "Kimlik doğrulama uygulaman için QR kodu"
 
 #: src/pages/ActivityList.tsx
 msgid "Queued"
@@ -3762,6 +3846,10 @@ msgstr ""
 msgid "Replying to {0}"
 msgstr ""
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Require two-factor sign-in for every account"
+msgstr "Tüm hesaplar için iki faktörlü girişi zorunlu kıl"
+
 #: src/pages/shell/message-cards.tsx
 msgid "Research & writing"
 msgstr ""
@@ -3951,6 +4039,10 @@ msgstr ""
 msgid "Save the workspace and install current software."
 msgstr "Çalışma alanını kaydedin ve güncel yazılımı yükleyin."
 
+#: src/components/TwoFactorSetup.tsx
+msgid "Save these backup codes. Each signs you in once if you lose your phone."
+msgstr "Bu yedek kodları kaydet. Telefonunu kaybedersen her biriyle bir kez giriş yapabilirsin."
+
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
 #: src/pages/BrandingSettingsPanel.tsx
@@ -3993,6 +4085,10 @@ msgstr "Kaydediliyor…"
 #: src/lib/call-session.ts
 msgid "Say yes or no, or answer in a sentence."
 msgstr "Evet ya da hayır de veya bir cümleyle yanıtla."
+
+#: src/components/TwoFactorSetup.tsx
+msgid "Scan this with your authenticator app, then enter the code it shows."
+msgstr "Bunu kimlik doğrulama uygulamanla tara, ardından gösterdiği kodu gir."
 
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/PluginsOverlay.tsx
@@ -4048,6 +4144,10 @@ msgstr ""
 #: src/pages/SpaceSearch.tsx
 msgid "Searching…"
 msgstr "Aranıyor…"
+
+#: src/pages/SettingsOverlay.tsx
+msgid "Security"
+msgstr "Güvenlik"
 
 #: src/pages/Shell.tsx
 msgid "Select a bot"
@@ -4109,6 +4209,10 @@ msgstr "Sunucu adı"
 #: src/pages/Onboarding.tsx
 msgid "Server URL"
 msgstr "Sunucu URL'si"
+
+#: src/components/TwoFactorGate.tsx
+msgid "Set up two-factor sign-in"
+msgstr "İki faktörlü girişi kur"
 
 #: src/components/call/CallCard.tsx
 #: src/pages/MessagingSettingsOverlay.tsx
@@ -4479,6 +4583,14 @@ msgstr "Oturum açmayı test et"
 msgid "Testing…"
 msgstr "Test ediliyor…"
 
+#: src/lib/user-error.ts
+msgid "That backup code didn’t work."
+msgstr "Bu yedek kod işe yaramadı."
+
+#: src/lib/user-error.ts
+msgid "That code didn’t work. Enter the one your app shows now."
+msgstr "Bu kod işe yaramadı. Uygulamanın şu anda gösterdiği kodu gir."
+
 #: src/components/SoftwareUpdateSection.tsx
 msgid "The API did not come back. Refresh this page."
 msgstr ""
@@ -4534,6 +4646,10 @@ msgstr "bu bilgisayar"
 #: src/pages/Artifacts.tsx
 msgid "This deletes all {0} versions of this artifact. This can't be undone."
 msgstr ""
+
+#: src/components/TwoFactorGate.tsx
+msgid "This deployment requires it for every account."
+msgstr "Bu dağıtım, tüm hesaplar için bunu zorunlu tutuyor."
 
 #: src/components/ArtifactFileCard.tsx
 msgid "This file is not valid UTF-8 text."
@@ -4626,6 +4742,14 @@ msgstr "Kime:"
 msgid "Today"
 msgstr "Bugün"
 
+#: src/lib/user-error.ts
+msgid "Too many tries. Sign in again."
+msgstr "Çok fazla deneme yapıldı. Tekrar oturum aç."
+
+#: src/lib/user-error.ts
+msgid "Too many wrong codes. Try again in 15 minutes."
+msgstr "Çok fazla yanlış kod girildi. 15 dakika sonra tekrar dene."
+
 #: src/pages/PluginsOverlay.tsx
 msgid "Tool sources"
 msgstr "Araç kaynakları"
@@ -4664,6 +4788,10 @@ msgstr ""
 msgid "Trial ends {day}"
 msgstr ""
 
+#: src/pages/Auth.tsx
+msgid "Trust this device for 30 days"
+msgstr "Bu cihaza 30 gün boyunca güven"
+
 #: src/pages/ActivityList.tsx
 #: src/pages/Onboarding.tsx
 msgid "Try again"
@@ -4672,6 +4800,32 @@ msgstr "Tekrar dene"
 #: src/lib/model-connection-preflight.ts
 msgid "Try the test again."
 msgstr "Testi yeniden dene."
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Turn off"
+msgstr "Kapat"
+
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Turn off two-factor sign-in"
+msgstr "İki faktörlü girişi kapat"
+
+#: src/components/TwoFactorGate.tsx
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Turn on"
+msgstr "Aç"
+
+#: src/components/TwoFactorGate.tsx
+msgid "Turn on two-factor sign-in to protect this deployment."
+msgstr "Bu dağıtımı korumak için iki faktörlü girişi aç."
+
+#: src/components/TwoFactorGate.tsx
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Two-factor authentication"
+msgstr "İki faktörlü kimlik doğrulama"
+
+#: src/lib/user-error.ts
+msgid "Two-factor sign-in is already on."
+msgstr "İki faktörlü giriş zaten açık."
 
 #: src/pages/shell/bot-credentials.tsx
 msgid "Type"
@@ -4797,6 +4951,10 @@ msgstr "Kullanım"
 msgid "Use {hostLabel}"
 msgstr "{hostLabel} kullan"
 
+#: src/pages/Auth.tsx
+msgid "Use a backup code"
+msgstr "Yedek kod kullan"
+
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Use a found model"
@@ -4846,6 +5004,10 @@ msgstr ""
 msgid "Use this model"
 msgstr "Bu modeli kullan"
 
+#: src/pages/Auth.tsx
+msgid "Use your authenticator app"
+msgstr "Kimlik doğrulama uygulamanı kullan"
+
 #: src/pages/ModelSettingsOverlay.tsx
 msgid "Use your own key"
 msgstr "Kendi anahtarınızı kullanın"
@@ -4866,6 +5028,10 @@ msgstr ""
 #: src/pages/shell/bot-credentials.tsx
 msgid "Values are encrypted and never shown again."
 msgstr "Değerler şifrelenir ve bir daha gösterilmez."
+
+#: src/pages/Auth.tsx
+msgid "Verify"
+msgstr "Doğrula"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Verify and add"
@@ -4979,8 +5145,10 @@ msgstr ""
 msgid "Worker ({amount})"
 msgstr "Çalışan ({amount})"
 
+#: src/components/TwoFactorSetup.tsx
 #: src/lib/roster-status.ts
 #: src/pages/Auth.tsx
+#: src/pages/SecuritySettingsPanel.tsx
 msgid "Working…"
 msgstr "Çalışıyor…"
 
@@ -5013,6 +5181,10 @@ msgstr "Bu pencereyi kapatabilirsin."
 msgid "You have control"
 msgstr "Kontrol sende"
 
+#: src/pages/SecuritySettingsPanel.tsx
+msgid "Your account signs in with SSO, which handles its own second factor."
+msgstr "Hesabın SSO ile giriş yapıyor; ikinci faktörü SSO kendisi yönetiyor."
+
 #: src/pages/Auth.tsx
 msgid "Your email address"
 msgstr "E-posta adresin"
@@ -5020,6 +5192,10 @@ msgstr "E-posta adresin"
 #: src/pages/Auth.tsx
 msgid "Your name"
 msgstr "Adın"
+
+#: src/lib/user-error.ts
+msgid "Your sign-in timed out. Sign in again."
+msgstr "Oturum açma süren doldu. Tekrar oturum aç."
 
 #: src/pages/Welcome.tsx
 msgid "Your team of always-on agents<0/>that you can give real work to."
