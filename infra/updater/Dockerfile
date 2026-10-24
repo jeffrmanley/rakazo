@@ -24,4 +24,6 @@ RUN corepack enable && pnpm install --frozen-lockfile --prod --filter "@rakazo/u
 WORKDIR /app/infra/updater
 ARG GIT_SHA
 ENV GIT_SHA=$GIT_SHA
+# The updater needs the Docker socket to replace containers; the fork's deployments do not run it.
+# nosemgrep: dockerfile.security.missing-user.missing-user
 CMD ["pnpm", "exec", "tsx", "src/index.ts"]

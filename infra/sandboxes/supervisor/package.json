@@ -14,13 +14,13 @@
     "@rakazo/core": "workspace:*",
     "@rakazo/logging": "workspace:*",
     "dockerode": "5.0.1",
-    "hono": "4.13.7",
+    "hono": "4.13.11",
     "tsx": "4.23.13",
-    "zod": "4.6.2"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@types/dockerode": "4.0.1",
     "typescript": "7.0.2",
-    "vitest": "4.1.11"
+    "vitest": "4.1.12"
   }
 }

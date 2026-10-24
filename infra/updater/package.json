@@ -15,12 +15,12 @@
     "@rakazo/contracts": "workspace:*",
     "@rakazo/core": "workspace:*",
     "@rakazo/logging": "workspace:*",
-    "hono": "4.13.7",
+    "hono": "4.13.11",
     "tsx": "4.23.13"
   },
   "devDependencies": {
     "typescript": "7.0.2",
-    "vitest": "4.1.11",
+    "vitest": "4.1.12",
     "yaml": "2.9.0"
   }
 }

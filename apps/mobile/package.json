@@ -12,7 +12,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "check": "expo install --check && tsc --noEmit -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "check:expo-deps": "expo install --check",
     "test": "vitest run --root ../.. apps/mobile/lib",
     "test:e2e": "maestro test .maestro/smoke.yaml"
   },
@@ -69,6 +70,6 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
     "typescript": "6.0.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.12"
   }
 }

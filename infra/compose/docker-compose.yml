@@ -22,7 +22,9 @@ services:
       dockerfile: infra/sandboxes/supervisor/Dockerfile
     environment:
       DATA_DIR: /data
-      SUPERVISOR_HOST: "0.0.0.0"
+      # Listen only on the compose network: the supervisor also joins every bot computer's network
+      # (screens, control port), and a computer must not reach its API (hardening phase 1).
+      SUPERVISOR_HOST: supervisor
       SUPERVISOR_PORT: "7091"
       DOCKER_SOCKET: /var/run/docker.sock
       RAKAZO_COMPUTER_IMAGE: rakazo/computer:local

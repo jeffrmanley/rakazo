@@ -35,7 +35,9 @@ services:
     environment:
       NODE_ENV: production
       DATA_DIR: /data
-      SUPERVISOR_HOST: "0.0.0.0"
+      # Listen only on the compose network: the supervisor also joins every bot computer's network
+      # (screens, control port), and a computer must not reach its API (hardening phase 1).
+      SUPERVISOR_HOST: supervisor
       SUPERVISOR_PORT: "7091"
       SANDBOX_SUPERVISOR_TOKEN: topology-only-supervisor-token-at-least-32-characters
       DOCKER_SOCKET: /var/run/docker.sock
@@ -59,7 +61,7 @@ services:
         - CMD
         - node
         - -e
-        - fetch('http://127.0.0.1:7091/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+        - fetch('http://supervisor:7091/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
       interval: 2s
       timeout: 5s
       retries: 30

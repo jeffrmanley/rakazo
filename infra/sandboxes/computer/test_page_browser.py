@@ -97,6 +97,7 @@ class PageBrowserTest(unittest.TestCase):
         self.assertEqual(read.call_count, len(b'{"actions": []}\n'))
 
     def test_discovery_cannot_leave_loopback_endpoint(self):
+        # nosemgrep: javascript.lang.security.detect-insecure-websocket.detect-insecure-websocket
         with patch.object(helper, "http_get_json", return_value={"webSocketDebuggerUrl": "ws://example.test:9222/session"}):
             with self.assertRaisesRegex(RuntimeError, "Unexpected CDP"):
                 helper.discover_ws_url(9222)

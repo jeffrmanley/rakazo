@@ -8,4 +8,7 @@ COPY packages/logging packages/logging
 COPY infra/sandboxes/supervisor infra/sandboxes/supervisor
 RUN corepack enable && pnpm install --frozen-lockfile --prod --filter "@rakazo/sandbox-supervisor..."
 WORKDIR /app/infra/sandboxes/supervisor
+# Runs as the image's root because it drives the Docker socket; under rootless Docker that is the
+# unprivileged host user. Narrowing its Docker access is hardening phase 2.
+# nosemgrep: dockerfile.security.missing-user.missing-user
 CMD ["pnpm", "exec", "tsx", "src/index.ts"]

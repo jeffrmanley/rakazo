@@ -1,0 +1,39 @@
+# Accepted osv-scanner findings (hardening phase 1, reviewed 2026-10-24). Each entry has a reason
+# and an expiry; when it lapses, CI fails until the entry is reviewed again or the package moves.
+# None of these is reachable from the deployed server: they are build tools, the marketing site,
+# or a code path the fork does not use.
+
+[[IgnoredVulns]]
+id = "GHSA-xcx6-jx8p-x3h5"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "@azure/msal-node 5.6.0 via @microsoft/teams.apps: the flaw is in the auth_code flow; the Teams adapter only uses client credentials. Fixed in msal-node 7, which teams.apps does not allow yet."
+
+[[IgnoredVulns]]
+id = "GHSA-86w9-cpqp-85rv"
+ignoreUntil = 2026-12-31T00:00:00Z
+reason = "node-forge 1.4.0 only via the Expo CLI (mobile build tooling); not loaded by the server. Revisit with the Expo SDK update (hardening phase 4, Android)."
+
+[[IgnoredVulns]]
+id = "GHSA-w5hq-g745-h8pq"
+ignoreUntil = 2026-12-31T00:00:00Z
+reason = "uuid 7.0.3 only via Expo build tooling; v3/v5/v6 with a caller buffer are not used. Revisit with the Expo SDK update."
+
+[[IgnoredVulns]]
+id = "GHSA-vcc3-ghjq-m6fr"
+ignoreUntil = 2026-12-31T00:00:00Z
+reason = "decode-uri-component 0.2.2 only via Expo build tooling; never decodes request input on the server. Revisit with the Expo SDK update."
+
+[[IgnoredVulns]]
+id = "GHSA-mrhx-c7xc-m3w5"
+ignoreUntil = 2026-12-31T00:00:00Z
+reason = "zod 3.25.76 only via the Expo CLI (build tooling). The app's own zod 4 is pinned to the fixed 4.6.6 by override. Revisit with the Expo SDK update."
+
+[[IgnoredVulns]]
+id = "GHSA-ggr8-5vv4-36mx"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "deepmerge-ts 7.1.5 via Prisma, which merges its own configuration objects, never request input. Fixed only in deepmerge-ts 8; Prisma has not moved."
+
+[[IgnoredVulns]]
+id = "GHSA-ch52-4w7c-c8xp"
+ignoreUntil = 2026-12-31T00:00:00Z
+reason = "http-cache-semantics 4.2.0 only via electron-builder (desktop build) and astro (the marketing site, not deployed); no shared cache serves users. No fixed release yet."

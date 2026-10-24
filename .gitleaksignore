@@ -1,0 +1,33 @@
+# Known fake credentials in tests and .env templates (reviewed 2026-10-24): sk-test-*, replace-with-*,
+# synthetic-*, fake-token, the sample AWS key pattern. Every new finding fails CI.
+3411482c4443669b9d1ec3c5ddf16fa58034ccf1:apps/api/src/router.test.ts:generic-api-key:1359
+4bdbcb053fe44285befc44e564e717239f7eeedb:.env.example:generic-api-key:3
+4bdbcb053fe44285befc44e564e717239f7eeedb:.env.example:generic-api-key:9
+52c819e3573009c88522eb068915df0c808332d0:packages/db/src/ext-audit.test.ts:generic-api-key:144
+6c0db222438061f6a75271e2b3b2771cd0e3c1df:apps/web/src/lib/model-connection-preflight.test.ts:generic-api-key:30
+6c0db222438061f6a75271e2b3b2771cd0e3c1df:apps/web/src/lib/model-connection-preflight.test.ts:generic-api-key:37
+7be0b38fde1314621fc4dfbc7523259db9f13b60:apps/api/src/router.test.ts:generic-api-key:1197
+7be0b38fde1314621fc4dfbc7523259db9f13b60:apps/api/src/router.test.ts:generic-api-key:1285
+7be0b38fde1314621fc4dfbc7523259db9f13b60:apps/api/src/router.test.ts:generic-api-key:1603
+7be0b38fde1314621fc4dfbc7523259db9f13b60:packages/adapters/src/model-selection.test.ts:generic-api-key:168
+834d0417dbc81be354ecca675a17d5d7e5695026:apps/web/src/lib/model-connection-preflight.test.ts:generic-api-key:92
+83b5e408bc2fbe2f586fcda5fe43ffc292cd7943:packages/adapters/src/ext-approval-card.test.ts:generic-api-key:12
+8a8c524a4c77ba262b85bd21539f058a5a1302c9:packages/adapters/src/pi-models.test.ts:generic-api-key:105
+8d1617a96cf5411650a677f61bccb95f1e34ba1d:infra/compose/.env.images.example:generic-api-key:10
+8d1b4e0618e3af81ae9ba4639ae6e49d9084ba7d:packages/db/src/ext-audit.test.ts:aws-access-token:157
+8d1b4e0618e3af81ae9ba4639ae6e49d9084ba7d:packages/db/src/ext-audit.test.ts:aws-access-token:164
+8d1b4e0618e3af81ae9ba4639ae6e49d9084ba7d:packages/db/src/ext-audit.test.ts:curl-auth-header:157
+8d1b4e0618e3af81ae9ba4639ae6e49d9084ba7d:packages/db/src/ext-audit.test.ts:generic-api-key:142
+925fca4bfe502a74119cffb92375f8b3f065b0f2:packages/testkit/src/cli/evals.ts:generic-api-key:107
+925fca4bfe502a74119cffb92375f8b3f065b0f2:packages/testkit/src/evals/evals.test.ts:generic-api-key:258
+a810efbe976d903cdad813c7af64971c198fd614:packages/testkit/src/cli/evals.ts:generic-api-key:107
+a810efbe976d903cdad813c7af64971c198fd614:packages/testkit/src/evals/evals.test.ts:generic-api-key:258
+c5641e6638ea50ee23658f670d47d7c4209a3dc7:packages/adapters/src/pi-runtime.test.ts:curl-auth-header:38
+e599ba6a6dce88616aac6cb6d80bb159e61d6904:apps/web/src/lib/model-connection-preflight.test.ts:generic-api-key:149
+e599ba6a6dce88616aac6cb6d80bb159e61d6904:apps/web/src/lib/model-connection-preflight.test.ts:generic-api-key:157
+e599ba6a6dce88616aac6cb6d80bb159e61d6904:apps/web/src/lib/model-connection-preflight.test.ts:generic-api-key:165
+e599ba6a6dce88616aac6cb6d80bb159e61d6904:apps/web/src/lib/model-connection-preflight.test.ts:generic-api-key:182
+e599ba6a6dce88616aac6cb6d80bb159e61d6904:packages/adapters/src/pi-models.test.ts:generic-api-key:121
+e599ba6a6dce88616aac6cb6d80bb159e61d6904:packages/adapters/src/pi-models.test.ts:generic-api-key:148
+ea037ba378b44f25e02cd04da2ecdb382134cee5:packages/adapters/src/pi-models.test.ts:generic-api-key:132
+ef9fd2b837e170722fc164d9e5e2d8d84613634e:infra/compose/.env.images.example:generic-api-key:10

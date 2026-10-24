@@ -23,10 +23,10 @@
     "@rakazo/db": "workspace:*",
     "@rakazo/logging": "workspace:*",
     "@rakazo/memory": "workspace:*",
-    "hono": "4.13.7"
+    "hono": "4.13.11"
   },
   "devDependencies": {
     "typescript": "7.0.2",
-    "vitest": "4.1.11"
+    "vitest": "4.1.12"
   }
 }
