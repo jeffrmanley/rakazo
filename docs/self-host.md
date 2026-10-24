@@ -488,9 +488,12 @@ The API limits requests per minute on `/rpc`, `/api/v1` and `/api/voice`:
 | Each user, calls that start work (chat send, uploads, computer boot, exports, link codes, creating bots, spaces, groups or routines, model connections, voice) | 30 | `RATE_LIMIT_EXPENSIVE_PER_MINUTE` |
 | Each anonymous client address | 120 | `RATE_LIMIT_ANON_PER_MINUTE` |
 | All anonymous requests together | 1200 | `RATE_LIMIT_ANON_GLOBAL_PER_MINUTE` |
+| Each address sending webhooks (Slack, Teams, bot webhooks, GitHub, phone, billing) | 600 | `RATE_LIMIT_WEBHOOK_PER_MINUTE` |
+| All webhooks together | 3000 | `RATE_LIMIT_WEBHOOK_GLOBAL_PER_MINUTE` |
 
 - **When it's on:** in production unless `RATE_LIMIT_ENABLED=0`, and elsewhere only with `RATE_LIMIT_ENABLED=1`.
-- **Exempt:** signed webhooks (Slack, Teams, bot webhooks, GitHub, phone, billing), since they verify their own signatures and retry.
+- **Webhooks:** they use their own buckets, so a webhook flood never slows the app and the app's traffic never delays a webhook. Their limits are generous because senders retry.
+- **Paths:** trailing slashes are ignored when classifying a path, as the router ignores them.
 - **Sign-in:** keeps better-auth's own limiter.
 - **Over a limit:** a request gets `429` with `Retry-After` and an `error_id`, and the refusal is logged with the user, the path and the error id.
 - **Memory and restarts:** the counters live in the API process, so a restart resets them. This matches single-process deployments.

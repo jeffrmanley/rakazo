@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   clientAddress,
   createRateLimiter,
-  isRateLimitExempt,
   loadRateLimitConfig,
   type RateLimitConfig,
   rateLimitClass,
@@ -14,6 +13,8 @@ const config: RateLimitConfig = {
   anonPerMinute: 3,
   anonGlobalPerMinute: 5,
   expensivePerMinute: 2,
+  webhookPerMinute: 4,
+  webhookGlobalPerMinute: 6,
 };
 
 function clock(start = 0) {
@@ -138,12 +139,39 @@ describe("rate limit classes", () => {
     "/api/v1/bots/abc/github",
     "/api/v1/phone/webhook",
     "/api/v1/billing/webhook",
-  ])("%s is a signed webhook and exempt", (path) => {
-    expect(isRateLimitExempt(path)).toBe(true);
+    "/api/v1/messaging/webhook/slack/",
+  ])("%s is a webhook", (path) => {
+    expect(rateLimitClass(path)).toBe("webhook");
   });
 
-  it.each(["/rpc/me", "/api/v1/audit", "/api/v1/bots/abc/webhooks"])("%s is limited", (path) => {
-    expect(isRateLimitExempt(path)).toBe(false);
+  it.each(["/rpc/threads/send/", "/rpc/threads/send//", "/api/voice/speak/"])(
+    "%s still counts as expensive (trailing slashes are ignored, as by the router)",
+    (path) => {
+      expect(rateLimitClass(path)).toBe("expensive");
+    },
+  );
+
+  it.each(["/api/v1/bots/abc/webhooks", "/rpc/threads/send2"])(
+    "%s is not misclassified",
+    (path) => {
+      expect(rateLimitClass(path)).toBe("normal");
+    },
+  );
+});
+
+describe("webhook limits", () => {
+  it("limits each sending address generously, and all webhooks together, apart from users", () => {
+    const limiter = createRateLimiter(config, clock().now);
+    const hook = (address: string) =>
+      limiter.check({ userId: null, address, path: "/api/v1/messaging/webhook/slack" });
+    for (let i = 0; i < 4; i += 1) expect(hook("203.0.113.1").ok).toBe(true);
+    expect(hook("203.0.113.1")).toMatchObject({ ok: false, scope: "webhook" });
+    expect(hook("203.0.113.2").ok).toBe(true);
+    expect(hook("203.0.113.3").ok).toBe(true);
+    expect(hook("203.0.113.4")).toMatchObject({ ok: false, scope: "webhooks" });
+    // Neither users nor anonymous app traffic share these buckets.
+    expect(limiter.check({ userId: "u1", address: "203.0.113.4", path: "/rpc/me" }).ok).toBe(true);
+    expect(limiter.check({ userId: null, address: "203.0.113.4", path: "/rpc/me" }).ok).toBe(true);
   });
 });
 
@@ -171,6 +199,8 @@ describe("configuration", () => {
       anonPerMinute: 120,
       anonGlobalPerMinute: 1200,
       expensivePerMinute: 30,
+      webhookPerMinute: 600,
+      webhookGlobalPerMinute: 3000,
     });
   });
 

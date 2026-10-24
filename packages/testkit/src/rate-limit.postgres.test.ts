@@ -53,6 +53,8 @@ describeWithDatabase("API-wide rate limits", () => {
         anonPerMinute: 3,
         anonGlobalPerMinute: 100,
         expensivePerMinute: 2,
+        webhookPerMinute: 8,
+        webhookGlobalPerMinute: 100,
       },
     });
     const signedUp = await post("/api/auth/sign-up/email", {
@@ -103,11 +105,19 @@ describeWithDatabase("API-wide rate limits", () => {
     expect((await me("", { "x-forwarded-for": "198.51.100.8" })).status).not.toBe(429);
   });
 
-  it("never limits signed webhooks; they still verify their own signatures", async () => {
-    for (let i = 0; i < 12; i += 1) {
-      const response = await post("/api/v1/messaging/webhook/slack", { type: "event_callback" });
+  it("limits webhooks per sending address, apart from the app's own buckets", async () => {
+    const hook = (address: string) =>
+      post("/api/v1/messaging/webhook/slack", { type: "event_callback" }, "", {
+        "x-forwarded-for": address,
+      });
+    for (let i = 0; i < 8; i += 1) {
+      const response = await hook("203.0.113.9");
+      // Refused by the Slack adapter for having no signature, never by the limiter.
       expect(response.status).not.toBe(429);
     }
+    expect((await hook("203.0.113.9")).status).toBe(429);
+    expect((await hook("203.0.113.10")).status).not.toBe(429);
+    expect((await me(other)).status).toBe(200);
   });
 
   it("limits calls that start work more tightly than other calls", async () => {

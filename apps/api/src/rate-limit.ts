@@ -10,7 +10,9 @@ import type { Hono } from "hono";
  *   call out (chat send, uploads, exports, …).
  * - Anonymous: one bucket per client address, plus one shared by every anonymous request, so
  *   a client inventing a new address per request still cannot flood the database.
- * - Signed webhooks are exempt: their senders verify themselves and retry on failure.
+ * - Webhooks (public through the tunnel, signed by their senders): a generous bucket per client
+ *   address plus one shared by all webhook traffic, apart from users' buckets so a flood of
+ *   webhooks never slows the app, and a sender's retries are not cut short.
  */
 export interface RateLimitConfig {
   enabled: boolean;
@@ -18,9 +20,17 @@ export interface RateLimitConfig {
   anonPerMinute: number;
   anonGlobalPerMinute: number;
   expensivePerMinute: number;
+  webhookPerMinute: number;
+  webhookGlobalPerMinute: number;
 }
 
-export type RateLimitScope = "user" | "expensive" | "address" | "anonymous";
+export type RateLimitScope =
+  | "user"
+  | "expensive"
+  | "address"
+  | "anonymous"
+  | "webhook"
+  | "webhooks";
 
 export type RateLimitDecision =
   | { ok: true }
@@ -44,19 +54,22 @@ const EXPENSIVE_PATHS = new Set([
   "/api/voice/transcribe",
 ]);
 
-const EXEMPT_PATTERNS = [
+const WEBHOOK_PATTERNS = [
   /^\/api\/v1\/messaging\/webhook\/[^/]+$/,
   /^\/api\/v1\/bots\/[^/]+\/(webhook|github)$/,
   /^\/api\/v1\/phone\/webhook$/,
   /^\/api\/v1\/billing\/webhook$/,
 ];
 
-export function rateLimitClass(path: string): "expensive" | "normal" {
-  return EXPENSIVE_PATHS.has(path) ? "expensive" : "normal";
+/** oRPC and Hono both ignore trailing slashes, so classification must too. */
+function normalizePath(path: string): string {
+  return path.replace(/\/+$/, "") || "/";
 }
 
-export function isRateLimitExempt(path: string): boolean {
-  return EXEMPT_PATTERNS.some((pattern) => pattern.test(path));
+export function rateLimitClass(path: string): "expensive" | "webhook" | "normal" {
+  const normalized = normalizePath(path);
+  if (WEBHOOK_PATTERNS.some((pattern) => pattern.test(normalized))) return "webhook";
+  return EXPENSIVE_PATHS.has(normalized) ? "expensive" : "normal";
 }
 
 /**
@@ -102,14 +115,20 @@ export function createRateLimiter(config: RateLimitConfig, now: () => number = D
       if (!config.enabled) return { ok: true };
       const at = now();
       if (at - prunedAt >= PRUNE_EVERY_MS) prune(at);
-      const expensive = rateLimitClass(request.path) === "expensive";
+      const kind = rateLimitClass(request.path);
+      const expensive = kind === "expensive";
       const checks: Array<{ key: string; perMinute: number; scope: RateLimitScope }> =
-        request.userId
-          ? [{ key: `u:${request.userId}`, perMinute: config.userPerMinute, scope: "user" }]
-          : [
-              { key: `a:${request.address}`, perMinute: config.anonPerMinute, scope: "address" },
-              { key: "anon", perMinute: config.anonGlobalPerMinute, scope: "anonymous" },
-            ];
+        kind === "webhook"
+          ? [
+              { key: `w:${request.address}`, perMinute: config.webhookPerMinute, scope: "webhook" },
+              { key: "webhooks", perMinute: config.webhookGlobalPerMinute, scope: "webhooks" },
+            ]
+          : request.userId
+            ? [{ key: `u:${request.userId}`, perMinute: config.userPerMinute, scope: "user" }]
+            : [
+                { key: `a:${request.address}`, perMinute: config.anonPerMinute, scope: "address" },
+                { key: "anon", perMinute: config.anonGlobalPerMinute, scope: "anonymous" },
+              ];
       if (expensive) {
         checks.unshift({
           key: `x:${request.userId ?? `a:${request.address}`}`,
@@ -154,6 +173,8 @@ export function loadRateLimitConfig(source: NodeJS.ProcessEnv): RateLimitConfig 
     anonPerMinute: positiveInteger(source, "RATE_LIMIT_ANON_PER_MINUTE", 120),
     anonGlobalPerMinute: positiveInteger(source, "RATE_LIMIT_ANON_GLOBAL_PER_MINUTE", 1200),
     expensivePerMinute: positiveInteger(source, "RATE_LIMIT_EXPENSIVE_PER_MINUTE", 30),
+    webhookPerMinute: positiveInteger(source, "RATE_LIMIT_WEBHOOK_PER_MINUTE", 600),
+    webhookGlobalPerMinute: positiveInteger(source, "RATE_LIMIT_WEBHOOK_GLOBAL_PER_MINUTE", 3000),
   };
 }
 
@@ -171,8 +192,8 @@ export function mountRateLimits(
     next: () => Promise<void>,
   ) => {
     const path = new URL(c.req.url).pathname;
-    if (isRateLimitExempt(path)) return next();
-    const userId = await userIdFor(c.req.raw);
+    // Webhooks carry no session; looking one up would cost a query per flood request.
+    const userId = rateLimitClass(path) === "webhook" ? null : await userIdFor(c.req.raw);
     const decision = limiter.check({ userId, address: clientAddress(c.req.raw.headers), path });
     if (decision.ok) return next();
     const errorId = randomUUID();
