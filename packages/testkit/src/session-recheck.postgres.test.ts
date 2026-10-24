@@ -97,8 +97,9 @@ describeWithDatabase("live streams re-check the session", () => {
 
     // Revoke every session of the user; the stream must notice at its next re-check (heartbeat).
     await handles.prisma.session.deleteMany({});
+    // The stream ends at the re-check after the next heartbeat (oRPC closes it rather than
+    // sending an error event). With the per-request memo it stayed open past the deadline.
     const result = await readUntilClosed(stream, 60_000);
     expect(result.closed).toBe(true);
-    expect(result.text).toMatch(/unauthorized/i);
   });
 });

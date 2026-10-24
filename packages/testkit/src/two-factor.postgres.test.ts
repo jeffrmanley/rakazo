@@ -748,11 +748,25 @@ describeWithDatabase("authenticator-app two-factor sign-in", () => {
   });
 
   it("turning two-factor on signs the account out of its other sessions", async () => {
+    // The owner is not enrolled here (the tests above turn it off again); the member is.
     const other = new Jar();
-    expect((await signIn(MEMBER, other)).status).toBe(200);
+    expect((await signIn(OWNER, other)).status).toBe(200);
     expect((await me(other)).status).toBe(200);
-    await enrol(member, MEMBER.password);
-    expect((await me(member)).status).toBe(200);
+    const browser = new Jar();
+    expect((await signIn(OWNER, browser)).status).toBe(200);
+    const enrolled = await enrol(browser, OWNER.password);
+    expect((await me(browser)).status).toBe(200);
     expect((await me(other)).status).toBe(401);
+
+    await awayFromTotpBoundary();
+    expect(
+      (
+        await post(
+          "/api/auth/two-factor/disable",
+          { password: OWNER.password, code: totpCode(enrolled.totpURI) },
+          browser,
+        )
+      ).status,
+    ).toBe(200);
   });
 });
