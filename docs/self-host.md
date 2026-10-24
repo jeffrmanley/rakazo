@@ -433,6 +433,23 @@ The API reads them at start; the web build reads them at build time and the web 
 
 Package names, environment variables, logs and internal identifiers keep their upstream names, and the code stays under `LICENSE` (Apache-2.0); `FORK_CHANGES.md` lists the files a fork changed, as Apache-2.0 section 4(b) asks. No screen names the upstream product once a brand is set. The web E2E spec `apps/web/e2e/branding.spec.ts` checks an upstream build is unchanged, that a build made with `PUBLIC_BRAND_NAME` exported shows the upstream name nowhere, and (with `BRAND_E2E_OWNER=1` on its own database: `BRAND_E2E_OWNER=1 pnpm test:e2e -- --spec=e2e/branding.spec.ts`) the owner's runtime rebrand end to end. The Expo mobile app and the desktop shell are not covered yet.
 
+## Rate limits
+
+The API limits requests per minute on `/rpc`, `/api/v1` and `/api/voice`:
+
+| Who | Default | Setting |
+|---|---|---|
+| Each signed-in user | 600 | `RATE_LIMIT_USER_PER_MINUTE` |
+| Each user, calls that start work (chat send, uploads, computer boot, exports, link codes, creating bots, spaces, groups or routines, model connections, voice) | 30 | `RATE_LIMIT_EXPENSIVE_PER_MINUTE` |
+| Each anonymous client address | 120 | `RATE_LIMIT_ANON_PER_MINUTE` |
+| All anonymous requests together | 1200 | `RATE_LIMIT_ANON_GLOBAL_PER_MINUTE` |
+
+- **When it's on:** in production unless `RATE_LIMIT_ENABLED=0`, and elsewhere only with `RATE_LIMIT_ENABLED=1`.
+- **Exempt:** signed webhooks (Slack, Teams, bot webhooks, GitHub, phone, billing), since they verify their own signatures and retry.
+- **Sign-in:** keeps better-auth's own limiter.
+- **Over a limit:** a request gets `429` with `Retry-After` and an `error_id`, and the refusal is logged with the user, the path and the error id.
+- **Memory and restarts:** the counters live in the API process, so a restart resets them. This matches single-process deployments.
+
 ## Choosing a computer provider
 
 The Electron desktop app is a client of the same API. Docker and E2B still apply. On first launch, Electron asks the deployment owner whether bots should keep using Docker or run on this Mac as you. `SANDBOX_PROVIDER=desktop` is a separate, explicit provider that always runs commands on the service host.

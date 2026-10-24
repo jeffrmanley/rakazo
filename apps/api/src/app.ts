@@ -143,6 +143,7 @@ import {
   wakeMessageRoutines,
 } from "./messaging-inbound.js";
 import { mountMessagingWebhookRoutes } from "./messaging-webhook.js";
+import { createRateLimiter, mountRateLimits } from "./rate-limit.js";
 import { mountApiRequestBodyLimits } from "./request-body-limit.js";
 import { createRouter } from "./router.js";
 import { mountScreenTarget } from "./screen-proxy.js";
@@ -661,6 +662,10 @@ export async function createApp(
       credentials: true,
     }),
   );
+  // Fork extension (hardening phase 1): API-wide rate limits, registered before every route so
+  // none runs first. The session lookup is the routes' own, memoized per request below.
+  let rateLimitUserId: (request: Request) => Promise<string | null> = async () => null;
+  mountRateLimits(app, createRateLimiter(env.rateLimit), (request) => rateLimitUserId(request));
   app.get("/api/auth/capabilities", (c) => {
     c.header("cache-control", "no-store");
     return c.json({
@@ -694,7 +699,18 @@ export async function createApp(
     return auth.handler(emptyAuthBodyAsJson(c.req.raw));
   });
   mountLocalSettings(app, { token: env.desktopStackToken, prisma, rpc });
-  const requestSession = async (request: Request) => {
+  // One session lookup per request, shared by the rate limiter and the routes.
+  const sessions = new WeakMap<Request, ReturnType<typeof lookupSession>>();
+  const requestSession = (request: Request) => {
+    let session = sessions.get(request);
+    if (!session) {
+      session = lookupSession(request);
+      sessions.set(request, session);
+    }
+    return session;
+  };
+  rateLimitUserId = async (request) => (await requestSession(request))?.actor.userId ?? null;
+  const lookupSession = async (request: Request) => {
     const session = await auth.api.getSession({ headers: sessionHeaders(request) });
     if (!session?.user) return null;
     const actor = await actorFromMembership(

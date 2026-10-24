@@ -14,6 +14,7 @@ import {
   resolveScreenProxySecret,
   resolveSupervisorToken,
 } from "@rakazo/core";
+import { loadRateLimitConfig, type RateLimitConfig } from "./rate-limit.js";
 
 export { resolveCloudAgentProvider, resolveSandboxProvider } from "@rakazo/adapters";
 
@@ -120,6 +121,8 @@ export interface AppEnv {
   imageTag: string | undefined;
   /** Fork extensions (EXT_* variables); every module is off unless its flag is 1. */
   ext: ExtEnv;
+  /** API-wide request limits (RATE_LIMIT_*); on in production unless RATE_LIMIT_ENABLED=0. */
+  rateLimit: RateLimitConfig;
 }
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
@@ -266,6 +269,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     updaterToken,
     imageTag: optional(source.RAKAZO_IMAGE_TAG),
     ext: loadExtEnv(source),
+    rateLimit: loadRateLimitConfig(source),
   };
 }
 
