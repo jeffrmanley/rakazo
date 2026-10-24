@@ -325,6 +325,14 @@ loopback host. In `NODE_ENV=development`, captured messages are available from
 `http://127.0.0.1:3100/api/dev/emails` with cache disabled; the API logs only delivery
 metadata, never reset tokens. The inbox route is not registered in test, staging, or production.
 
+### Two-factor sign-in
+
+Password sign-in supports a second factor from an authenticator app. The deployment owner is
+asked to turn it on by a banner on every page, and can require it for every account in
+Settings → Security. Recovery is backup codes first, then a reset the host operator runs in the
+api container (`pnpm exec tsx src/cli/reset-2fa.ts <email>`). Details, limits and storage:
+[`docs/security/two-factor.md`](security/two-factor.md).
+
 ### Billing
 
 Billing stays off, with no paywall, unless `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and

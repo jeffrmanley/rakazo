@@ -34,6 +34,9 @@ upstream names, and the Apache-2.0 credit in Settings links back to the upstream
   prompt-injected model against every governance control, `pnpm test:redteam` with a markdown
   report, and an opt-in live mode that measures whether a real model attempts a violation
   (`EXT_EVALS`, see `docs/governance/evals.md`).
+- Two-factor sign-in with an authenticator app: required for the deployment owner (a banner until
+  they enrol), optionally for every account (`require2faForAll`), hashed backup codes, audit
+  events, and a host-only reset (see `docs/security/two-factor.md`).
 
 ## Files
 
@@ -52,6 +55,7 @@ Relative to upstream commit `2d666c4`.
 - `apps/api/src/brand.test.ts` (added)
 - `apps/api/src/brand.ts` (added)
 - `apps/api/src/cli/audit-verify.ts` (added)
+- `apps/api/src/cli/reset-2fa.ts` (added)
 - `apps/api/src/env.test.ts` (modified)
 - `apps/api/src/env.ts` (modified)
 - `apps/api/src/ext-approvals.ts` (added)
@@ -65,6 +69,8 @@ Relative to upstream commit `2d666c4`.
 - `apps/api/src/ext-modules.ts` (added)
 - `apps/api/src/messaging-inbound.test.ts` (modified)
 - `apps/api/src/messaging-inbound.ts` (modified)
+- `apps/api/src/reset-2fa-command.test.ts` (added)
+- `apps/api/src/reset-2fa-command.ts` (added)
 - `apps/api/src/router-messaging.test.ts` (modified)
 - `apps/api/src/router.ts` (modified)
 - `apps/api/src/server-update.ts` (modified)
@@ -73,11 +79,15 @@ Relative to upstream commit `2d666c4`.
 - `apps/api/src/team-chat-judge.ts` (modified)
 - `apps/api/src/team-chat-startup.test.ts` (modified)
 - `apps/api/src/team-chat-startup.ts` (modified)
+- `apps/api/src/two-factor-events.ts` (added)
 
 ### `apps/mobile`
 
 - `apps/mobile/lib/api.test.ts` (modified)
 - `apps/mobile/lib/api.ts` (modified)
+- `apps/mobile/lib/locales/de.ts` (modified)
+- `apps/mobile/lib/locales/ru.ts` (modified)
+- `apps/mobile/lib/locales/zh.ts` (modified)
 
 ### `apps/web`
 
@@ -85,12 +95,17 @@ Relative to upstream commit `2d666c4`.
 - `apps/web/e2e/helpers.ts` (modified)
 - `apps/web/e2e/messaging-settings.spec.ts` (modified)
 - `apps/web/e2e/stack-smoke.spec.ts` (added)
+- `apps/web/e2e/two-factor.spec.ts` (added)
 - `apps/web/public/site.webmanifest` (removed)
+- `apps/web/src/App.tsx` (modified)
 - `apps/web/src/brand-plugin.test.ts` (added)
 - `apps/web/src/brand-plugin.ts` (added)
 - `apps/web/src/components/BrandLogo.tsx` (added)
+- `apps/web/src/components/TwoFactorGate.tsx` (added)
+- `apps/web/src/components/TwoFactorSetup.tsx` (added)
 - `apps/web/src/lib/approvals.test.ts` (added)
 - `apps/web/src/lib/approvals.ts` (added)
+- `apps/web/src/lib/auth.ts` (modified)
 - `apps/web/src/lib/brand.test.ts` (added)
 - `apps/web/src/lib/brand.ts` (added)
 - `apps/web/src/lib/budgets.test.ts` (added)
@@ -101,8 +116,13 @@ Relative to upstream commit `2d666c4`.
 - `apps/web/src/lib/ext-modules.ts` (added)
 - `apps/web/src/lib/messaging.test.ts` (added)
 - `apps/web/src/lib/messaging.ts` (modified)
+- `apps/web/src/lib/qr-code.test.ts` (added)
+- `apps/web/src/lib/qr-code.ts` (added)
 - `apps/web/src/lib/rpc-errors.test.ts` (added)
 - `apps/web/src/lib/rpc-errors.ts` (added)
+- `apps/web/src/lib/two-factor.test.ts` (added)
+- `apps/web/src/lib/two-factor.ts` (added)
+- `apps/web/src/lib/user-error.ts` (modified)
 - `apps/web/src/locales/de/messages.po` (modified)
 - `apps/web/src/locales/en/messages.po` (modified)
 - `apps/web/src/locales/es/messages.po` (modified)
@@ -115,12 +135,14 @@ Relative to upstream commit `2d666c4`.
 - `apps/web/src/locales/zh-CN/messages.po` (modified)
 - `apps/web/src/main.tsx` (modified)
 - `apps/web/src/pages/Auth.tsx` (modified)
+- `apps/web/src/pages/AuthTwoFactor.test.tsx` (added)
 - `apps/web/src/pages/BotContextMenu.tsx` (modified)
 - `apps/web/src/pages/BrandingSettingsPanel.tsx` (added)
 - `apps/web/src/pages/BudgetSettingsPanel.tsx` (added)
 - `apps/web/src/pages/McpOAuthCallback.tsx` (modified)
 - `apps/web/src/pages/MessagingSettingsOverlay.tsx` (modified)
 - `apps/web/src/pages/ModelSettingsOverlay.tsx` (modified)
+- `apps/web/src/pages/SecuritySettingsPanel.tsx` (added)
 - `apps/web/src/pages/SettingsOverlay.tsx` (modified)
 - `apps/web/src/pages/Shell.tsx` (modified)
 - `apps/web/src/pages/Welcome.tsx` (modified)
@@ -143,6 +165,7 @@ Relative to upstream commit `2d666c4`.
 - `docs/governance/budgets.md` (added)
 - `docs/governance/emergency-stop.md` (added)
 - `docs/governance/evals.md` (added)
+- `docs/security/two-factor.md` (added)
 - `docs/self-host.md` (modified)
 - `docs/teams-adapter-spec.md` (added)
 
@@ -229,9 +252,12 @@ Relative to upstream commit `2d666c4`.
 - `packages/auth/src/escape-html.ts` (added)
 - `packages/auth/src/index.test.ts` (modified)
 - `packages/auth/src/index.ts` (modified)
+- `packages/auth/src/two-factor.test.ts` (added)
+- `packages/auth/src/two-factor.ts` (added)
 
 ### `packages/contracts`
 
+- `packages/contracts/src/auth.ts` (modified)
 - `packages/contracts/src/brand.ts` (added)
 - `packages/contracts/src/domain.ts` (modified)
 - `packages/contracts/src/index.test.ts` (modified)
@@ -269,6 +295,7 @@ Relative to upstream commit `2d666c4`.
 - `packages/db/prisma/migrations/20261016120000_ext_run_slot_waits/migration.sql` (added)
 - `packages/db/prisma/migrations/20261017120000_ext_approvals/migration.sql` (added)
 - `packages/db/prisma/migrations/20261018120000_ext_approvals_cards/migration.sql` (added)
+- `packages/db/prisma/migrations/20261024120000_two_factor/migration.sql` (added)
 - `packages/db/prisma/schema.prisma` (modified)
 - `packages/db/src/brand-settings.postgres.test.ts` (added)
 - `packages/db/src/brand-settings.ts` (added)
@@ -309,3 +336,5 @@ Relative to upstream commit `2d666c4`.
 - `packages/testkit/src/model-emulator.ts` (modified)
 - `packages/testkit/src/pi-offline-governance.test.ts` (added)
 - `packages/testkit/src/teams-team-chat.test.ts` (added)
+- `packages/testkit/src/totp.ts` (added)
+- `packages/testkit/src/two-factor.postgres.test.ts` (added)
