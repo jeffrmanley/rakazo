@@ -85,8 +85,10 @@ class CdpClient:
         self._contexts: dict[int, dict[str, Any]] = {}
 
     def connect(self) -> None:
+        # Chrome's local DevTools socket inside the computer; discovery refuses non-loopback hosts.
+        # nosemgrep: javascript.lang.security.detect-insecure-websocket.detect-insecure-websocket
         assert self._ws_url.startswith("ws://"), self._ws_url
-        rest = self._ws_url[len("ws://") :]
+        rest = self._ws_url[len("ws://") :]  # nosemgrep: javascript.lang.security.detect-insecure-websocket.detect-insecure-websocket
         host_port, _, path = rest.partition("/")
         if ":" in host_port:
             host, port_s = host_port.split(":", 1)

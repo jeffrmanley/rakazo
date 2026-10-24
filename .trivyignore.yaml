@@ -1,0 +1,14 @@
+# Accepted Trivy findings, each scoped to its file (reviewed 2026-10-24). Anything new fails CI.
+misconfigurations:
+  - id: DS-0031
+    paths:
+      - infra/sandboxes/computer/Dockerfile
+    statement: NSS_WRAPPER_PASSWD is the path of nss_wrapper's passwd file, not a secret.
+  - id: DS-0002
+    paths:
+      - infra/sandboxes/supervisor/Dockerfile
+    statement: The supervisor drives the Docker socket; under rootless Docker its root is the unprivileged host user. Narrowing its Docker access is hardening phase 2.
+  - id: DS-0002
+    paths:
+      - infra/updater/Dockerfile
+    statement: The updater replaces containers through the Docker socket; the fork's deployments do not run it.

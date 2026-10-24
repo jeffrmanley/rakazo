@@ -1,0 +1,2 @@
+# Accepted osv-scanner findings (hardening phase 1). Each entry needs a reason and an expiry; an
+# expired entry fails CI again. Filled in after the 2026-10-24 dependency patch pass.
