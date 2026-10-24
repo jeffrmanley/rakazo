@@ -503,6 +503,18 @@ describeWithDatabase("authenticator-app two-factor sign-in", () => {
 
   it("disables with a backup code in place of the authenticator", async () => {
     const enrolled = await enrol(owner, OWNER.password);
+    const failed = (await failures(ownerId)).length;
+    // A wrong password is refused before the code is looked at, so the backup code survives.
+    const wrongPassword = await post(
+      "/api/auth/two-factor/disable",
+      { password: "not-the-password-1", code: enrolled.backupCodes[0] },
+      owner,
+    );
+    expect(wrongPassword.status).toBe(400);
+    expect(await json(wrongPassword)).toMatchObject({ code: "INVALID_PASSWORD" });
+    expect((await failures(ownerId)).length).toBe(failed);
+    const stored = await handles.prisma.twoFactor.findUniqueOrThrow({ where: { userId: ownerId } });
+    expect(JSON.parse(stored.backupCodes)).toHaveLength(10);
     const disabled = await post(
       "/api/auth/two-factor/disable",
       { password: OWNER.password, code: enrolled.backupCodes[0] },

@@ -230,6 +230,9 @@ export function twoFactorGuard(deps: {
                 message: "Enter a code from your authenticator app or a backup code",
               });
             }
+            // Password first (the plugin checks it again): a wrong one must neither use up a
+            // backup code nor reveal whether the code was right.
+            await ctx.context.password.checkPassword(session.user.id, ctx);
             await deps.verifyCode(ctx.headers ?? new Headers(), code);
           }),
         },
