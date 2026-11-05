@@ -1,5 +1,5 @@
 # Known fake credentials in tests and .env templates (reviewed 2026-10-24): sk-test-*, replace-with-*,
-# synthetic-*, fake-token, the sample AWS key pattern. Every new finding fails CI.
+# synthetic-*, fake-token, the sample AWS key pattern; the RFC 6455 sample Sec-WebSocket-Key (2026-11-05). Every new finding fails CI.
 3411482c4443669b9d1ec3c5ddf16fa58034ccf1:apps/api/src/router.test.ts:generic-api-key:1359
 4bdbcb053fe44285befc44e564e717239f7eeedb:.env.example:generic-api-key:3
 4bdbcb053fe44285befc44e564e717239f7eeedb:.env.example:generic-api-key:9
@@ -31,3 +31,4 @@ e599ba6a6dce88616aac6cb6d80bb159e61d6904:packages/adapters/src/pi-models.test.ts
 e599ba6a6dce88616aac6cb6d80bb159e61d6904:packages/adapters/src/pi-models.test.ts:generic-api-key:148
 ea037ba378b44f25e02cd04da2ecdb382134cee5:packages/adapters/src/pi-models.test.ts:generic-api-key:132
 ef9fd2b837e170722fc164d9e5e2d8d84613634e:infra/compose/.env.images.example:generic-api-key:10
+69daaad31d55d5d3ec780f666b945cb30a5bd944:infra/compose/check-web-headers.mjs:generic-api-key:155
