@@ -9,11 +9,6 @@ ignoreUntil = 2027-01-31T00:00:00Z
 reason = "@azure/msal-node 5.6.0 via @microsoft/teams.apps: the flaw is in the auth_code flow; the Teams adapter only uses client credentials. Fixed in msal-node 7, which teams.apps does not allow yet."
 
 [[IgnoredVulns]]
-id = "GHSA-86w9-cpqp-85rv"
-ignoreUntil = 2026-12-31T00:00:00Z
-reason = "node-forge 1.4.0 only via the Expo CLI (mobile build tooling); not loaded by the server. Revisit with the Expo SDK update (hardening phase 4, Android)."
-
-[[IgnoredVulns]]
 id = "GHSA-w5hq-g745-h8pq"
 ignoreUntil = 2026-12-31T00:00:00Z
 reason = "uuid 7.0.3 only via Expo build tooling; v3/v5/v6 with a caller buffer are not used. Revisit with the Expo SDK update."
@@ -33,7 +28,23 @@ id = "GHSA-ggr8-5vv4-36mx"
 ignoreUntil = 2027-01-31T00:00:00Z
 reason = "deepmerge-ts 7.1.5 via Prisma, which merges its own configuration objects, never request input. Fixed only in deepmerge-ts 8; Prisma has not moved."
 
+# Added 2026-11-06 (first CI run of the security workflow).
 [[IgnoredVulns]]
-id = "GHSA-ch52-4w7c-c8xp"
+id = "GHSA-gcqx-w48m-w2h4"
 ignoreUntil = 2026-12-31T00:00:00Z
-reason = "http-cache-semantics 4.2.0 only via electron-builder (desktop build) and astro (the marketing site, not deployed); no shared cache serves users. No fixed release yet."
+reason = "deepmerge 4.3.1 only via @expo/config (Expo CLI, mobile build tooling); merges app config files, never request input. No fixed release. Revisit with the Expo SDK update."
+
+[[IgnoredVulns]]
+id = "GHSA-qr28-fpjm-wq7f"
+ignoreUntil = 2026-12-31T00:00:00Z
+reason = "decode-uri-component 0.2.2 only via query-string in expo-router (mobile build/runtime of the user's own app); never decodes request input on the server. The fix is the ESM-only 0.5 line, which query-string 7 does not accept. Revisit with the Expo SDK update."
+
+[[IgnoredVulns]]
+id = "GHSA-3g3m-2fjr-6pw4"
+ignoreUntil = 2026-12-31T00:00:00Z
+reason = "glob 10/13 via the Expo CLI and e2b's template builder. Neither is called by the server, and the flaw needs an AbortSignal timeout on a glob walk. The fix is glob 14 (a major), which these packages do not accept yet."
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2026-12-31T00:00:00Z
+reason = "minimatch 9/10 via glob (above): patterns come from the packages' own config, never from users, so the amplification DoS is not reachable. The fix is minimatch 11 (a major)."
