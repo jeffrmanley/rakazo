@@ -1,0 +1,16 @@
+# Fork dependency updates (hardening phase 1). npm: security updates only (version updates are
+# off, open-pull-requests-limit 0, so the fork does not drown in upstream churn); turn on
+# "Dependabot security updates" in the repository's Code security settings. GitHub Actions:
+# weekly, so pinned SHAs stay current.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
