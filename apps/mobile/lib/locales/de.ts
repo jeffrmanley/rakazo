@@ -19,11 +19,9 @@ export const DE_MESSAGES: Record<string, string> = {
   "Configure a plugin catalog on the server to connect apps.":
     "Richte auf dem Server einen Plugin-Katalog ein, um Apps zu verbinden.",
   "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed.":
-    "Füge die OpenAI-kompatible Adresse deines Servers ein. Rakazo ergänzt /v1 bei Bedarf.",
+    "Füge die OpenAI-kompatible Adresse deines Servers ein. withJZ Crew ergänzt /v1 bei Bedarf.",
   "Settings: General": "Einstellungen: Allgemein",
   "Settings: Usage": "Einstellungen: Nutzung",
-  "Two-factor sign-in isn't supported in this app version yet. Sign in on the web.":
-    "Die Anmeldung mit zweitem Faktor wird von dieser App-Version noch nicht unterstützt. Melde dich im Web an.",
   "Sign-in did not return a session": "Die Anmeldung hat keine Sitzung zurückgegeben",
   "Sign-up did not return a session": "Die Registrierung hat keine Sitzung zurückgegeben",
   "{count} model": "{count} Modell",
@@ -53,7 +51,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "Custom server {host}": "Eigener Server {host}",
   "Don’t have an account?": "Du hast noch kein Konto?",
   Email: "E-Mail",
-  "Enter your Rakazo server address.": "Gib die Adresse deines Rakazo-Servers ein.",
+  "Enter your withJZ Crew server address.": "Gib die Adresse deines withJZ-Crew-Servers ein.",
   "Forgot password?": "Passwort vergessen?",
   "Loading…": "Wird geladen…",
   Password: "Passwort",
@@ -62,9 +60,9 @@ export const DE_MESSAGES: Record<string, string> = {
   "Reset your password": "Setze dein Passwort zurück",
   "Send reset link": "Link zum Zurücksetzen senden",
   Server: "Server",
-  "Sign in to Rakazo": "Bei Rakazo anmelden",
+  "Sign in to withJZ Crew": "Bei withJZ Crew anmelden",
   "Sign up": "Registrieren",
-  "Sign up for Rakazo": "Bei Rakazo registrieren",
+  "Sign up for withJZ Crew": "Bei withJZ Crew registrieren",
   "Use a custom server": "Eigenen Server verwenden",
   "Use default server": "Standardserver verwenden",
   // app/index.tsx
@@ -377,8 +375,8 @@ export const DE_MESSAGES: Record<string, string> = {
   "Switching…": "Wird gewechselt…",
   "The final page may not load. Paste its URL or code here.":
     "Die letzte Seite lädt womöglich nicht. Füge ihre URL oder ihren Code hier ein.",
-  "This subscription sign-in is not available in Rakazo yet. Use a deployment credential or choose another provider.":
-    "Diese Abonnementanmeldung ist in Rakazo noch nicht verfügbar. Verwende Zugangsdaten der Bereitstellung oder wähle einen anderen Anbieter.",
+  "This subscription sign-in is not available in withJZ Crew yet. Use a deployment credential or choose another provider.":
+    "Diese Abonnementanmeldung ist in withJZ Crew noch nicht verfügbar. Verwende Zugangsdaten der Bereitstellung oder wähle einen anderen Anbieter.",
   "Use a found model": "Gefundenes Modell verwenden",
   "Use this model": "Dieses Modell verwenden",
   "Waiting for sign-in…": "Warten auf Anmeldung…",
@@ -671,8 +669,8 @@ export const DE_MESSAGES: Record<string, string> = {
   "Enter a server URL": "Gib eine Server-URL ein",
   "Public servers need https://. HTTP only works on your local network.":
     "Öffentliche Server brauchen https://. HTTP funktioniert nur im lokalen Netzwerk.",
-  "That URL did not look like a Rakazo server":
-    "Diese URL sieht nicht nach einem Rakazo-Server aus",
+  "That URL did not look like a withJZ Crew server":
+    "Diese URL sieht nicht nach einem withJZ-Crew-Server aus",
   "That URL is missing a host": "Dieser URL fehlt ein Host",
   "That doesn’t look like a URL": "Das sieht nicht nach einer URL aus",
   "Use an http or https URL": "Verwende eine http- oder https-URL",
@@ -753,7 +751,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "AI models": "KI-Modelle",
   Memory: "Gedächtnis",
   "Privacy policies": "Datenschutzerklärungen",
-  Rakazo: "Rakazo",
+  "withJZ Crew": "withJZ Crew",
   "Withdraw all permissions": "Alle Berechtigungen widerrufen",
   "Withdraw all permissions?": "Alle Berechtigungen widerrufen?",
   "New mobile actions won't send data to these services. Runs already in progress and routines keep going until you stop them.":
@@ -787,4 +785,43 @@ export const DE_MESSAGES: Record<string, string> = {
     "Melde dich bei deinem bestehenden Konto an, um SSO zu verknüpfen",
   "SSO is temporarily unavailable. Try again.":
     "SSO ist vorübergehend nicht verfügbar. Versuche es erneut.",
+  "Could not start the two-factor step. Try again.":
+    "Der Schritt für die Zwei-Faktor-Anmeldung konnte nicht gestartet werden. Versuche es erneut.",
+  "This sign-in expired. Enter your password again.":
+    "Diese Anmeldung ist abgelaufen. Gib dein Passwort erneut ein.",
+  "Enter the 6-digit code": "Gib den 6-stelligen Code ein",
+  "Enter a backup code": "Gib einen Backup-Code ein",
+  "The code has 6 digits": "Der Code hat 6 Ziffern",
+  "{count} seconds": "{count} Sekunden",
+  "{count} minutes": "{count} Minuten",
+  "Too many sign-in attempts. Try again in {wait}.":
+    "Zu viele Anmeldeversuche. Versuche es in {wait} erneut.",
+  "Too many sign-in attempts. Wait a few minutes and try again.":
+    "Zu viele Anmeldeversuche. Warte ein paar Minuten und versuche es erneut.",
+  "Too many wrong codes. Two-factor sign-in is locked for 15 minutes.":
+    "Zu viele falsche Codes. Die Zwei-Faktor-Anmeldung ist für 15 Minuten gesperrt.",
+  "Too many attempts. Try again in {wait}.": "Zu viele Versuche. Versuche es in {wait} erneut.",
+  "Too many attempts. Wait a moment and try again.":
+    "Zu viele Versuche. Warte einen Moment und versuche es erneut.",
+  "That code didn’t work. Check your authenticator app and try again.":
+    "Dieser Code hat nicht funktioniert. Prüfe deine Authenticator-App und versuche es erneut.",
+  "That backup code didn’t work. Each backup code works once.":
+    "Dieser Backup-Code hat nicht funktioniert. Jeder Backup-Code funktioniert nur einmal.",
+  "Too many wrong codes for this sign-in. Enter your password again.":
+    "Zu viele falsche Codes für diese Anmeldung. Gib dein Passwort erneut ein.",
+  "Could not check the code": "Der Code konnte nicht geprüft werden",
+  "Could not check the backup code": "Der Backup-Code konnte nicht geprüft werden",
+  "Open your authenticator app and enter the 6-digit code for {name}.":
+    "Öffne deine Authenticator-App und gib den 6-stelligen Code für {name} ein.",
+  "Enter one of your backup codes. Each one works once.":
+    "Gib einen deiner Backup-Codes ein. Jeder funktioniert nur einmal.",
+  "Authentication code": "Authentifizierungscode",
+  "Backup code": "Backup-Code",
+  "Trust this device for 30 days": "Diesem Gerät 30 Tage lang vertrauen",
+  "Use a backup code": "Backup-Code verwenden",
+  "Use your authenticator app": "Authenticator-App verwenden",
+  "Two-factor authentication": "Zwei-Faktor-Authentifizierung",
+  Verify: "Bestätigen",
+  "Push notifications aren’t set up yet, so alerts arrive only while the app is open or an agent is working.":
+    "Push-Benachrichtigungen sind noch nicht eingerichtet. Hinweise kommen daher nur, solange die App geöffnet ist oder ein Agent arbeitet.",
 };

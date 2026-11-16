@@ -1,5 +1,5 @@
 import type { AiConsentStatus } from "@rakazo/contracts";
-import { AI_DATA_DISCLOSURES, AI_PRIVACY_URL } from "@rakazo/contracts";
+import { AI_DATA_DISCLOSURES } from "@rakazo/contracts";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet } from "react-native";
 import {
@@ -16,6 +16,7 @@ import {
   groupAiRecipients,
 } from "../../lib/ai-data-sharing";
 import { rpc } from "../../lib/api";
+import { APP_NAME } from "../../lib/brand";
 import { useI18n } from "../../lib/i18n";
 import { native, useThemedStyles } from "../../lib/native";
 import { errorText } from "../../lib/user-error";
@@ -132,12 +133,15 @@ export default function AiDataSharing() {
                 onPress={() => void Linking.openURL(url)}
               />
             ))}
-            <SettingsRow
-              title={t("Rakazo")}
-              accessibilityRole="link"
-              chevron="right"
-              onPress={() => void Linking.openURL(status.privacyUrl ?? AI_PRIVACY_URL)}
-            />
+            {/* Only the deployment's own policy: the upstream product's page is not this app's. */}
+            {status.privacyUrl ? (
+              <SettingsRow
+                title={APP_NAME}
+                accessibilityRole="link"
+                chevron="right"
+                onPress={() => void Linking.openURL(status.privacyUrl as string)}
+              />
+            ) : null}
           </SettingsGroup>
           <SettingsGroup>
             <SettingsRow

@@ -1,18 +1,12 @@
 import * as Application from "expo-application";
 import Constants from "expo-constants";
-import * as Updates from "expo-updates";
 import { Platform } from "react-native";
 
-export type AppUpdateIdentity =
-  | { kind: "embedded" }
-  | {
-      kind: "ota";
-      /** Short hex fragment of the running update id. */
-      id: string;
-      channel: string | null;
-      /** ISO date (YYYY-MM-DD) when the update was created, if known. */
-      createdAt: string | null;
-    };
+/**
+ * withJZ Crew ships without expo-updates: the binary is the only code that runs, so every
+ * launch is the embedded bundle. Kept as a type so the account footer stays unchanged.
+ */
+export type AppUpdateIdentity = { kind: "embedded" };
 
 export type AppVersionInfo = {
   /** Store / native binary version, e.g. `1.0.3 (10)`. */
@@ -49,45 +43,12 @@ export function formatNativeVersionLabel(
   return version ?? build;
 }
 
-/** Shorten a UUID update id for footer display. */
-export function shortUpdateId(updateId: string): string {
-  const compact = updateId.replace(/-/g, "").toLowerCase();
-  return compact.slice(0, 8) || updateId.slice(0, 8);
-}
-
-function formatCreatedAt(value: unknown): string | null {
-  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return null;
-  return value.toISOString().slice(0, 10);
-}
-
-function resolveUpdateIdentity(): AppUpdateIdentity {
-  try {
-    if (!Updates.isEnabled || Updates.isEmbeddedLaunch) return { kind: "embedded" };
-    const rawId = readString(Updates.updateId);
-    if (!rawId) return { kind: "embedded" };
-    return {
-      kind: "ota",
-      id: shortUpdateId(rawId),
-      channel: readString(Updates.channel),
-      createdAt: formatCreatedAt(Updates.createdAt),
-    };
-  } catch {
-    // Expo Go, web, and some simulators expose a stub that still throws on access.
-    return { kind: "embedded" };
-  }
-}
-
 /** Human update line for the account footer (English source strings for i18n). */
-export function formatUpdateLabel(update: AppUpdateIdentity, t: Translate): string {
-  if (update.kind === "embedded") return t("Embedded");
-  const { id, channel, createdAt } = update;
-  if (channel && createdAt) return t("{channel} · {id} · {date}", { channel, id, date: createdAt });
-  if (channel) return t("{channel} · {id}", { channel, id });
-  if (createdAt) return t("OTA · {id} · {date}", { id, date: createdAt });
-  return t("OTA · {id}", { id });
+export function formatUpdateLabel(_update: AppUpdateIdentity, t: Translate): string {
+  return t("Embedded");
 }
 
-/** Read native store version and OTA identity for the account footer. */
+/** Read the native store version for the account footer. */
 export function getAppVersionInfo(): AppVersionInfo {
   let applicationVersion: string | null = null;
   let buildVersion: string | null = null;
@@ -103,6 +64,6 @@ export function getAppVersionInfo(): AppVersionInfo {
       applicationVersion ?? fallback.version,
       buildVersion ?? fallback.build,
     ),
-    update: resolveUpdateIdentity(),
+    update: { kind: "embedded" },
   };
 }

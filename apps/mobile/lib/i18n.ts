@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { brandCopy } from "./brand";
 import { DE_MESSAGES } from "./locales/de";
 import { RU_MESSAGES } from "./locales/ru";
 import { ZH_MESSAGES } from "./locales/zh";
@@ -38,7 +39,7 @@ export function dateLocaleForUi(locale: UiLocale = activeLocale): string {
 }
 
 export function t(message: string, values?: Record<string, string | number>): string {
-  const template = catalogs[activeLocale]?.[message] ?? message;
+  const template = brandCopy(catalogs[activeLocale]?.[message] ?? message);
   if (!values) return template;
   return template.replace(/\{([A-Za-z0-9_]+)\}/g, (match, key: string) =>
     Object.hasOwn(values, key) ? String(values[key]) : match,

@@ -58,7 +58,7 @@ import {
 } from "../../lib/live-notifications";
 import { presentMessageActionSheet } from "../../lib/message-action-sheet";
 import { native, useResolvedAppearance, useThemedStyles } from "../../lib/native";
-import { registerPushToken } from "../../lib/push";
+import { PUSH_NOTIFICATIONS_AVAILABLE, registerPushToken } from "../../lib/push";
 import {
   getCachedRemoteImagesEnabled,
   setRemoteImagesPreference,
@@ -452,7 +452,17 @@ export default function Account() {
         </SettingsGroup>
 
         {Platform.OS === "android" ? (
-          <SettingsGroup accessibilityLabel={t("Notifications")} label={t("Notifications")}>
+          <SettingsGroup
+            accessibilityLabel={t("Notifications")}
+            label={t("Notifications")}
+            footer={
+              PUSH_NOTIFICATIONS_AVAILABLE
+                ? undefined
+                : t(
+                    "Push notifications aren’t set up yet, so alerts arrive only while the app is open or an agent is working.",
+                  )
+            }
+          >
             <SettingsSwitch
               label={t("Live working status")}
               detail={t("While agents are working")}

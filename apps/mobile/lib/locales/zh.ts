@@ -355,7 +355,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Loading…": "正在加载…",
   "Long press to pin or move to a section": "长按可置顶或移动到分组",
   "Long press to pin, move, or silence notifications": "长按可置顶、移动或静音通知",
-  "Enter your Rakazo server address.": "输入你的 Rakazo 服务器地址。",
+  "Enter your withJZ Crew server address.": "输入你的 withJZ Crew 服务器地址。",
   "Show less": "收起",
   Members: "成员",
   Max: "最高",
@@ -416,8 +416,8 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Photo library": "相册",
   Pin: "置顶",
   "Please try again.": "请重试。",
-  "Point this app at your self-hosted Rakazo origin, the same HTTPS URL you open in a browser.":
-    "将此应用指向你自托管的 Rakazo 源站，地址与你在浏览器中打开的 HTTPS URL 相同。",
+  "Point this app at your self-hosted withJZ Crew origin, the same HTTPS URL you open in a browser.":
+    "将此应用指向你自托管的 withJZ Crew 源站，地址与你在浏览器中打开的 HTTPS URL 相同。",
   Private: "私有",
   Providers: "提供商",
   "Public servers need https://. HTTP only works on your local network.":
@@ -479,14 +479,12 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Show more": "显示更多",
   "Show {label}": "显示 {label}",
   "Sign in": "登录",
-  "Sign in to Rakazo": "登录 Rakazo",
+  "Sign in to withJZ Crew": "登录 withJZ Crew",
   "Sign out": "退出登录",
   "Sign up": "注册",
-  "Sign up for Rakazo": "注册 Rakazo",
+  "Sign up for withJZ Crew": "注册 withJZ Crew",
   "Sign-in": "登录",
   "Sign-up": "注册",
-  "Two-factor sign-in isn't supported in this app version yet. Sign in on the web.":
-    "此版本的应用暂不支持双重验证登录。请在网页上登录。",
   "Sign-in did not return a session": "登录未返回会话",
   "Sign-up did not return a session": "注册未返回会话",
   "Silence notifications": "静音通知",
@@ -515,7 +513,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   Team: "团队",
   "Team Computer": "团队电脑",
   "That doesn’t look like a URL": "这看起来不像 URL",
-  "That URL did not look like a Rakazo server": "该地址看起来不是 Rakazo 服务器",
+  "That URL did not look like a withJZ Crew server": "该地址看起来不是 withJZ Crew 服务器",
   "That URL is missing a host": "该地址缺少主机名",
   "The server changed while starting the request": "请求开始时服务器已更改",
   "This permanently deletes your account, bots, conversations, memories, files, and saved connections. This cannot be undone.":
@@ -605,7 +603,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "OpenAPI JSON": "OpenAPI JSON",
   "Opened its thread.": "已打开其对话。",
   "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed.":
-    "粘贴你服务器的 OpenAI 兼容地址。如有需要，Rakazo 会自动补上 /v1。",
+    "粘贴你服务器的 OpenAI 兼容地址。如有需要，withJZ Crew 会自动补上 /v1。",
   Paused: "已暂停",
   Prompt: "提示词",
   "Recording a live demonstration needs desktop or web with the full computer view. You can still ask this bot to run saved skills from chat.":
@@ -619,8 +617,8 @@ export const ZH_MESSAGES: Record<string, string> = {
   "this model": "此模型",
   "This removes every message and stops current work. The bot, computer, memory, and routines are kept.":
     "这将删除所有消息并停止当前工作。Bot、电脑、记忆和例行任务会保留。",
-  "This subscription sign-in is not available in Rakazo yet. Use a deployment credential or choose another provider.":
-    "Rakazo 暂不支持此订阅登录。请使用部署凭据或选择其他提供商。",
+  "This subscription sign-in is not available in withJZ Crew yet. Use a deployment credential or choose another provider.":
+    "withJZ Crew 暂不支持此订阅登录。请使用部署凭据或选择其他提供商。",
   "Tool sources": "工具源",
   Tools: "工具",
   Uninstall: "卸载",
@@ -735,7 +733,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "AI models": "AI 模型",
   Memory: "记忆",
   "Privacy policies": "隐私政策",
-  Rakazo: "Rakazo",
+  "withJZ Crew": "withJZ Crew",
   "Withdraw all permissions": "撤销所有权限",
   "Withdraw all permissions?": "撤销所有权限？",
   "New mobile actions won't send data to these services. Runs already in progress and routines keep going until you stop them.":
@@ -766,4 +764,38 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Send deletion code": "发送删除验证码",
   "Sign in to your existing account to link SSO": "请登录现有账户以关联 SSO",
   "SSO is temporarily unavailable. Try again.": "SSO 暂时不可用，请重试。",
+  "Could not start the two-factor step. Try again.": "无法开始双重验证步骤。请重试。",
+  "This sign-in expired. Enter your password again.": "本次登录已过期。请重新输入密码。",
+  "Enter the 6-digit code": "输入 6 位验证码",
+  "Enter a backup code": "输入备用码",
+  "The code has 6 digits": "验证码为 6 位数字",
+  "{count} seconds": "{count} 秒",
+  "{count} minutes": "{count} 分钟",
+  "Too many sign-in attempts. Try again in {wait}.": "登录尝试次数过多。请在 {wait} 后重试。",
+  "Too many sign-in attempts. Wait a few minutes and try again.":
+    "登录尝试次数过多。请等待几分钟后重试。",
+  "Too many wrong codes. Two-factor sign-in is locked for 15 minutes.":
+    "错误验证码过多。双重验证登录已锁定 15 分钟。",
+  "Too many attempts. Try again in {wait}.": "尝试次数过多。请在 {wait} 后重试。",
+  "Too many attempts. Wait a moment and try again.": "尝试次数过多。请稍候再试。",
+  "That code didn’t work. Check your authenticator app and try again.":
+    "该验证码无效。请检查你的身份验证器应用后重试。",
+  "That backup code didn’t work. Each backup code works once.":
+    "该备用码无效。每个备用码只能使用一次。",
+  "Too many wrong codes for this sign-in. Enter your password again.":
+    "本次登录的错误验证码过多。请重新输入密码。",
+  "Could not check the code": "无法验证该验证码",
+  "Could not check the backup code": "无法验证该备用码",
+  "Open your authenticator app and enter the 6-digit code for {name}.":
+    "打开你的身份验证器应用，输入 {name} 的 6 位验证码。",
+  "Enter one of your backup codes. Each one works once.": "输入你的一个备用码。每个只能使用一次。",
+  "Authentication code": "验证码",
+  "Backup code": "备用码",
+  "Trust this device for 30 days": "30 天内信任此设备",
+  "Use a backup code": "使用备用码",
+  "Use your authenticator app": "使用身份验证器应用",
+  "Two-factor authentication": "双重验证",
+  Verify: "验证",
+  "Push notifications aren’t set up yet, so alerts arrive only while the app is open or an agent is working.":
+    "推送通知尚未设置，因此只有在应用打开或智能体正在工作时才会收到提醒。",
 };

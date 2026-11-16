@@ -15,9 +15,11 @@ codes. It is built on Better Auth's `two-factor` plugin; the policy around it li
   backup code; each one works once. "Trust this device for 30 days" skips the code on that browser
   until it expires or two-factor is turned off.
 
-The desktop app shows the web UI, so it works the same. The mobile app cannot enter a code yet:
-a two-factor account's mobile sign-in answers "Two-factor sign-in isn't supported in this app
-version yet. Sign in on the web."
+The desktop app shows the web UI, so it works the same. The Android app (withJZ Crew) asks for the
+code after the password too, with the same backup-code switch and "Trust this device for 30
+days". It keeps the pending sign-in's cookie in memory only and sends it back with the code and
+the `rakazo://` origin; a trusted device's cookie lives in the app's secure storage, bound to the
+server that issued it (see `docs/mobile-android-release.md`).
 
 ## Who must enrol
 

@@ -16,8 +16,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeActionButton } from "../components/native-action-button";
+import { TwoFactorStep } from "../components/two-factor-step";
 import type { PasswordResetCapabilities } from "../lib/api";
 import {
+  clearTwoFactorChallenge,
   currentApiBase,
   displayApiHost,
   loadSessionToken,
@@ -53,6 +55,8 @@ export default function SignIn() {
   const [capabilityError, setCapabilityError] = useState(false);
   const [capabilityAttempt, setCapabilityAttempt] = useState(0);
   const [resetSent, setResetSent] = useState(false);
+  /** Password accepted; the account's second factor is next. */
+  const [twoFactor, setTwoFactor] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -133,7 +137,13 @@ export default function SignIn() {
           return;
         }
       } else {
-        await signIn(email.trim(), password);
+        const result = await signIn(email.trim(), password);
+        if (result.twoFactorRequired) {
+          // The password has done its job; do not keep it on screen behind the code step.
+          setPassword("");
+          setTwoFactor(true);
+          return;
+        }
       }
       const setup =
         mode === "up"
@@ -190,13 +200,28 @@ export default function SignIn() {
               >
                 {resetSent
                   ? t("Check your email")
-                  : mode === "in"
-                    ? t("Sign in to Rakazo")
-                    : mode === "up"
-                      ? t("Sign up for Rakazo")
-                      : t("Reset your password")}
+                  : twoFactor
+                    ? t("Two-factor authentication")
+                    : mode === "in"
+                      ? t("Sign in to withJZ Crew")
+                      : mode === "up"
+                        ? t("Sign up for withJZ Crew")
+                        : t("Reset your password")}
               </Text>
-              {resetSent ? (
+              {twoFactor && !resetSent ? (
+                <TwoFactorStep
+                  onDone={() => router.replace("/")}
+                  onRestart={(message) => {
+                    setTwoFactor(false);
+                    setError(message);
+                  }}
+                  onCancel={() => {
+                    clearTwoFactorChallenge();
+                    setTwoFactor(false);
+                    setError(null);
+                  }}
+                />
+              ) : resetSent ? (
                 <View style={{ alignItems: "center", marginTop: 28 }}>
                   <Pressable
                     accessibilityRole="button"

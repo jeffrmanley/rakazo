@@ -11,9 +11,11 @@ import {
   authHeaders,
   blockText,
   changePassword,
+  clearTwoFactorChallenge,
   currentApiBase,
   deleteAccount,
   fetchAccountSecurity,
+  hasTwoFactorChallenge,
   IDLE_TIMEOUT_MS,
   loadApiBase,
   MAX_MOBILE_AUTH_RESPONSE_BYTES,
@@ -37,6 +39,7 @@ import {
   signUp,
   subscribeSessionRejected,
   subscribeThread,
+  verifyTwoFactorCode,
 } from "./api.js";
 import {
   AVATAR_STYLE_KEY,
@@ -51,6 +54,7 @@ import {
   saveSessionToken,
   snapshotSessionToken,
 } from "./session.js";
+import { TwoFactorRestartError } from "./two-factor.js";
 
 vi.mock("expo-secure-store", () => ({
   getItemAsync: vi.fn(),
@@ -95,14 +99,19 @@ describe("mobile API authentication", () => {
     expect(resumeLiveNotifications).not.toHaveBeenCalled();
   });
 
-  it("explains that a two-factor account must sign in on the web, and keeps no session", async () => {
+  it("rejects a sign-in rate limit with a wait time instead of the raw limiter message", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => jsonResponse({ twoFactorRedirect: true, twoFactorMethods: ["totp"] })),
+      vi.fn(async () =>
+        jsonResponse(
+          { message: "Too many requests. Please try again later." },
+          { status: 429, headers: { "x-retry-after": "540" } },
+        ),
+      ),
     );
 
     await expect(signIn("ada@example.com", "correct horse")).rejects.toThrow(
-      "Two-factor sign-in isn't supported in this app version yet. Sign in on the web.",
+      "Too many sign-in attempts. Try again in 9 minutes.",
     );
     expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
   });
@@ -3047,6 +3056,322 @@ function deferredFetch() {
     resolveFetch: (response: Response) => resolveFetch(response),
   };
 }
+
+describe("two-factor sign-in", () => {
+  const CHALLENGE =
+    "__Secure-better-auth.two_factor=2fa-abc.sig%2Fnature%3D; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Lax";
+  const TRUST =
+    "__Secure-better-auth.trust_device=tok!trust-device-1.sig; Max-Age=2592000; Path=/; HttpOnly; Secure; SameSite=Lax";
+  let store: Map<string, string>;
+
+  function redirect(extraCookies: string[] = []) {
+    return new Response(JSON.stringify({ twoFactorRedirect: true, twoFactorMethods: ["totp"] }), {
+      headers: [
+        ["content-type", "application/json"],
+        // Better Auth clears the half-made session cookie in the same response.
+        ["set-cookie", "__Secure-better-auth.session_token=; Max-Age=0; Path=/"],
+        ["set-cookie", CHALLENGE],
+        ...extraCookies.map((cookie): [string, string] => ["set-cookie", cookie]),
+      ],
+    });
+  }
+
+  function verified(token: string, extraCookies: string[] = []) {
+    return new Response(JSON.stringify({ token, user: { id: "u1" } }), {
+      headers: [
+        ["content-type", "application/json"],
+        ["set-cookie", "__Secure-better-auth.two_factor=; Max-Age=0; Path=/"],
+        ...extraCookies.map((cookie): [string, string] => ["set-cookie", cookie]),
+      ],
+    });
+  }
+
+  function requestHeaders(fetchMock: ReturnType<typeof vi.fn>, call: number) {
+    const init = fetchMock.mock.calls[call]?.[1] as RequestInit | undefined;
+    return (init?.headers ?? {}) as Record<string, string>;
+  }
+
+  beforeEach(async () => {
+    vi.restoreAllMocks();
+    store = new Map();
+    vi.mocked(SecureStore.getItemAsync).mockReset();
+    vi.mocked(SecureStore.setItemAsync).mockReset();
+    vi.mocked(SecureStore.deleteItemAsync).mockReset();
+    vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key) => store.get(key) ?? null);
+    vi.mocked(SecureStore.setItemAsync).mockImplementation(async (key, value) => {
+      store.set(key, value);
+    });
+    vi.mocked(SecureStore.deleteItemAsync).mockImplementation(async (key) => {
+      store.delete(key);
+    });
+    await restoreSessionToken("");
+    await resetApiBase();
+    clearTwoFactorChallenge();
+  });
+
+  it("asks for the code instead of failing, and keeps no session until it is verified", async () => {
+    const fetchMock = vi.fn(async () => redirect());
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(signIn("ada@example.com", "correct horse")).resolves.toEqual({
+      verificationRequired: false,
+      twoFactorRequired: true,
+    });
+    expect(hasTwoFactorChallenge()).toBe(true);
+    expect(store.has("rakazo.session_token")).toBe(false);
+  });
+
+  it("sends the challenge cookie with the native origin and saves the session from the code", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(redirect())
+      .mockResolvedValueOnce(verified("two-factor-session"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await signIn("ada@example.com", "correct horse");
+    await verifyTwoFactorCode(" 123 456 ", { method: "totp", trustDevice: false });
+
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "http://127.0.0.1:3100/api/auth/two-factor/verify-totp",
+    );
+    expect(requestHeaders(fetchMock, 1)).toEqual({
+      "content-type": "application/json",
+      origin: "rakazo://",
+      cookie: "__Secure-better-auth.two_factor=2fa-abc.sig%2Fnature%3D",
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      code: "123456",
+      trustDevice: false,
+    });
+    expect(store.get("rakazo.session_token")).toBe("two-factor-session");
+    expect(store.has("rakazo.two_factor_trusted_device")).toBe(false);
+    expect(hasTwoFactorChallenge()).toBe(false);
+  });
+
+  it("checks a backup code on its own route and leaves the code as typed", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(redirect())
+      .mockResolvedValueOnce(verified("backup-session"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await signIn("ada@example.com", "correct horse");
+    await verifyTwoFactorCode(" Ab12-Cd34 ", { method: "backup", trustDevice: false });
+
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "http://127.0.0.1:3100/api/auth/two-factor/verify-backup-code",
+    );
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).code).toBe("Ab12-Cd34");
+    expect(store.get("rakazo.session_token")).toBe("backup-session");
+  });
+
+  it("keeps the pending sign-in after a wrong code so the next code can succeed", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(redirect())
+      .mockResolvedValueOnce(
+        jsonResponse({ code: "INVALID_CODE", message: "Invalid code" }, { status: 401 }),
+      )
+      .mockResolvedValueOnce(verified("second-try"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await signIn("ada@example.com", "correct horse");
+    const wrong = verifyTwoFactorCode("000000", { method: "totp", trustDevice: false });
+    await expect(wrong).rejects.toThrow(
+      "That code didn’t work. Check your authenticator app and try again.",
+    );
+    await expect(wrong).rejects.not.toBeInstanceOf(TwoFactorRestartError);
+    expect(store.has("rakazo.session_token")).toBe(false);
+
+    await verifyTwoFactorCode("123456", { method: "totp", trustDevice: false });
+    expect(store.get("rakazo.session_token")).toBe("second-try");
+  });
+
+  it("does not call the server for a code that cannot be valid", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(redirect());
+    vi.stubGlobal("fetch", fetchMock);
+
+    await signIn("ada@example.com", "correct horse");
+    await expect(
+      verifyTwoFactorCode("12345", { method: "totp", trustDevice: false }),
+    ).rejects.toThrow("The code has 6 digits");
+    await expect(
+      verifyTwoFactorCode("   ", { method: "backup", trustDevice: false }),
+    ).rejects.toThrow("Enter a backup code");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(hasTwoFactorChallenge()).toBe(true);
+  });
+
+  it.each([
+    [
+      "an expired pending sign-in",
+      401,
+      { code: "INVALID_TWO_FACTOR_COOKIE", message: "Invalid two factor cookie" },
+      "This sign-in expired. Enter your password again.",
+    ],
+    [
+      "five wrong codes on this sign-in",
+      400,
+      { code: "TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE", message: "Too many attempts." },
+      "Too many wrong codes for this sign-in. Enter your password again.",
+    ],
+    [
+      "the account lockout",
+      429,
+      { code: "ACCOUNT_TEMPORARILY_LOCKED", message: "locked" },
+      "Too many wrong codes. Two-factor sign-in is locked for 15 minutes.",
+    ],
+  ])("returns to the password step after %s", async (_name, status, body, message) => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(redirect())
+      .mockResolvedValueOnce(jsonResponse(body, { status }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await signIn("ada@example.com", "correct horse");
+    const attempt = verifyTwoFactorCode("123456", { method: "totp", trustDevice: false });
+    await expect(attempt).rejects.toBeInstanceOf(TwoFactorRestartError);
+    await expect(attempt).rejects.toThrow(message);
+    expect(hasTwoFactorChallenge()).toBe(false);
+    // Nothing left to retry with: the next code does not reach the server.
+    await expect(
+      verifyTwoFactorCode("123456", { method: "totp", trustDevice: false }),
+    ).rejects.toBeInstanceOf(TwoFactorRestartError);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(store.has("rakazo.session_token")).toBe(false);
+  });
+
+  it("explains the per-client limit with its wait time and keeps the pending sign-in", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(redirect())
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { message: "Too many requests. Please try again later." },
+          { status: 429, headers: { "x-retry-after": "7" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await signIn("ada@example.com", "correct horse");
+    await expect(
+      verifyTwoFactorCode("123456", { method: "totp", trustDevice: false }),
+    ).rejects.toThrow("Too many attempts. Try again in 7 seconds.");
+    expect(hasTwoFactorChallenge()).toBe(true);
+  });
+
+  it("gives up on a pending sign-in after five minutes without asking the server", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const fetchMock = vi.fn().mockResolvedValueOnce(redirect());
+    vi.stubGlobal("fetch", fetchMock);
+
+    await signIn("ada@example.com", "correct horse");
+    vi.setSystemTime(Date.now() + 5 * 60 * 1000 + 1);
+    await expect(
+      verifyTwoFactorCode("123456", { method: "totp", trustDevice: false }),
+    ).rejects.toThrow("This sign-in expired. Enter your password again.");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("never sends one server's pending sign-in to another server", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(redirect());
+    vi.stubGlobal("fetch", fetchMock);
+
+    await signIn("ada@example.com", "correct horse");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ json: { ok: true } })),
+    );
+    await saveApiBase("https://other.example.test");
+    const other = vi.fn();
+    vi.stubGlobal("fetch", other);
+    await expect(
+      verifyTwoFactorCode("123456", { method: "totp", trustDevice: false }),
+    ).rejects.toBeInstanceOf(TwoFactorRestartError);
+    expect(other).not.toHaveBeenCalled();
+  });
+
+  it("fails clearly when the server asks for a code but sets no pending sign-in", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ twoFactorRedirect: true, twoFactorMethods: ["totp"] })),
+    );
+
+    await expect(signIn("ada@example.com", "correct horse")).rejects.toThrow(
+      "Could not start the two-factor step. Try again.",
+    );
+    expect(hasTwoFactorChallenge()).toBe(false);
+  });
+
+  it("trusts the device only when asked, for the same server only, and follows its rotation", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(redirect())
+      .mockResolvedValueOnce(verified("trusted-session", [TRUST]));
+    vi.stubGlobal("fetch", fetchMock);
+    await signIn("ada@example.com", "correct horse");
+    await verifyTwoFactorCode("123456", { method: "totp", trustDevice: true });
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).trustDevice).toBe(true);
+    expect(JSON.parse(store.get("rakazo.two_factor_trusted_device") ?? "{}")).toEqual({
+      apiBase: "http://127.0.0.1:3100",
+      cookie: "__Secure-better-auth.trust_device=tok!trust-device-1.sig",
+    });
+
+    // The next password sign-in carries it; the server skips the code and rotates the cookie.
+    const rotated =
+      "__Secure-better-auth.trust_device=tok!trust-device-2.sig; Max-Age=2592000; Path=/";
+    const signInAgain = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ token: "skipped-code" }), {
+          headers: [
+            ["content-type", "application/json"],
+            ["set-cookie", rotated],
+          ],
+        }),
+    );
+    vi.stubGlobal("fetch", signInAgain);
+    await signIn("ada@example.com", "correct horse");
+    expect(requestHeaders(signInAgain, 0).cookie).toBe(
+      "__Secure-better-auth.trust_device=tok!trust-device-1.sig",
+    );
+    expect(store.get("rakazo.session_token")).toBe("skipped-code");
+    expect(JSON.parse(store.get("rakazo.two_factor_trusted_device") ?? "{}").cookie).toBe(
+      "__Secure-better-auth.trust_device=tok!trust-device-2.sig",
+    );
+
+    // A different server never receives it.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ json: { ok: true } })),
+    );
+    await saveApiBase("https://other.example.test");
+    const otherServer = vi.fn(async () => jsonResponse({ token: "other" }));
+    vi.stubGlobal("fetch", otherServer);
+    await signIn("ada@example.com", "correct horse");
+    expect(requestHeaders(otherServer, 0).cookie).toBeUndefined();
+  });
+
+  it("forgets a trusted device the server stopped accepting", async () => {
+    store.set(
+      "rakazo.two_factor_trusted_device",
+      JSON.stringify({
+        apiBase: "http://127.0.0.1:3100",
+        cookie: "__Secure-better-auth.trust_device=revoked",
+      }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        redirect(["__Secure-better-auth.trust_device=; Max-Age=0; Path=/; HttpOnly; Secure"]),
+      ),
+    );
+
+    await expect(signIn("ada@example.com", "correct horse")).resolves.toMatchObject({
+      twoFactorRequired: true,
+    });
+    expect(store.has("rakazo.two_factor_trusted_device")).toBe(false);
+  });
+});
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(body), {

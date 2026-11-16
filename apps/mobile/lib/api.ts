@@ -56,11 +56,23 @@ import {
   snapshotSessionToken,
   tokenFromAuthResponse,
 } from "./session";
+import type { TwoFactorChallenge, TwoFactorMethod } from "./two-factor";
+import {
+  isTwoFactorRedirect,
+  normalizeTwoFactorCode,
+  readAuthCookie,
+  signInRateLimitText,
+  TWO_FACTOR_CHALLENGE_MS,
+  TwoFactorRestartError,
+  twoFactorCodeIssue,
+  twoFactorFailure,
+} from "./two-factor";
 import { authErrorText, errorText } from "./user-error";
 
 const ENDPOINT_KEY = "rakazo.api_base";
 const SPACE_KEY = "rakazo.space_id";
 const SPACE_ROLLBACK_KEY = "rakazo.space_rollback";
+const TRUSTED_DEVICE_KEY = "rakazo.two_factor_trusted_device";
 const RPC_TIMEOUT_MS = 8_000;
 export const MAX_MOBILE_AUTH_RESPONSE_BYTES = 256 * 1024;
 export const MAX_MOBILE_RPC_RESPONSE_BYTES = 16 * 1024 * 1024;
@@ -456,27 +468,49 @@ export async function captureApiRequestContext(): Promise<ApiRequestContext> {
   return { apiBase, headers };
 }
 
+export type AuthResult = {
+  verificationRequired: boolean;
+  /** Password accepted; the account needs its second factor (see verifyTwoFactorCode). */
+  twoFactorRequired?: boolean;
+};
+
 async function authenticateWithEmail(
   action: "sign-in" | "sign-up",
   input: { email: string; password: string; name?: string },
-) {
+): Promise<AuthResult> {
+  clearTwoFactorChallenge();
+  const apiBase = currentApiBase();
+  const trusted = action === "sign-in" ? await loadTrustedDevice(apiBase) : null;
   const { response, body } = await fetchMobileJson<unknown>(
-    `${currentApiBase()}/api/auth/${action}/email`,
+    `${apiBase}/api/auth/${action}/email`,
     {
       method: "POST",
-      headers: { "content-type": "application/json", origin: "rakazo://" },
+      headers: {
+        "content-type": "application/json",
+        origin: "rakazo://",
+        ...(trusted ? { cookie: trusted } : {}),
+      },
       body: JSON.stringify(input),
     },
     {},
   );
+  if (response.status === 429) throw new Error(signInRateLimitText(response.headers));
   if (!response.ok) {
     throw new Error(authErrorText(body, t("Could not continue")));
   }
-  // The code step arrives with the rebranded app; until then say so instead of failing vaguely.
-  if (isTwoFactorRedirect(body))
-    throw new Error(
-      t("Two-factor sign-in isn't supported in this app version yet. Sign in on the web."),
-    );
+  // A trusted device's cookie is replaced on every use, and cleared once it stops working.
+  if (action === "sign-in") await keepTrustedDevice(apiBase, response.headers);
+  if (isTwoFactorRedirect(body)) {
+    const challenge = readAuthCookie(response.headers.get("set-cookie"), "two_factor");
+    if (!challenge || challenge.cleared)
+      throw new Error(t("Could not start the two-factor step. Try again."));
+    twoFactorChallenge = {
+      apiBase,
+      cookie: challenge.pair,
+      expiresAt: Date.now() + TWO_FACTOR_CHALLENGE_MS,
+    };
+    return { verificationRequired: false, twoFactorRequired: true };
+  }
   const token = tokenFromAuthResponse(response, body);
   if (action === "sign-up" && signupRequiresEmailVerification(body))
     return { verificationRequired: true };
@@ -493,21 +527,105 @@ async function authenticateWithEmail(
   return { verificationRequired: false };
 }
 
-/** A password sign-in for an account with two-factor on answers this instead of a session. */
-function isTwoFactorRedirect(body: unknown): boolean {
-  return (
-    typeof body === "object" &&
-    body !== null &&
-    (body as { twoFactorRedirect?: unknown }).twoFactorRedirect === true
-  );
-}
-
 export function signIn(email: string, password: string) {
   return authenticateWithEmail("sign-in", { email, password });
 }
 
 export function signUp(email: string, password: string, name: string) {
   return authenticateWithEmail("sign-up", { email, password, name });
+}
+
+/** In memory only: a pending sign-in must not outlive the process that started it. */
+let twoFactorChallenge: TwoFactorChallenge | null = null;
+
+export function clearTwoFactorChallenge(): void {
+  twoFactorChallenge = null;
+}
+
+export function hasTwoFactorChallenge(): boolean {
+  return twoFactorChallenge !== null && twoFactorChallenge.expiresAt > Date.now();
+}
+
+/**
+ * Finishes a password sign-in that asked for a second factor. Throws TwoFactorRestartError when
+ * the pending sign-in is gone (expired, out of attempts, locked, or the server changed), so the
+ * caller returns to the password step.
+ */
+export async function verifyTwoFactorCode(
+  input: string,
+  options: { method: TwoFactorMethod; trustDevice: boolean },
+): Promise<void> {
+  const { method, trustDevice } = options;
+  const code = normalizeTwoFactorCode(input, method);
+  const issue = twoFactorCodeIssue(code, method);
+  if (issue) throw new Error(issue);
+  const challenge = twoFactorChallenge;
+  if (!challenge || challenge.expiresAt <= Date.now() || challenge.apiBase !== currentApiBase()) {
+    clearTwoFactorChallenge();
+    throw new TwoFactorRestartError(t("This sign-in expired. Enter your password again."));
+  }
+  const path = method === "totp" ? "verify-totp" : "verify-backup-code";
+  const { response, body } = await fetchMobileJson<unknown>(
+    `${challenge.apiBase}/api/auth/two-factor/${path}`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "rakazo://",
+        cookie: challenge.cookie,
+      },
+      body: JSON.stringify({ code, trustDevice }),
+    },
+    {},
+  );
+  if (!response.ok) {
+    const failure = twoFactorFailure(response.status, response.headers, body, method);
+    if (failure.restart) {
+      if (twoFactorChallenge === challenge) clearTwoFactorChallenge();
+      throw new TwoFactorRestartError(failure.message);
+    }
+    throw new Error(failure.message);
+  }
+  // The pending sign-in is spent either way; a sign-out or server switch meanwhile wins.
+  if (twoFactorChallenge !== challenge || currentApiBase() !== challenge.apiBase) {
+    throw new TwoFactorRestartError(t("This sign-in expired. Enter your password again."));
+  }
+  clearTwoFactorChallenge();
+  const token = tokenFromAuthResponse(response, body);
+  if (!token) throw new Error(t("Sign-in did not return a session"));
+  if (trustDevice) await keepTrustedDevice(challenge.apiBase, response.headers);
+  if (!(await clearSpace())) throw new Error(t("Could not clear the previous space"));
+  await saveSessionToken(token);
+}
+
+async function loadTrustedDevice(apiBase: string): Promise<string | null> {
+  try {
+    const stored = await SecureStore.getItemAsync(TRUSTED_DEVICE_KEY);
+    if (!stored) return null;
+    const data = JSON.parse(stored) as { apiBase?: unknown; cookie?: unknown };
+    // Only the server that issued it: never send one server's trust to another.
+    return data.apiBase === apiBase && typeof data.cookie === "string" && data.cookie
+      ? data.cookie
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Stores a newly set trusted-device cookie, or forgets it when the server cleared it. */
+async function keepTrustedDevice(apiBase: string, headers: Headers): Promise<void> {
+  const trust = readAuthCookie(headers.get("set-cookie"), "trust_device");
+  if (!trust) return;
+  try {
+    if (trust.cleared) await SecureStore.deleteItemAsync(TRUSTED_DEVICE_KEY);
+    else
+      await SecureStore.setItemAsync(
+        TRUSTED_DEVICE_KEY,
+        JSON.stringify({ apiBase, cookie: trust.pair }),
+      );
+  } catch {
+    // Trusting the device is a convenience; the next sign-in just asks for a code again.
+  }
 }
 
 export type PasswordResetCapabilities = AuthCapabilities;

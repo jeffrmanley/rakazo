@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Rakazo",
-    "slug": "rakazo",
-    "owner": "inbox-zero",
+    "name": "withJZ Crew",
+    "slug": "withjz-crew",
+    "owner": "withjz-llc",
     "scheme": "rakazo",
-    "version": "1.0.5",
+    "version": "1.0.0",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
@@ -23,14 +23,14 @@
         "expo-audio",
         {
           "enableBackgroundPlayback": false,
-          "microphonePermission": "Rakazo uses the microphone for voice calls with your bots."
+          "microphonePermission": "withJZ Crew uses the microphone for voice calls with your bots."
         }
       ],
       [
         "expo-speech-recognition",
         {
-          "speechRecognitionPermission": "Rakazo turns your speech into messages during voice calls.",
-          "microphonePermission": "Rakazo uses the microphone for voice calls with your bots."
+          "speechRecognitionPermission": "withJZ Crew turns your speech into messages during voice calls.",
+          "microphonePermission": "withJZ Crew uses the microphone for voice calls with your bots."
         }
       ],
       "expo-localization",
@@ -45,35 +45,36 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Rakazo uses your photo library so you can attach images to a bot message.",
-          "cameraPermission": "Rakazo uses the camera so you can attach photos to a bot message.",
-          "microphonePermission": "Rakazo uses the microphone for voice calls with your bots."
+          "photosPermission": "withJZ Crew uses your photo library so you can attach images to a bot message.",
+          "cameraPermission": "withJZ Crew uses the camera so you can attach photos to a bot message.",
+          "microphonePermission": "withJZ Crew uses the microphone for voice calls with your bots."
         }
       ],
       "expo-sharing",
       "./plugins/with-worklets-headers",
-      "./plugins/with-scene-lifecycle"
+      "./plugins/with-scene-lifecycle",
+      "./plugins/with-release-signing"
     ],
     "ios": {
-      "bundleIdentifier": "com.rakazo.app",
+      "bundleIdentifier": "com.withjz.crew",
       "buildNumber": "1",
       "supportsTablet": false,
-      "icon": "../../packages/ui-tokens/assets/Rakazo.icon",
+      "icon": "./assets/icon.png",
       "config": {
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "NSCameraUsageDescription": "Rakazo uses the camera so you can attach photos to a bot message.",
-        "NSPhotoLibraryUsageDescription": "Rakazo uses your photo library so you can attach images to a bot message.",
-        "NSLocalNetworkUsageDescription": "Rakazo connects to a self-hosted Rakazo server on your local network.",
+        "NSCameraUsageDescription": "withJZ Crew uses the camera so you can attach photos to a bot message.",
+        "NSPhotoLibraryUsageDescription": "withJZ Crew uses your photo library so you can attach images to a bot message.",
+        "NSLocalNetworkUsageDescription": "withJZ Crew connects to your withJZ Crew server on your local network.",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         }
       }
     },
     "android": {
-      "package": "com.rakazo.app",
-      "versionCode": 10,
+      "package": "com.withjz.crew",
+      "versionCode": 1,
       "softwareKeyboardLayoutMode": "resize",
       "icon": "./assets/icon.png",
       "adaptiveIcon": {
@@ -87,16 +88,11 @@
     },
     "extra": {
       "router": {},
-      "supportsRTL": true,
-      "eas": {
-        "projectId": "07f7eb04-45e3-47fe-9374-99a2f991131e"
-      }
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
+      "supportsRTL": true
     },
     "updates": {
-      "url": "https://u.expo.dev/07f7eb04-45e3-47fe-9374-99a2f991131e"
+      "enabled": false,
+      "checkAutomatically": "NEVER"
     }
   }
 }

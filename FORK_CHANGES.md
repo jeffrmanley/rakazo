@@ -37,6 +37,9 @@ upstream names, and the Apache-2.0 credit in Settings links back to the upstream
 - Two-factor sign-in with an authenticator app: required for the deployment owner (a banner until
   they enrol), optionally for every account (`require2faForAll`), hashed backup codes, audit
   events, and a host-only reset (see `docs/security/two-factor.md`).
+- The Android app ships as withJZ Crew (`com.withjz.crew`): own name, icons and package, no
+  over-the-air updates or Expo push (both were tied to upstream's EAS project), the two-factor
+  code step at sign-in, and a local signed release build (see `docs/mobile-android-release.md`).
 
 ## Files
 
@@ -83,11 +86,49 @@ Relative to upstream commit `2d666c4`.
 
 ### `apps/mobile`
 
+- `apps/mobile/app.config.ts` (modified)
+- `apps/mobile/app.json` (modified)
+- `apps/mobile/app/(settings)/account.tsx` (modified)
+- `apps/mobile/app/(settings)/ai-data-sharing.tsx` (modified)
+- `apps/mobile/app/(settings)/models.tsx` (modified)
+- `apps/mobile/app/_layout.tsx` (modified)
+- `apps/mobile/app/server.tsx` (modified)
+- `apps/mobile/app/sign-in.tsx` (modified)
+- `apps/mobile/assets/adaptive-icon.png` (modified)
+- `apps/mobile/assets/brand/play-store-icon-512.png` (added)
+- `apps/mobile/assets/brand/withjz-crew-a.svg` (added)
+- `apps/mobile/assets/favicon.png` (modified)
+- `apps/mobile/assets/icon-background.png` (modified)
+- `apps/mobile/assets/icon.png` (modified)
+- `apps/mobile/assets/monochrome-icon.png` (modified)
+- `apps/mobile/assets/notification-icon.png` (modified)
+- `apps/mobile/assets/splash-icon.png` (modified)
+- `apps/mobile/components/two-factor-step.tsx` (added)
+- `apps/mobile/lib/ai-consent.test.ts` (modified)
+- `apps/mobile/lib/ai-consent.ts` (modified)
 - `apps/mobile/lib/api.test.ts` (modified)
 - `apps/mobile/lib/api.ts` (modified)
+- `apps/mobile/lib/app-version.test.ts` (modified)
+- `apps/mobile/lib/app-version.ts` (modified)
+- `apps/mobile/lib/brand.ts` (added)
+- `apps/mobile/lib/endpoint.ts` (modified)
+- `apps/mobile/lib/i18n.test.ts` (modified)
+- `apps/mobile/lib/i18n.ts` (modified)
 - `apps/mobile/lib/locales/de.ts` (modified)
 - `apps/mobile/lib/locales/ru.ts` (modified)
 - `apps/mobile/lib/locales/zh.ts` (modified)
+- `apps/mobile/lib/push.test.ts` (added)
+- `apps/mobile/lib/push.ts` (modified)
+- `apps/mobile/lib/release-config.test.ts` (added)
+- `apps/mobile/lib/sign-in.test.tsx` (modified)
+- `apps/mobile/lib/two-factor.test.ts` (added)
+- `apps/mobile/lib/two-factor.ts` (added)
+- `apps/mobile/modules/rakazo-notifications/android/src/main/res/drawable/ic_rakazo_notification.xml` (modified)
+- `apps/mobile/package.json` (modified)
+- `apps/mobile/plugins/with-release-signing.js` (added)
+- `apps/mobile/plugins/with-release-signing.test.js` (added)
+- `apps/mobile/scripts/build-android-release.sh` (added)
+- `apps/mobile/scripts/generate-brand-icons.sh` (added)
 
 ### `apps/web`
 
@@ -165,6 +206,7 @@ Relative to upstream commit `2d666c4`.
 - `docs/governance/budgets.md` (added)
 - `docs/governance/emergency-stop.md` (added)
 - `docs/governance/evals.md` (added)
+- `docs/mobile-android-release.md` (added)
 - `docs/security/two-factor.md` (added)
 - `docs/self-host.md` (modified)
 - `docs/teams-adapter-spec.md` (added)

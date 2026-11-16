@@ -71,7 +71,7 @@ describe("mobile AI consent prompt", () => {
     "translates the consent copy in %s without changing recipient detail",
     async (locale) => {
       resetI18nForTests(locale);
-      const pending = promptAiConsent(recipient);
+      const pending = promptAiConsent(recipient, "https://example.com/privacy");
       expect(native.alert.mock.calls[0]?.slice(0, 2)).toEqual([
         t("Share data with {name}?", { name: recipient.name }),
         [
@@ -89,6 +89,14 @@ describe("mobile AI consent prompt", () => {
       await expect(pending).resolves.toBe(false);
     },
   );
+
+  it("offers no policy link when the deployment has none, never upstream's page", async () => {
+    const pending = promptAiConsent(recipient);
+    expect(currentAlert().buttons.map((button) => button.text)).toEqual(["Not now", "Allow"]);
+    currentAlert().buttons[1]?.onPress?.();
+    await expect(pending).resolves.toBe(true);
+    expect(native.openURL).not.toHaveBeenCalled();
+  });
 
   it("omits empty details from the consent message", async () => {
     const pending = promptAiConsent({ ...recipient, detail: "" });

@@ -375,7 +375,7 @@ export const RU_MESSAGES: Record<string, string> = {
     "Нажмите и удерживайте, чтобы закрепить или переместить в раздел",
   "Long press to pin, move, or silence notifications":
     "Длительное нажатие, чтобы закрепить, переместить или отключить уведомления",
-  "Enter your Rakazo server address.": "Введите адрес вашего сервера Rakazo.",
+  "Enter your withJZ Crew server address.": "Введите адрес вашего сервера withJZ Crew.",
   "Show less": "Свернуть",
   Members: "Участники",
   "Members ({min}–{max})": "Участники ({min}–{max})",
@@ -434,8 +434,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "Photo library": "Библиотека фотографий",
   Pin: "Закрепить",
   "Please try again.": "Повторите попытку.",
-  "Point this app at your self-hosted Rakazo origin, the same HTTPS URL you open in a browser.":
-    "Направьте это приложение на свой собственный источник Rakazo, тот же URL-адрес HTTPS, который вы открываете в браузере.",
+  "Point this app at your self-hosted withJZ Crew origin, the same HTTPS URL you open in a browser.":
+    "Направьте это приложение на свой собственный источник withJZ Crew, тот же URL-адрес HTTPS, который вы открываете в браузере.",
   Private: "Личный",
   Providers: "Провайдеры",
   "Public servers need https://. HTTP only works on your local network.":
@@ -499,14 +499,12 @@ export const RU_MESSAGES: Record<string, string> = {
   "Show more": "Показать ещё",
   "Show {label}": "Показать {label}",
   "Sign in": "Войти",
-  "Sign in to Rakazo": "Войти в Rakazo",
+  "Sign in to withJZ Crew": "Войти в withJZ Crew",
   "Sign out": "Выйти",
   "Sign up": "Зарегистрироваться",
-  "Sign up for Rakazo": "Зарегистрироваться в Rakazo",
+  "Sign up for withJZ Crew": "Зарегистрироваться в withJZ Crew",
   "Sign-in": "Вход",
   "Sign-up": "Регистрация",
-  "Two-factor sign-in isn't supported in this app version yet. Sign in on the web.":
-    "Двухфакторный вход в этой версии приложения пока не поддерживается. Войдите через веб-версию.",
   "Sign-in did not return a session": "Вход не вернул сессию",
   "Sign-up did not return a session": "Регистрация не вернула сессию",
   "Silence notifications": "Отключить уведомления",
@@ -533,7 +531,7 @@ export const RU_MESSAGES: Record<string, string> = {
   Team: "Команда",
   "Team Computer": "Командный компьютер",
   "That doesn’t look like a URL": "Это не похоже на URL",
-  "That URL did not look like a Rakazo server": "Этот адрес не похож на сервер Rakazo",
+  "That URL did not look like a withJZ Crew server": "Этот адрес не похож на сервер withJZ Crew",
   "That URL is missing a host": "Для этого URL-адреса отсутствует хост",
   "The server changed while starting the request": "Сервер изменился при запуске запроса",
   "This permanently deletes your account, bots, conversations, memories, files, and saved connections. This cannot be undone.":
@@ -626,7 +624,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "OpenAPI JSON": "OpenAPI JSON",
   "Opened its thread.": "Диалог открыт.",
   "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed.":
-    "Вставьте OpenAI-совместимый адрес со своего сервера. При необходимости Rakazo добавляет /v1.",
+    "Вставьте OpenAI-совместимый адрес со своего сервера. При необходимости withJZ Crew добавляет /v1.",
   Paused: "Приостановлено",
   Prompt: "Промпт",
   "Recording a live demonstration needs desktop or web with the full computer view. You can still ask this bot to run saved skills from chat.":
@@ -641,8 +639,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "This removes the empty space for everyone.": "Это удалит пустое пространство для всех.",
   "This removes every message and stops current work. The bot, computer, memory, and routines are kept.":
     "Это удалит все сообщения и остановит текущую работу. Бот, компьютер, память и задачи сохранятся.",
-  "This subscription sign-in is not available in Rakazo yet. Use a deployment credential or choose another provider.":
-    "Вход по этой подписке пока недоступен в Rakazo. Используйте учётные данные развёртывания или выберите другого провайдера.",
+  "This subscription sign-in is not available in withJZ Crew yet. Use a deployment credential or choose another provider.":
+    "Вход по этой подписке пока недоступен в withJZ Crew. Используйте учётные данные развёртывания или выберите другого провайдера.",
   "Tool sources": "Источники инструментов",
   Tools: "Инструменты",
   Uninstall: "Удалить",
@@ -757,7 +755,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "AI models": "Модели ИИ",
   Memory: "Память",
   "Privacy policies": "Политики конфиденциальности",
-  Rakazo: "Rakazo",
+  "withJZ Crew": "withJZ Crew",
   "Withdraw all permissions": "Отозвать все разрешения",
   "Withdraw all permissions?": "Отозвать все разрешения?",
   "New mobile actions won't send data to these services. Runs already in progress and routines keep going until you stop them.":
@@ -790,4 +788,43 @@ export const RU_MESSAGES: Record<string, string> = {
   "Sign in to your existing account to link SSO":
     "Войдите в существующий аккаунт, чтобы привязать SSO",
   "SSO is temporarily unavailable. Try again.": "SSO временно недоступен. Попробуйте снова.",
+  "Could not start the two-factor step. Try again.":
+    "Не удалось начать двухфакторную проверку. Попробуйте ещё раз.",
+  "This sign-in expired. Enter your password again.":
+    "Время входа истекло. Введите пароль ещё раз.",
+  "Enter the 6-digit code": "Введите 6-значный код",
+  "Enter a backup code": "Введите резервный код",
+  "The code has 6 digits": "Код состоит из 6 цифр",
+  "{count} seconds": "{count} с",
+  "{count} minutes": "{count} мин",
+  "Too many sign-in attempts. Try again in {wait}.":
+    "Слишком много попыток входа. Повторите через {wait}.",
+  "Too many sign-in attempts. Wait a few minutes and try again.":
+    "Слишком много попыток входа. Подождите несколько минут и повторите.",
+  "Too many wrong codes. Two-factor sign-in is locked for 15 minutes.":
+    "Слишком много неверных кодов. Двухфакторный вход заблокирован на 15 минут.",
+  "Too many attempts. Try again in {wait}.": "Слишком много попыток. Повторите через {wait}.",
+  "Too many attempts. Wait a moment and try again.":
+    "Слишком много попыток. Подождите немного и повторите.",
+  "That code didn’t work. Check your authenticator app and try again.":
+    "Этот код не подошёл. Проверьте приложение-аутентификатор и повторите.",
+  "That backup code didn’t work. Each backup code works once.":
+    "Этот резервный код не подошёл. Каждый резервный код действует один раз.",
+  "Too many wrong codes for this sign-in. Enter your password again.":
+    "Слишком много неверных кодов для этого входа. Введите пароль ещё раз.",
+  "Could not check the code": "Не удалось проверить код",
+  "Could not check the backup code": "Не удалось проверить резервный код",
+  "Open your authenticator app and enter the 6-digit code for {name}.":
+    "Откройте приложение-аутентификатор и введите 6-значный код для {name}.",
+  "Enter one of your backup codes. Each one works once.":
+    "Введите один из резервных кодов. Каждый действует один раз.",
+  "Authentication code": "Код подтверждения",
+  "Backup code": "Резервный код",
+  "Trust this device for 30 days": "Доверять этому устройству 30 дней",
+  "Use a backup code": "Использовать резервный код",
+  "Use your authenticator app": "Использовать приложение-аутентификатор",
+  "Two-factor authentication": "Двухфакторная аутентификация",
+  Verify: "Подтвердить",
+  "Push notifications aren’t set up yet, so alerts arrive only while the app is open or an agent is working.":
+    "Push-уведомления ещё не настроены, поэтому оповещения приходят, только пока приложение открыто или агент работает.",
 };

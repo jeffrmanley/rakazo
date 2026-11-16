@@ -31,6 +31,7 @@ import {
 import { loadAppearancePreference, mobileTokens } from "../lib/appearance";
 import { replaceWithSignIn } from "../lib/auth-routing";
 import { loadAvatarStyle } from "../lib/avatar-style";
+import { APP_NAME } from "../lib/brand";
 import { bootstrapI18n, useI18n } from "../lib/i18n";
 import { loadLinkFavicon } from "../lib/link-favicons";
 import {
@@ -167,7 +168,7 @@ export default function Layout() {
                       contentStyle: { backgroundColor: String(native.page) },
                     }}
                   >
-                    <Stack.Screen name="index" options={{ headerShown: false, title: "Rakazo" }} />
+                    <Stack.Screen name="index" options={{ headerShown: false, title: APP_NAME }} />
                     <Stack.Screen name="sign-in" options={{ headerShown: false }} />
                     <Stack.Screen
                       name="(settings)"

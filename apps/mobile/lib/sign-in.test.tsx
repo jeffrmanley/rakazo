@@ -6,14 +6,16 @@ import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import SignIn from "../app/sign-in";
-import { passwordResetCapabilities } from "./api";
+import { passwordResetCapabilities, signIn, verifyTwoFactorCode } from "./api";
 import type { NativeActionButtonProps } from "./native-controls";
+import { TwoFactorRestartError } from "./two-factor";
 
 const route = vi.hoisted(() => ({ mode: "in" }));
+const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
 
 vi.mock("expo-router", () => ({
   Redirect: () => null,
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => router,
   useLocalSearchParams: () => route,
   useFocusEffect: () => undefined,
 }));
@@ -31,15 +33,46 @@ vi.mock("react-native", () => {
     TextInput: ({
       placeholder,
       secureTextEntry,
+      value,
+      onChangeText,
     }: {
       placeholder: string;
       secureTextEntry?: boolean;
-    }) => <input aria-label={placeholder} type={secureTextEntry ? "password" : "text"} />,
-    Pressable: ({ children, onPress }: { children: ReactNode; onPress: () => void }) => (
-      <button type="button" onClick={onPress}>
-        {children}
-      </button>
+      value?: string;
+      onChangeText?: (text: string) => void;
+    }) => (
+      <input
+        aria-label={placeholder}
+        type={secureTextEntry ? "password" : "text"}
+        value={value ?? ""}
+        onChange={(event) => onChangeText?.(event.currentTarget.value)}
+      />
     ),
+    Pressable: ({
+      children,
+      onPress,
+      accessibilityRole,
+      accessibilityState,
+    }: {
+      children: ReactNode;
+      onPress: () => void;
+      accessibilityRole?: string;
+      accessibilityState?: { checked?: boolean };
+    }) =>
+      accessibilityRole === "checkbox" ? (
+        <label>
+          <input
+            type="checkbox"
+            checked={accessibilityState?.checked ?? false}
+            onChange={onPress}
+          />
+          {children}
+        </label>
+      ) : (
+        <button type="button" onClick={onPress}>
+          {children}
+        </button>
+      ),
   };
 });
 vi.mock("react-native-safe-area-context", () => ({
@@ -69,6 +102,8 @@ vi.mock("./api", () => ({
   rpc: vi.fn(),
   signIn: vi.fn(),
   signUp: vi.fn(),
+  verifyTwoFactorCode: vi.fn(),
+  clearTwoFactorChallenge: vi.fn(),
 }));
 vi.mock("./sso", () => ({ continueWithSso: vi.fn() }));
 vi.mock("./user-error", () => ({ credentialIssueText: vi.fn(), errorText: vi.fn() }));
@@ -84,6 +119,9 @@ let root: Root;
 
 beforeEach(() => {
   route.mode = "in";
+  router.replace.mockReset();
+  vi.mocked(signIn).mockReset();
+  vi.mocked(verifyTwoFactorCode).mockReset();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.mocked(passwordResetCapabilities).mockResolvedValue(capabilities);
   host = document.createElement("div");
@@ -159,4 +197,102 @@ it("hides SSO when switching to password recovery", async () => {
   expect(host.querySelector('button[data-prominence="primary"]')?.textContent).toBe(
     "Send reset link",
   );
+});
+
+function type(input: Element, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+  act(() => {
+    setter.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+function button(label: string) {
+  return [...host.querySelectorAll("button")].find((node) => node.textContent === label);
+}
+async function press(label: string) {
+  const target = button(label);
+  expect(target, label).toBeDefined();
+  await act(async () => target!.click());
+}
+async function passwordStep() {
+  await render();
+  type(host.querySelector('input[aria-label="Email"]')!, "owner@example.com");
+  type(host.querySelector('input[type="password"]')!, "correct horse battery");
+  await press("Sign in");
+}
+
+it("asks a two-factor account for its code, then signs in with it", async () => {
+  vi.mocked(signIn).mockResolvedValue({ verificationRequired: false, twoFactorRequired: true });
+  vi.mocked(verifyTwoFactorCode).mockResolvedValue();
+  await passwordStep();
+
+  expect(host.textContent).toContain("Two-factor authentication");
+  expect(host.querySelector('input[type="password"]')).toBeNull();
+  expect(router.replace).not.toHaveBeenCalled();
+  type(host.querySelector('input[aria-label="Authentication code"]')!, "123456");
+  await press("Verify");
+
+  expect(verifyTwoFactorCode).toHaveBeenCalledWith("123456", {
+    method: "totp",
+    trustDevice: false,
+  });
+  expect(router.replace).toHaveBeenCalledWith("/");
+});
+
+it("keeps the code step open with the reason after a wrong code", async () => {
+  vi.mocked(signIn).mockResolvedValue({ verificationRequired: false, twoFactorRequired: true });
+  vi.mocked(verifyTwoFactorCode).mockRejectedValue(
+    new Error("That code didn’t work. Check your authenticator app and try again."),
+  );
+  await passwordStep();
+  type(host.querySelector('input[aria-label="Authentication code"]')!, "000000");
+  await press("Verify");
+
+  expect(host.textContent).toContain(
+    "That code didn’t work. Check your authenticator app and try again.",
+  );
+  expect(host.querySelector('input[aria-label="Authentication code"]')).not.toBeNull();
+  expect(router.replace).not.toHaveBeenCalled();
+});
+
+it("returns to the password step with the reason when the pending sign-in is gone", async () => {
+  vi.mocked(signIn).mockResolvedValue({ verificationRequired: false, twoFactorRequired: true });
+  vi.mocked(verifyTwoFactorCode).mockRejectedValue(
+    new TwoFactorRestartError("Too many wrong codes. Two-factor sign-in is locked for 15 minutes."),
+  );
+  await passwordStep();
+  type(host.querySelector('input[aria-label="Authentication code"]')!, "123456");
+  await press("Verify");
+
+  expect(host.querySelector('input[aria-label="Authentication code"]')).toBeNull();
+  expect(host.querySelector('input[type="password"]')).not.toBeNull();
+  expect(host.textContent).toContain(
+    "Too many wrong codes. Two-factor sign-in is locked for 15 minutes.",
+  );
+});
+
+it("accepts a backup code and remembers the device only when asked", async () => {
+  vi.mocked(signIn).mockResolvedValue({ verificationRequired: false, twoFactorRequired: true });
+  vi.mocked(verifyTwoFactorCode).mockResolvedValue();
+  await passwordStep();
+
+  await press("Use a backup code");
+  const trust = host.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+  expect(trust.checked).toBe(false);
+  await act(async () => trust.click());
+  expect(trust.checked).toBe(true);
+  type(host.querySelector('input[aria-label="Backup code"]')!, "ab12-cd34");
+  await press("Verify");
+
+  expect(verifyTwoFactorCode).toHaveBeenCalledWith("ab12-cd34", {
+    method: "backup",
+    trustDevice: true,
+  });
+});
+
+it("signs in without a code step when the server does not ask for one", async () => {
+  vi.mocked(signIn).mockResolvedValue({ verificationRequired: false });
+  await passwordStep();
+  expect(host.textContent).not.toContain("Two-factor authentication");
+  expect(router.replace).toHaveBeenCalledWith("/");
 });
