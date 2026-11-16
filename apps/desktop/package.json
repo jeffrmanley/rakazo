@@ -105,5 +105,6 @@
       "onlyLoadAppFromAsar": true
     }
   },
-  "description": "withJZ Crew desktop app (fork of Rakazo)"
+  "description": "withJZ Crew desktop app (fork of Rakazo)",
+  "author": "withJZ LLC"
 }
