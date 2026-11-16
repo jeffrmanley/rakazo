@@ -14,7 +14,7 @@ const appJson = JSON.parse(readFileSync(path.join(mobileRoot, "app.json"), "utf8
   expo: Record<string, unknown> & {
     updates?: { url?: string; enabled?: boolean };
     extra?: { eas?: unknown };
-    android: { package: string; versionCode: number };
+    android: { package: string; versionCode: number; blockedPermissions?: string[] };
     ios: { bundleIdentifier: string };
   };
 };
@@ -52,6 +52,19 @@ describe("withJZ Crew release identity", () => {
     expect(expo.ios.bundleIdentifier).toBe("com.withjz.crew");
     // The server trusts this scheme as the native origin; it stays.
     expect(expo.scheme).toBe("rakazo");
+  });
+});
+
+describe("android permissions", () => {
+  it("blocks permissions the app does not need (overlay, legacy storage, dump)", () => {
+    expect(expo.android.blockedPermissions ?? []).toEqual(
+      expect.arrayContaining([
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.DUMP",
+      ]),
+    );
   });
 });
 
