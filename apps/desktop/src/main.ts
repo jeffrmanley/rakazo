@@ -25,6 +25,13 @@ import {
 } from "./auto-update.js";
 import { openBrowserAuth } from "./browser-auth.js";
 import { DOCKER_INSTALL_LINKS, isDesktopSetupLink, runDocker } from "./docker-cli.js";
+import {
+  APP_USER_MODEL_ID,
+  AUTO_UPDATE_ENABLED,
+  DEFAULT_SERVER_URL,
+  localStackEnabled,
+  PRODUCT_NAME,
+} from "./fork-config.js";
 import { requestLocalSettings } from "./local-settings.js";
 import {
   LocalStackController,
@@ -34,6 +41,11 @@ import {
   stackDir,
   stackResourceDir,
 } from "./local-stack.js";
+import {
+  appNavigationDecision,
+  isTrustedAppFrame,
+  popupWindowOpenTarget,
+} from "./navigation-policy.js";
 import { oauthCallbackFrom } from "./oauth-callback.js";
 import {
   bundledRendererCandidates,
@@ -96,26 +108,36 @@ let warmWindowTimer: NodeJS.Timeout | undefined;
 let liveProbeWindows = 0;
 const WARM_WINDOW_TTL_MS = warmWindowTtlMs(process.env.RAKAZO_WARM_WINDOW_TTL_MS);
 
+// withJZ Crew: electron-updater is not bundled and the controller is constructed
+// disabled, so it never loads an updater or contacts upstream's release feed.
 const updaterEnvironment = {
   packaged: app.isPackaged,
   version: app.getVersion(),
-  disabled: process.env.RAKAZO_DISABLE_AUTO_UPDATE === "1",
+  disabled: !AUTO_UPDATE_ENABLED || process.env.RAKAZO_DISABLE_AUTO_UPDATE === "1",
 };
 const desktopUpdater = new DesktopUpdateController(
   updaterEnvironment,
-  async () => {
-    const module = await import("electron-updater");
-    return (module.default ?? module).autoUpdater as unknown as ElectronAutoUpdater;
+  async (): Promise<ElectronAutoUpdater> => {
+    throw new Error("Automatic updates are not included in this build.");
   },
   undefined,
   () => {
     quitting = false;
   },
 );
+const LOCAL_STACK_ENABLED = localStackEnabled({ packaged: app.isPackaged, env: process.env });
+const LOCAL_STACK_DISABLED_MESSAGE =
+  "Running the server on this computer is turned off in this build. Connect to your server instead.";
 let launchUpdateCheckScheduled = false;
 let localStack: LocalStackController;
 
 markOnce("rk:main:module-evaluated");
+// Windows groups taskbar entries and toasts by this id; it must match electron-builder's appId.
+if (process.platform === "win32") app.setAppUserModelId(APP_USER_MODEL_ID);
+// Defense in depth for every WebContents, including popups and probes: no <webview>.
+app.on("web-contents-created", (_event, contents) => {
+  contents.on("will-attach-webview", (event) => event.preventDefault());
+});
 if (PERFORMANCE_USER_DATA) {
   app.setPath("userData", PERFORMANCE_USER_DATA);
   app.setPath("sessionData", path.join(PERFORMANCE_USER_DATA, "session"));
@@ -141,6 +163,14 @@ function windowFrom(event: Electron.IpcMainInvokeEvent) {
 
 function fromMainWindow(event: Electron.IpcMainInvokeEvent) {
   return mainWindow !== null && windowFrom(event) === mainWindow;
+}
+
+/** Privileged IPC: the main window's top frame, while it is on the server it was opened for. */
+function fromTrustedAppFrame(event: Electron.IpcMainInvokeEvent) {
+  if (mainWindow === null || !fromMainWindow(event)) return false;
+  const frame = event.senderFrame;
+  if (frame === null || frame !== event.sender.mainFrame) return false;
+  return isTrustedAppFrame(frame.url, appWindowTargets.get(mainWindow));
 }
 
 /** Dock/taskbar icon for unpackaged launches; packaged builds get theirs from electron-builder. */
@@ -283,15 +313,30 @@ function createWindow(url: string, partition: string | null) {
     return { action: "deny" };
   });
   win.webContents.on("will-navigate", (event, navigationUrl) => {
-    if (targetOrigin !== null && safeOrigin(navigationUrl) === targetOrigin) return;
+    const decision = appNavigationDecision(url, navigationUrl);
+    if (decision.allow) return;
     event.preventDefault();
-    const external = safeExternalUrl(navigationUrl);
-    if (external !== null) void shell.openExternal(external);
+    if (decision.external !== null) void shell.openExternal(decision.external);
+  });
+  // will-navigate only covers page-initiated loads. A server redirect would otherwise
+  // carry the top frame, and the preload bridge, to another origin.
+  win.webContents.on("will-redirect", (details) => {
+    if (!details.isMainFrame) return;
+    const decision = appNavigationDecision(url, details.url);
+    if (decision.allow) return;
+    details.preventDefault();
+    if (decision.external !== null) void shell.openExternal(decision.external);
   });
   // The popup has no address bar, so a loopback redirect would otherwise strand
   // the user on a blank window holding the authorization code in a URL they
   // cannot read. Capture it here and hand it to the app instead.
   win.webContents.on("did-create-window", (popup, { frameName }) => {
+    // Provider pages in the popup never get to open further Electron windows.
+    popup.webContents.setWindowOpenHandler(({ url: popupChildUrl }) => {
+      const external = popupWindowOpenTarget(popupChildUrl);
+      if (external !== null) void shell.openExternal(external);
+      return { action: "deny" };
+    });
     const capture = (details: {
       preventDefault: () => void;
       url: string;
@@ -347,7 +392,7 @@ function createWindow(url: string, partition: string | null) {
       throw error;
     },
   );
-  if (!launchUpdateCheckScheduled) {
+  if (AUTO_UPDATE_ENABLED && !launchUpdateCheckScheduled) {
     launchUpdateCheckScheduled = true;
     setTimeout(() => void desktopUpdater.check(false), LAUNCH_CHECK_DELAY_MS).unref();
     setInterval(() => void desktopUpdater.check(false), 60 * 60 * 1_000).unref();
@@ -554,6 +599,8 @@ function createSetupWindow() {
   });
   setupWindow = win;
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  // setup.html is a local file with a strict CSP; it never navigates anywhere.
+  win.webContents.on("will-navigate", (event) => event.preventDefault());
   win.once("closed", () => {
     if (setupWindow === win) setupWindow = null;
     // Closing setup without saving restores a connected session (Change Server cancel).
@@ -675,7 +722,7 @@ function installApplicationMenu() {
   };
   const changeServer: Electron.MenuItemConstructorOptions = {
     id: "change-rakazo-server",
-    label: "Change Rakazo Server…",
+    label: `Change ${PRODUCT_NAME} Server…`,
     accelerator: "CmdOrCtrl+Shift+K",
     click: () => showSetupWindow(),
   };
@@ -687,6 +734,10 @@ function installApplicationMenu() {
       if (currentSetup?.mode === "new") void localStack.stop();
     },
   };
+  // Local-stack entries only exist when the managed stack is enabled (never in packaged builds).
+  const localStackItems: Electron.MenuItemConstructorOptions[] = LOCAL_STACK_ENABLED
+    ? [localSettings, stopStack]
+    : [];
   const template: Electron.MenuItemConstructorOptions[] =
     process.platform === "darwin"
       ? [
@@ -695,9 +746,8 @@ function installApplicationMenu() {
             submenu: [
               { role: "about" },
               { type: "separator" },
-              localSettings,
+              ...localStackItems,
               changeServer,
-              stopStack,
               { type: "separator" },
               { role: "hide" },
               { role: "hideOthers" },
@@ -712,13 +762,7 @@ function installApplicationMenu() {
       : [
           {
             label: "File",
-            submenu: [
-              localSettings,
-              changeServer,
-              stopStack,
-              { type: "separator" },
-              { role: "quit" },
-            ],
+            submenu: [...localStackItems, changeServer, { type: "separator" }, { role: "quit" }],
           },
           { role: "editMenu" },
           { role: "windowMenu" },
@@ -753,7 +797,7 @@ async function probeServer(rawUrl: string, signal?: AbortSignal): Promise<Deskto
         ok: false,
         status: response.status,
         url,
-        error: "That address redirects elsewhere. Enter the final Rakazo server address.",
+        error: `That address redirects elsewhere. Enter the final ${PRODUCT_NAME} server address.`,
       };
     }
     if (!response.ok) {
@@ -770,7 +814,7 @@ async function probeServer(rawUrl: string, signal?: AbortSignal): Promise<Deskto
         ok: false,
         status: response.status,
         url,
-        error: "That address did not respond like a Rakazo server.",
+        error: `That address did not respond like a ${PRODUCT_NAME} server.`,
       };
     }
     return {
@@ -1024,7 +1068,7 @@ app.whenReady().then(async () => {
   app.on("before-quit", cancelBrowserAuth);
   ipcMain.handle("desktop.oauth.open", async (event, url: unknown) => {
     if (
-      (!fromMainWindow(event) &&
+      (!fromTrustedAppFrame(event) &&
         !(settingsWindow !== null && windowFrom(event) === settingsWindow)) ||
       event.senderFrame !== event.sender.mainFrame ||
       typeof url !== "string" ||
@@ -1067,7 +1111,7 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle("desktop.oauth.cancel", (event, url: unknown) => {
     if (
-      (!fromMainWindow(event) &&
+      (!fromTrustedAppFrame(event) &&
         !(settingsWindow !== null && windowFrom(event) === settingsWindow)) ||
       event.senderFrame !== event.sender.mainFrame ||
       typeof url !== "string"
@@ -1122,13 +1166,13 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle("desktop.update.state", () => desktopUpdater.state());
   ipcMain.handle("desktop.update.check", (event) =>
-    fromMainWindow(event) ? desktopUpdater.check(true) : desktopUpdater.state(),
+    fromTrustedAppFrame(event) ? desktopUpdater.check(true) : desktopUpdater.state(),
   );
   ipcMain.handle("desktop.update.download", (event) =>
-    fromMainWindow(event) ? desktopUpdater.download() : desktopUpdater.state(),
+    fromTrustedAppFrame(event) ? desktopUpdater.download() : desktopUpdater.state(),
   );
   ipcMain.handle("desktop.update.install", async (event) => {
-    if (!fromMainWindow(event) || desktopUpdater.state().phase !== "ready") {
+    if (!fromTrustedAppFrame(event) || desktopUpdater.state().phase !== "ready") {
       return desktopUpdater.state();
     }
     quitting = true;
@@ -1142,6 +1186,8 @@ app.whenReady().then(async () => {
     if (!fromSetupWindow(event)) return null;
     return {
       defaultLocalUrl: localStack.webUrl(),
+      defaultServerUrl: DEFAULT_SERVER_URL,
+      localStackEnabled: LOCAL_STACK_ENABLED,
       saved: currentSetup,
       error: setupError ?? undefined,
     };
@@ -1171,6 +1217,10 @@ app.whenReady().then(async () => {
         };
       }
 
+      if (setup.mode === "new" && !LOCAL_STACK_ENABLED) {
+        return { ok: false, error: LOCAL_STACK_DISABLED_MESSAGE };
+      }
+
       // Only open the exact origin selected and authenticated by the managed stack.
       let openSetup = setup;
       if (setup.mode === "new") {
@@ -1178,7 +1228,7 @@ app.whenReady().then(async () => {
         if (managedUrl === null || !(await localStack.matchesDesiredStack())) {
           return {
             ok: false,
-            error: "The app-managed Rakazo services are not ready. Retry setup.",
+            error: `The app-managed ${PRODUCT_NAME} services are not ready. Retry setup.`,
           };
         }
         openSetup = { mode: "new", serverUrl: managedUrl };
@@ -1250,7 +1300,7 @@ app.whenReady().then(async () => {
     fromSetupWindow(event) ? localStack.state() : null,
   );
   ipcMain.handle("desktop.setup.stack.start", (event) => {
-    if (!fromSetupWindow(event)) return null;
+    if (!fromSetupWindow(event) || !LOCAL_STACK_ENABLED) return null;
     // Respond right away; the setup window polls `stack.state` until a terminal phase.
     void localStack.start();
     return localStack.state();
@@ -1280,7 +1330,9 @@ app.whenReady().then(async () => {
   if (target.kind === "setup") {
     showSetupWindow();
   } else if (target.source === "saved") {
-    if (currentSetup?.mode === "new") {
+    if (currentSetup?.mode === "new" && !LOCAL_STACK_ENABLED) {
+      showSetupWindow(LOCAL_STACK_DISABLED_MESSAGE);
+    } else if (currentSetup?.mode === "new") {
       const managedUrl = managedLocalOpenUrl(target.url, localStack.webUrl());
       const managedStackReady =
         managedUrl !== null ? await localStack.matchesDesiredStack() : false;

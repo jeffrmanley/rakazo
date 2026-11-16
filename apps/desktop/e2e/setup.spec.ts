@@ -76,29 +76,29 @@ function launch(extraEnv: Record<string, string> = {}) {
   });
 }
 
-test("first run asks whether to use a local or existing instance", async () => {
+test("first run connects to the withJZ Crew server by default", async () => {
   app = await launch();
   if (process.env.RAKAZO_E2E_EXECUTABLE) {
     expect(await app.evaluate(({ app }) => app.isPackaged)).toBe(true);
   }
   const setup = await app.firstWindow();
 
-  await expect(setup.getByRole("heading", { name: "Welcome to Rakazo" })).toBeVisible();
-  await expect(setup.getByText("Choose which server this app should use.")).toBeVisible();
-  await expect(setup.getByText("This computer")).toBeVisible();
+  await expect(setup.getByRole("heading", { name: "Welcome to withJZ Crew" })).toBeVisible();
+  await expect(setup.getByText("Connect this app to your withJZ Crew server.")).toBeVisible();
   await expect(setup.getByText("Existing instance")).toBeVisible();
   await expect(setup.locator(".card")).toHaveCount(0);
 
-  // A new instance is the default: the app runs the stack itself at the local address.
-  await expect(setup.getByRole("radio", { name: /This computer/ })).toBeChecked();
-  // The panel is empty until a start begins, so check the attribute rather than the box.
-  await expect(setup.locator("#panel-new")).toHaveJSProperty("hidden", false);
-  await expect(setup.locator("#stack")).toBeHidden();
-  await expect(setup.getByRole("button", { name: "Check connection" })).toBeHidden();
-  await expect(setup.locator("#panel-existing")).toBeHidden();
+  // withJZ Crew: the managed local stack (upstream images) is off, so its choice is hidden.
+  await expect(setup.getByText("This computer")).toBeHidden();
+  await expect(setup.locator("#mode-new")).toBeDisabled();
+  await expect(setup.getByRole("radio", { name: /Existing instance/ })).toBeChecked();
+  await expect(setup.locator("#panel-existing")).toBeVisible();
+  await expect(setup.locator("#panel-new")).toBeHidden();
+  await expect(setup.locator("#server-url")).toHaveValue("https://eu-2.tail290516.ts.net");
+  await expect(setup.getByRole("button", { name: "Check connection" })).toBeVisible();
 
   await setup.screenshot({
-    path: path.join(import.meta.dirname, "screenshots", "01-setup-new-instance.png"),
+    path: path.join(import.meta.dirname, "screenshots", "01-setup-existing-default.png"),
   });
 
   // Linux CI verifies the layout state; the macOS CI job also captures the native controls.
@@ -139,7 +139,7 @@ test("connecting to an existing instance verifies, saves, and opens it", async (
 
   await setup.locator("#server-url").fill(serverUrl);
   await setup.getByRole("button", { name: "Check connection" }).click();
-  await expect(setup.locator("#status")).toHaveText(`Rakazo answered at ${serverUrl}.`);
+  await expect(setup.locator("#status")).toHaveText(`withJZ Crew answered at ${serverUrl}.`);
   await expect(setup.locator("#status")).toHaveAttribute("data-tone", "ok");
 
   await setup.screenshot({
@@ -453,7 +453,7 @@ test("a generic web page is not accepted as a Rakazo server", async () => {
     await setup.getByRole("button", { name: "Continue" }).click();
 
     await expect(setup.locator("#status")).toHaveText(
-      "That address did not respond like a Rakazo server.",
+      "That address did not respond like a withJZ Crew server.",
     );
     await expect(async () => {
       await expect(readFile(path.join(userData, "setup.json"), "utf8")).rejects.toThrow();
@@ -506,7 +506,7 @@ test("an unreachable saved server falls back to setup with a recovery message", 
   app = await launch();
   const setup = await app.firstWindow();
 
-  await expect(setup.getByRole("heading", { name: "Welcome to Rakazo" })).toBeVisible();
+  await expect(setup.getByRole("heading", { name: "Welcome to withJZ Crew" })).toBeVisible();
   await expect(setup.getByRole("radio", { name: /Existing instance/ })).toBeChecked();
   await expect(setup.locator("#server-url")).toHaveValue(closedUrl);
   await expect(setup.locator("#status")).toContainText("Could not reconnect to the saved server.");
@@ -528,7 +528,7 @@ test("the native application menu can reopen setup without exposing setup IPC to
   });
   const setup = await setupPromise;
 
-  await expect(setup.getByRole("heading", { name: "Welcome to Rakazo" })).toBeVisible();
+  await expect(setup.getByRole("heading", { name: "Welcome to withJZ Crew" })).toBeVisible();
   await expect(setup.locator("#status")).toBeEmpty();
 
   // Closing setup without saving restores the connected instance.

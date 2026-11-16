@@ -37,6 +37,9 @@ upstream names, and the Apache-2.0 credit in Settings links back to the upstream
 - Two-factor sign-in with an authenticator app: required for the deployment owner (a banner until
   they enrol), optionally for every account (`require2faForAll`), hashed backup codes, audit
   events, and a host-only reset (see `docs/security/two-factor.md`).
+- withJZ Crew desktop app for Windows: white-labelled Electron shell that connects to the
+  deployment's server by default, with automatic updates and the upstream-image local stack
+  removed, and extra navigation, IPC and fuse hardening (see `docs/desktop-windows.md`).
 
 ## Files
 
@@ -80,6 +83,33 @@ Relative to upstream commit `2d666c4`.
 - `apps/api/src/team-chat-startup.test.ts` (modified)
 - `apps/api/src/team-chat-startup.ts` (modified)
 - `apps/api/src/two-factor-events.ts` (added)
+
+### `apps/desktop`
+
+- `apps/desktop/assets/brand/withjz-crew-a.png` (added)
+- `apps/desktop/assets/brand/withjz-crew-a.svg` (added)
+- `apps/desktop/assets/icon-macos.png` (modified)
+- `apps/desktop/assets/icon.ico` (modified)
+- `apps/desktop/assets/icon.png` (modified)
+- `apps/desktop/e2e/hardening.spec.ts` (added)
+- `apps/desktop/e2e/local-stack.spec.ts` (modified)
+- `apps/desktop/e2e/setup.spec.ts` (modified)
+- `apps/desktop/package.json` (modified)
+- `apps/desktop/scripts/brand-icons.mjs` (added)
+- `apps/desktop/src/auto-update-disabled.test.ts` (added)
+- `apps/desktop/src/auto-update.ts` (modified)
+- `apps/desktop/src/browser-auth.ts` (modified)
+- `apps/desktop/src/fork-config.test.ts` (added)
+- `apps/desktop/src/fork-config.ts` (added)
+- `apps/desktop/src/hardening.test.ts` (added)
+- `apps/desktop/src/local-stack.ts` (modified)
+- `apps/desktop/src/main.ts` (modified)
+- `apps/desktop/src/navigation-policy.test.ts` (added)
+- `apps/desktop/src/navigation-policy.ts` (added)
+- `apps/desktop/src/package-metadata.test.ts` (modified)
+- `apps/desktop/src/setup.html` (modified)
+- `apps/desktop/src/setup.js` (modified)
+- `apps/desktop/src/white-label.test.ts` (added)
 
 ### `apps/mobile`
 
@@ -160,6 +190,7 @@ Relative to upstream commit `2d666c4`.
 
 ### `docs`
 
+- `docs/desktop-windows.md` (added)
 - `docs/governance/approvals.md` (added)
 - `docs/governance/audit-log.md` (added)
 - `docs/governance/budgets.md` (added)

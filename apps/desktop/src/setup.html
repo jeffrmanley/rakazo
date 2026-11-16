@@ -6,36 +6,37 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; form-action 'none'; base-uri 'none'"
     />
-    <title>Set up Rakazo</title>
+    <title>Set up withJZ Crew</title>
     <link rel="stylesheet" href="tokens.css" />
     <link rel="stylesheet" href="setup.css" />
   </head>
   <body>
     <header class="titlebar">
-      <span class="titlebar-name">Rakazo</span>
-      <button id="quit" class="titlebar-quit" type="button" title="Quit Rakazo">Quit</button>
+      <span class="titlebar-name">withJZ Crew</span>
+      <button id="quit" class="titlebar-quit" type="button" title="Quit withJZ Crew">Quit</button>
     </header>
 
     <main class="shell">
-      <h1 class="heading">Welcome to Rakazo</h1>
-      <p class="subheading">Choose which server this app should use.</p>
+      <h1 class="heading">Welcome to withJZ Crew</h1>
+      <p class="subheading">Connect this app to your withJZ Crew server.</p>
 
       <form id="setup" novalidate>
         <fieldset class="choices">
           <legend class="sr-only">Instance</legend>
 
-          <label class="choice" for="mode-new">
-            <input id="mode-new" type="radio" name="mode" value="new" checked />
-            <span class="choice-title">This computer</span>
+          <label class="choice" for="mode-existing">
+            <input id="mode-existing" type="radio" name="mode" value="existing" checked />
+            <span class="choice-title">Existing instance</span>
           </label>
 
-          <label class="choice" for="mode-existing">
-            <input id="mode-existing" type="radio" name="mode" value="existing" />
-            <span class="choice-title">Existing instance</span>
+          <!-- Shown only when the managed local stack is enabled (never in packaged builds). -->
+          <label id="choice-new" class="choice" for="mode-new" hidden>
+            <input id="mode-new" type="radio" name="mode" value="new" disabled />
+            <span class="choice-title">This computer</span>
           </label>
         </fieldset>
 
-        <section id="panel-new" class="panel">
+        <section id="panel-new" class="panel" hidden>
           <div id="stack" hidden>
             <div class="stack-head">
               <p id="stack-phase" class="stack-phase" role="status" aria-live="polite"></p>
@@ -75,7 +76,7 @@
           </div>
         </section>
 
-        <section id="panel-existing" class="panel" hidden>
+        <section id="panel-existing" class="panel">
           <label class="field-label" for="server-url">Server address</label>
           <input
             id="server-url"
@@ -83,7 +84,7 @@
             type="text"
             spellcheck="false"
             autocomplete="off"
-            placeholder="https://rakazo.example.com"
+            placeholder="https://eu-2.tail290516.ts.net"
           />
         </section>
 

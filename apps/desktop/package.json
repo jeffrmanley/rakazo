@@ -1,6 +1,6 @@
 {
   "name": "@rakazo/desktop",
-  "productName": "Rakazo",
+  "productName": "withJZ Crew",
   "version": "0.2.0",
   "license": "Apache-2.0",
   "type": "module",
@@ -8,16 +8,17 @@
   "scripts": {
     "dev": "pnpm build && electron .",
     "build": "tsc -p tsconfig.json && node scripts/copy-static.mjs",
-    "pack": "pnpm --filter @rakazo/web build && pnpm build && electron-builder --mac --win --linux",
-    "pack:dir": "pnpm --filter @rakazo/web build && pnpm build && electron-builder --dir",
+    "pack": "pnpm build && electron-builder --win",
+    "pack:dir": "pnpm build && electron-builder --dir",
     "check": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --root ../.. apps/desktop/src",
     "test:e2e": "pnpm build && playwright test --config e2e/playwright.config.ts",
-    "release": "pnpm --filter @rakazo/web build && pnpm build && electron-builder --publish never"
+    "release": "pnpm build && electron-builder --publish never",
+    "pack:win": "pnpm build && electron-builder --win nsis --x64 --publish never",
+    "icons": "node scripts/brand-icons.mjs"
   },
   "dependencies": {
-    "@rakazo/contracts": "workspace:*",
-    "electron-updater": "6.8.9"
+    "@rakazo/contracts": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
@@ -28,7 +29,7 @@
     "vitest": "4.1.12"
   },
   "build": {
-    "appId": "dev.rakazo.desktop",
+    "appId": "com.withjz.crew.desktop",
     "directories": {
       "output": "out",
       "buildResources": "assets"
@@ -39,23 +40,19 @@
     ],
     "extraResources": [
       {
-        "from": "../web/dist",
-        "to": "web"
+        "from": "../../LICENSE",
+        "to": "LICENSE"
       },
       {
-        "from": "../../infra/compose/docker-compose.images.yml",
-        "to": "stack/docker-compose.images.yml"
-      },
-      {
-        "from": "../../infra/compose/.env.images.example",
-        "to": "stack/.env.images.example"
+        "from": "../../FORK_CHANGES.md",
+        "to": "FORK_CHANGES.md"
       }
     ],
     "extraMetadata": {
       "main": "dist/main.js"
     },
     "mac": {
-      "icon": "../../packages/ui-tokens/assets/Rakazo.icon",
+      "icon": "assets/icon-macos.png",
       "category": "public.app-category.productivity",
       "target": [
         "dmg",
@@ -66,23 +63,47 @@
     "win": {
       "icon": "assets/icon.ico",
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
-      "verifyUpdateCodeSignature": true
+      "legalTrademarks": "withJZ Crew",
+      "signAndEditExecutable": true
     },
     "linux": {
-      "executableName": "rakazo",
+      "executableName": "withjz-crew",
       "icon": "assets/icon.png",
       "target": [
         "AppImage"
       ]
     },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "elie222",
-        "repo": "rakazo"
-      }
-    ]
-  }
+    "publish": null,
+    "copyright": "withJZ LLC. Based on Rakazo (Apache-2.0).",
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "withJZ Crew",
+      "uninstallDisplayName": "withJZ Crew",
+      "artifactName": "withJZ-Crew-Setup-${version}.${ext}",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "deleteAppDataOnUninstall": false
+    },
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true
+    }
+  },
+  "description": "withJZ Crew desktop app (fork of Rakazo)"
 }

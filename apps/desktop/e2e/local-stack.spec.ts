@@ -2,7 +2,13 @@ import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs
 import { createServer, type RequestListener, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { type ElectronApplication, _electron as electron, expect, test } from "@playwright/test";
+import {
+  type ElectronApplication,
+  _electron as electron,
+  expect,
+  type Page,
+  test,
+} from "@playwright/test";
 
 const APP_MARKER = "Local Rakazo stack ready";
 const IMAGE_TAG = "v9.9.9";
@@ -143,6 +149,8 @@ async function launch(mode: FakeDockerMode | "missing") {
       RAKAZO_DOCKER_BINARY:
         mode === "missing" ? "/nonexistent/docker" : await writeFakeDocker(mode),
       RAKAZO_LOCAL_WEB_URL: serverUrl,
+      // withJZ Crew: the managed stack is opt-in for unpackaged runs (never packaged).
+      RAKAZO_ENABLE_LOCAL_STACK: "1",
       RAKAZO_IMAGE_TAG: IMAGE_TAG,
     },
   });
@@ -165,9 +173,15 @@ async function readLog() {
   }
 }
 
+/** Existing instance is the default in withJZ Crew; these tests drive the managed stack. */
+async function chooseThisComputer(setup: Page) {
+  await setup.getByRole("radio", { name: /This computer/ }).check();
+}
+
 test("This computer installs and starts the stack, then opens the app", async () => {
   app = await launch("ok");
   const setup = await app.firstWindow();
+  await chooseThisComputer(setup);
 
   await expect(setup.getByRole("radio", { name: /This computer/ })).toBeChecked();
   // The panel is empty until a start begins, so check the attribute rather than the box.
@@ -177,7 +191,7 @@ test("This computer installs and starts the stack, then opens the app", async ()
 
   const appWindowPromise = app.waitForEvent("window");
   await setup.getByRole("button", { name: "Continue" }).click();
-  await expect(setup.locator("#stack-phase")).toHaveText("Downloading Rakazo…");
+  await expect(setup.locator("#stack-phase")).toHaveText("Downloading withJZ Crew…");
   await expect(setup.getByRole("button", { name: "Continue" })).toBeDisabled();
   // Docker output stays behind the details toggle; the phase, the bar, and the size show by default.
   await expect(setup.locator("#stack-detail")).toHaveText("412 MB downloaded");
@@ -223,6 +237,7 @@ test("This computer installs and starts the stack, then opens the app", async ()
 test("without Docker the app explains how to get it and offers to check again", async () => {
   app = await launch("missing");
   const setup = await app.firstWindow();
+  await chooseThisComputer(setup);
 
   await setup.getByRole("button", { name: "Continue" }).click();
   await expect(setup.locator("#stack-phase")).toHaveText(
@@ -247,9 +262,10 @@ test("without Docker the app explains how to get it and offers to check again", 
 test("switching to Existing instance while the stack starts keeps that choice", async () => {
   app = await launch("ok");
   const setup = await app.firstWindow();
+  await chooseThisComputer(setup);
 
   await setup.getByRole("button", { name: "Continue" }).click();
-  await expect(setup.locator("#stack-phase")).toHaveText("Downloading Rakazo…");
+  await expect(setup.locator("#stack-phase")).toHaveText("Downloading withJZ Crew…");
 
   // Fake docker sleeps during pull; leave This computer before ready so followStack must not save.
   await setup.getByRole("radio", { name: /Existing instance/ }).check();
@@ -276,6 +292,7 @@ test("switching to Existing instance while the stack starts keeps that choice", 
 test("a stopped Docker daemon is reported and Check again asks Docker once more", async () => {
   app = await launch("daemon-down");
   const setup = await app.firstWindow();
+  await chooseThisComputer(setup);
 
   await setup.getByRole("button", { name: "Continue" }).click();
   await expect(setup.locator("#stack-phase")).toHaveText(
@@ -293,6 +310,7 @@ test("a stopped Docker daemon is reported and Check again asks Docker once more"
 test("unpublished images show the docker output and a Retry button", async () => {
   app = await launch("pull-fails");
   const setup = await app.firstWindow();
+  await chooseThisComputer(setup);
 
   await setup.getByRole("button", { name: "Continue" }).click();
   await expect(setup.locator("#stack-phase")).toHaveText(
@@ -404,6 +422,7 @@ test("an existing stack .env is never rewritten", async () => {
 
   app = await launch("ok");
   const setup = await app.firstWindow();
+  await chooseThisComputer(setup);
   const appWindowPromise = app.waitForEvent("window");
   await setup.getByRole("button", { name: "Continue" }).click();
   const appWindow = await appWindowPromise;
@@ -415,6 +434,7 @@ test("an existing stack .env is never rewritten", async () => {
 test("exhausted address pools explain recovery", async () => {
   app = await launch("pool-exhausted");
   const setup = await app.firstWindow();
+  await chooseThisComputer(setup);
   await setup.getByRole("button", { name: "Continue" }).click();
   await expect(setup.locator("#stack-phase")).toHaveText(
     "Docker has no free network address pools. Remove unused Docker networks or expand Docker’s address pools, then retry.",
@@ -428,6 +448,7 @@ test("exhausted address pools explain recovery", async () => {
 test("a port conflict opens and saves the replacement managed origin", async () => {
   app = await launch("port-conflict");
   const setup = await app.firstWindow();
+  await chooseThisComputer(setup);
   const appWindowPromise = app.waitForEvent("window");
   await setup.getByRole("button", { name: "Continue" }).click();
   const urlFile = path.join(userData, "stack", ".desktop-web-url");
@@ -459,6 +480,7 @@ test("a port conflict opens and saves the replacement managed origin", async () 
 test("repeated port conflicts stop with a retry action", async () => {
   app = await launch("ports-exhausted");
   const setup = await app.firstWindow();
+  await chooseThisComputer(setup);
   await setup.getByRole("button", { name: "Continue" }).click();
   await expect(setup.locator("#stack-phase")).toHaveText(
     "Could not bind a local port after retrying. Retry to choose another port.",
@@ -473,6 +495,7 @@ test("repeated port conflicts stop with a retry action", async () => {
 test("the native settings menu opens an isolated logged-out settings capability", async () => {
   app = await launch("ok");
   const setup = await app.firstWindow();
+  await chooseThisComputer(setup);
   const nextWindow = app.waitForEvent("window");
   await setup.getByRole("button", { name: "Continue", exact: true }).click();
   const main = await nextWindow;

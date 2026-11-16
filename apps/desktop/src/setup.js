@@ -18,15 +18,19 @@
   const checkButton = document.getElementById("check");
   const continueButton = document.getElementById("continue");
   const quitButton = document.getElementById("quit");
+  const choiceNew = document.getElementById("choice-new");
+  const modeNew = document.getElementById("mode-new");
+  const modeExisting = document.getElementById("mode-existing");
+  const PRODUCT = "withJZ Crew";
 
   const STACK_POLL_MS = 1000;
   const PHASE_LABELS = {
     "checking-docker": "Getting ready…",
     preparing: "Getting ready…",
-    pulling: "Downloading Rakazo…",
-    starting: "Starting Rakazo…",
+    pulling: `Downloading ${PRODUCT}…`,
+    starting: `Starting ${PRODUCT}…`,
     "waiting-healthy": "Almost ready…",
-    ready: "Rakazo is ready.",
+    ready: `${PRODUCT} is ready.`,
   };
   const TERMINAL_PHASES = new Set([
     "idle",
@@ -59,7 +63,7 @@
 
   function selectedMode() {
     const checked = form.querySelector('input[name="mode"]:checked');
-    return checked === null ? "new" : checked.value;
+    return checked === null ? "existing" : checked.value;
   }
 
   function setStatus(message, tone) {
@@ -75,7 +79,9 @@
 
   /** A save in flight cannot be cancelled, so the choice it commits must not change under it. */
   function lockMode(locked) {
-    for (const input of form.querySelectorAll('input[name="mode"]')) input.disabled = locked;
+    for (const input of form.querySelectorAll('input[name="mode"]')) {
+      input.disabled = locked || (input === modeNew && choiceNew.hidden);
+    }
   }
 
   function syncPanels() {
@@ -266,7 +272,7 @@
       const result = await bridge.test(value);
       if (result.ok) {
         serverUrl.value = result.url;
-        setStatus(`Rakazo answered at ${result.url}.`, "ok");
+        setStatus(`${PRODUCT} answered at ${result.url}.`, "ok");
       } else {
         setStatus(result.error ?? "Could not reach that address.", "error");
       }
@@ -341,15 +347,24 @@
       const state = await bridge.state();
       if (state === null) throw new Error("Setup is not active");
       defaultLocalUrl = state.defaultLocalUrl;
-      if (state.saved !== null) {
+      // withJZ Crew: connecting to the server is the default; the local stack is opt-in.
+      const localStackEnabled = state.localStackEnabled === true;
+      choiceNew.hidden = !localStackEnabled;
+      modeNew.disabled = !localStackEnabled;
+      if (state.saved !== null && (state.saved.mode === "existing" || localStackEnabled)) {
         const modeInput = document.querySelector(`input[name="mode"][value="${state.saved.mode}"]`);
         if (modeInput !== null) modeInput.checked = true;
         if (state.saved.mode === "existing") serverUrl.value = state.saved.serverUrl;
+      } else {
+        modeExisting.checked = true;
+      }
+      if (serverUrl.value === "" && typeof state.defaultServerUrl === "string") {
+        serverUrl.value = state.defaultServerUrl;
       }
       // A relaunch with the stack down starts it before this window opens; show that
       // attempt instead of the saved mode, and follow it while it is still running.
       const stack = await bridge.stack.state();
-      const attached = stack !== null && stack.phase !== "idle";
+      const attached = localStackEnabled && stack !== null && stack.phase !== "idle";
       if (attached) document.getElementById("mode-new").checked = true;
       syncPanels();
       if (state.error) setStatus(state.error, "error");
@@ -362,7 +377,7 @@
         continueButton.focus();
       }
     } catch {
-      setStatus("Setup could not start. Quit Rakazo and try again.", "error");
+      setStatus(`Setup could not start. Quit ${PRODUCT} and try again.`, "error");
       setBusy(true);
     }
   }
