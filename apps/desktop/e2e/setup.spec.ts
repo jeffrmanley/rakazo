@@ -248,6 +248,43 @@ test("an HTTP error document is not accepted after a healthy probe", async () =>
   }
 });
 
+test("Check connection reports app pages that fail even when health passes", async () => {
+  // eu-2, 2026-11-17: /rpc/health (api) answered while every page was 502 (web-app down), so
+  // Check connection said OK and only Continue failed.
+  const halfUp = createServer((request, response) => {
+    if (request.url === "/rpc/health" && request.method === "POST") {
+      response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      response.end(JSON.stringify({ json: { ok: true, version: "0.1.0" } }));
+      return;
+    }
+    response.writeHead(502, { "content-type": "text/html; charset=utf-8" });
+    response.end("<!doctype html><html><body><h1>Bad gateway</h1></body></html>");
+  });
+  await new Promise<void>((resolve) => halfUp.listen(0, "127.0.0.1", resolve));
+  const address = halfUp.address();
+  if (address === null || typeof address === "string") throw new Error("server has no port");
+
+  try {
+    app = await launch();
+    const setup = await app.firstWindow();
+    await setup.getByRole("radio", { name: /Existing instance/ }).check();
+    await setup.locator("#server-url").fill(`http://127.0.0.1:${address.port}`);
+    await setup.getByRole("button", { name: "Check connection" }).click();
+
+    await expect(setup.locator("#status")).toHaveAttribute("data-tone", "error");
+    await expect(setup.locator("#status")).toHaveText(
+      "The server is up, but its app pages failed to load. The server answered with HTTP 502.",
+    );
+    await expect(async () => {
+      await expect(readFile(path.join(userData, "setup.json"), "utf8")).rejects.toThrow();
+    }).toPass();
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      halfUp.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+});
+
 test("a session-pending shell skeleton is not accepted as a ready app", async () => {
   const skeletonHtml = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Rakazo</title></head>
 <body><div id="root"><div data-rakazo-app-state="session-pending"><aside></aside><main><div>Opening your Space…</div></main></div></div></body></html>`;

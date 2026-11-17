@@ -1196,7 +1196,17 @@ app.whenReady().then(async () => {
   ipcMain.handle("desktop.setup.test", async (event, url: unknown) => {
     if (!fromSetupWindow(event)) return { ok: false, error: "Setup is not active." };
     if (typeof url !== "string") return { ok: false, error: "Enter a server address." };
-    return probeServer(url);
+    const reachability = await probeServer(url);
+    if (!reachability.ok || reachability.url === undefined) return reachability;
+    // Health comes from the api; the pages come from the web front end. Check both, so the
+    // check cannot pass while Continue fails (eu-2 2026-11-17: health 200, every page 502).
+    const pageError = await probeDocument(reachability.url);
+    if (pageError === null) return reachability;
+    return {
+      ...reachability,
+      ok: false,
+      error: `The server is up, but its app pages failed to load. ${pageError}`,
+    };
   });
 
   ipcMain.handle("desktop.setup.save", async (event, payload: unknown) => {
