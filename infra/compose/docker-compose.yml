@@ -1,5 +1,6 @@
 services:
   postgres:
+    restart: unless-stopped
     image: ${POSTGRES_IMAGE:-postgres:16}
     environment:
       # USER/PASSWORD/DB apply only on first pgdata init. Keep existing values in
@@ -17,6 +18,7 @@ services:
       retries: 20
 
   supervisor:
+    restart: unless-stopped
     build:
       context: ../..
       dockerfile: infra/sandboxes/supervisor/Dockerfile
@@ -66,6 +68,7 @@ services:
       - ../../data:/data
 
   api:
+    restart: unless-stopped
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile
@@ -116,6 +119,7 @@ services:
         condition: service_completed_successfully
 
   worker:
+    restart: unless-stopped
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile
@@ -165,6 +169,7 @@ services:
   # HSTS, nosniff, ...) and proxying /api and /rpc to the api and the Node routes to web-app
   # (infra/compose/Caddyfile.web). Plain HTTP on 5173; TLS terminates in front of it.
   web:
+    restart: unless-stopped
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile
@@ -190,6 +195,7 @@ services:
   # proxy (/novnc/), the desktop stack probe and index.html under the runtime brand. It is the
   # container the supervisor joins to bot networks (SANDBOX_SCREEN_PEER_SERVICE).
   web-app:
+    restart: unless-stopped
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile
