@@ -17,6 +17,7 @@ export * from "./ext-emergency-stop.js";
 export * from "./external-conversations.js";
 export * from "./groups.js";
 export * from "./history-retrieval.js";
+export * from "./host-computer.js";
 export * from "./memory-config.js";
 export * from "./messages.js";
 export * from "./messaging.js";

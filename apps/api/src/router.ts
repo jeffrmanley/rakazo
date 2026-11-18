@@ -186,6 +186,7 @@ import {
   formatMessagingLinkCode,
   getAuditWriter,
   homeMessagingIdentity,
+  hostComputerAllowed,
   InvalidSpaceNameError,
   IsolationError,
   issueMessagingLinkCode,
@@ -240,6 +241,11 @@ import {
 } from "./computer-status.js";
 import type { ApprovalService } from "./ext-approvals.js";
 import { assertPremiumModelAllowed } from "./ext-budgets.js";
+import {
+  canChooseHostComputer,
+  computerHostFor,
+  hostComputerRefusal,
+} from "./host-computer-choice.js";
 import { searchIntegrationCatalog } from "./integration-catalog.js";
 import {
   dismissMcpServerApprovals,
@@ -1072,11 +1078,14 @@ export function createRouter(deps: RouterDeps) {
           });
           throw new ORPCError("FORBIDDEN");
         }
-        if (input.computerHost === "this-mac" && deps.env.sandboxProvider !== "docker") {
-          throw new ORPCError("BAD_REQUEST", {
-            message:
-              "This Mac mode is only available when SANDBOX_PROVIDER=docker on a personal local app.",
-          });
+        const hostRefusal = hostComputerRefusal(
+          input.computerHost,
+          deps.env.sandboxProvider,
+          hostComputerAllowed(),
+        );
+        if (hostRefusal !== null) {
+          getLogger().warn("host computer choice refused", { "user.id": context.actor.userId });
+          throw new ORPCError("BAD_REQUEST", { message: hostRefusal });
         }
         if (input.require2faForAll !== undefined) {
           await setRequire2faForAll(deps.prisma, context.actor, input.require2faForAll);
@@ -6412,8 +6421,16 @@ async function meDto(deps: RouterDeps, actor: Actor): Promise<Me> {
         Boolean(deps.env.deploymentModelHostCredentials),
       deps.env.defaultProvider,
     ),
-    computerHost: computerHostFor(setup.settings?.computerHost, deps.env.sandboxProvider),
-    canChooseHostComputer: actor.isDeploymentOwner && deps.env.sandboxProvider === "docker",
+    computerHost: computerHostFor(
+      setup.settings?.computerHost,
+      deps.env.sandboxProvider,
+      hostComputerAllowed(),
+    ),
+    canChooseHostComputer: canChooseHostComputer({
+      isOwner: actor.isDeploymentOwner,
+      sandboxProvider: deps.env.sandboxProvider,
+      allowHost: hostComputerAllowed(),
+    }),
     sandboxProvider: deps.env.sandboxProvider,
     avatarStyle: user.avatarStyle === "organic" ? "organic" : "robot",
     billingEnabled: Boolean(deps.billing) && !actor.isDeploymentOwner,
@@ -6760,21 +6777,16 @@ async function deploymentDto(prisma: PrismaClient, sandboxProvider: string) {
     hasDeploymentModelCredential: Boolean(settings?.deploymentModelCredentialCipher),
     defaultProvider: settings?.defaultModelProvider ?? null,
     defaultModel: settings?.defaultModelId ?? null,
-    computerHost: computerHostFor(settings?.computerHost, sandboxProvider),
-    canChooseHostComputer: sandboxProvider === "docker",
+    computerHost: computerHostFor(settings?.computerHost, sandboxProvider, hostComputerAllowed()),
+    // Only the owner reads deployment settings (checked by the callers).
+    canChooseHostComputer: canChooseHostComputer({
+      isOwner: true,
+      sandboxProvider,
+      allowHost: hostComputerAllowed(),
+    }),
     sandboxProvider,
     require2faForAll: settings?.require2faForAll ?? false,
   };
-}
-
-function computerHostFor(
-  stored: string | null | undefined,
-  sandboxProvider: string,
-): "docker" | "this-mac" | null {
-  if (sandboxProvider === "desktop") return "this-mac";
-  if (sandboxProvider !== "docker") return null;
-  if (stored === "this-mac" || stored === "docker") return stored;
-  return null;
 }
 
 async function persistModelCredential(

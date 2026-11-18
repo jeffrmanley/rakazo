@@ -136,11 +136,24 @@ describe("host-aware sandbox", () => {
     await desktop.destroy(computer, ctx);
   });
 
-  it("only switches docker deployments onto this Mac", () => {
-    expect(sandboxKindForBot("docker", "this-mac")).toBe("desktop");
-    expect(sandboxKindForBot("docker", "docker")).toBe("docker");
-    expect(sandboxKindForBot("e2b", "this-mac")).toBe("e2b");
-    expect(sandboxKindForBot("fake", "this-mac")).toBe("fake");
+  it("only switches docker deployments onto this Mac when the host is allowed", () => {
+    expect(sandboxKindForBot("docker", "this-mac", true)).toBe("desktop");
+    expect(sandboxKindForBot("docker", "docker", true)).toBe("docker");
+    expect(sandboxKindForBot("e2b", "this-mac", true)).toBe("e2b");
+    expect(sandboxKindForBot("fake", "this-mac", true)).toBe("fake");
+  });
+
+  it("keeps a stored this-mac choice in Docker unless ALLOW_HOST_COMPUTER=1", () => {
+    const previous = process.env.ALLOW_HOST_COMPUTER;
+    try {
+      delete process.env.ALLOW_HOST_COMPUTER;
+      expect(sandboxKindForBot("docker", "this-mac")).toBe("docker");
+      process.env.ALLOW_HOST_COMPUTER = "1";
+      expect(sandboxKindForBot("docker", "this-mac")).toBe("desktop");
+    } finally {
+      if (previous === undefined) delete process.env.ALLOW_HOST_COMPUTER;
+      else process.env.ALLOW_HOST_COMPUTER = previous;
+    }
   });
 
   it("forwards pageBrowser to the routed provider", async () => {

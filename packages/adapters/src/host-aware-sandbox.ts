@@ -12,13 +12,16 @@ import type {
   ScreenRequest,
   TerminalRequest,
 } from "@rakazo/adapter-kit";
-import type { PrismaClient } from "@rakazo/db";
+import { hostComputerAllowed, type PrismaClient, sandboxKindFor } from "@rakazo/db";
 import { DesktopSandboxProvider } from "./desktop-sandbox.js";
 import { createSandboxProvider, type SandboxProviderOptions } from "./sandbox-factory.js";
 
-export function sandboxKindForBot(envKind: string, computerHost: string | null | undefined) {
-  if (envKind === "docker" && computerHost === "this-mac") return "desktop";
-  return envKind;
+export function sandboxKindForBot(
+  envKind: string,
+  computerHost: string | null | undefined,
+  allowHost: boolean = hostComputerAllowed(),
+) {
+  return sandboxKindFor(envKind, computerHost, allowHost);
 }
 
 export function createRunSandbox(
@@ -43,7 +46,8 @@ export function createRunSandbox(
       const settings = await opts.prisma!.deploymentSettings.findUnique({
         where: { id: "default" },
       });
-      return settings?.computerHost === "this-mac";
+      // The gate is checked on every provision, so a stored choice cannot bypass it.
+      return hostComputerAllowed() && settings?.computerHost === "this-mac";
     },
   );
 }
